@@ -28,6 +28,24 @@ import { type useProfilePokes } from "./useProfilePokes";
 type ProfilePokes = ReturnType<typeof useProfilePokes>;
 
 /**
+ * The banner is drawn at the page column's width and used to download the 1920px
+ * original to do it — 2,662,379 bytes, measured, behind a 356px picture. `srcset` is the
+ * platform's own answer to a box whose width follows the viewport: no measurement in JS,
+ * no resize listener, and it survives a rotation. The rungs are the server's
+ * (`api/mediaSizes.ts`, W2); the four here are the ones a 16:9 banner can reach.
+ *
+ * `sizes` deliberately **over**-states, because the two errors are not symmetrical: one
+ * that is too small picks a rung that is too small and the banner is blurry, while one
+ * that is too large costs exactly one rung. Measured widths of the `<img>` itself, with
+ * the sidebar expanded: 286 / 356 / 396 at 320 / 390 / 430 (viewport − 34, the card's
+ * two 1px borders included), 598 / 726 / 858 at 640 / 768 / 900 (viewport − 42), and
+ * 734 / 990 / 1102 at 1024 / 1280 / 1440+, where `max-w-6xl` caps it. Anyone who changes
+ * the page column (`--page-pad-x`, `max-w-6xl`, the `w-60` sidebar) changes these.
+ */
+const BANNER_WIDTHS = [384, 768, 1152, 1536] as const;
+const BANNER_SIZES = "(min-width: 1024px) 1104px, (min-width: 640px) calc(100vw - 40px), calc(100vw - 32px)";
+
+/**
  * Profile identity header: banner, avatar, name + cup badges, guestbook/poke
  * counts, unread notification lines, the anpöbeln button, and (own profile)
  * the avatar/header editors. Owns avatar/header upload mutations + lightboxes.
@@ -82,6 +100,10 @@ export default function ProfileHeader({
 
   const avatarImageSrc = avatarUpdatedAt ? playerAvatarUrl(targetPlayerId, avatarUpdatedAt) : null;
   const headerUpdatedAt = headerUpdatedAtByPlayerId.get(targetPlayerId) ?? profileHeaderUpdatedAt ?? null;
+  // The **original**, and only ever that: it feeds the lightbox, which zooms to 6x, and
+  // the "is there one at all" questions below. The drawn banner asks for a rung instead
+  // (`BANNER_WIDTHS`) — the picture on the page and the picture you open are two
+  // different URLs, deliberately.
   const headerImageSrc = headerUpdatedAt ? playerHeaderImageUrl(targetPlayerId, headerUpdatedAt) : null;
 
   const { unreadPokeCount, unreadPokeAuthorsText, totalPokeCount, canPokeAsActor, pokeFlashKind, pokeMut, markPokesReadAllMut } =
@@ -169,11 +191,14 @@ export default function ProfileHeader({
           {headerImageSrc ? (
             <button type="button" className="block w-full" onClick={() => setHeaderLightboxSrc(headerImageSrc)} title="Open header image">
               <img
-                src={headerImageSrc}
+                src={playerHeaderImageUrl(targetPlayerId, headerUpdatedAt, 1152)}
+                srcSet={BANNER_WIDTHS.map((w) => `${playerHeaderImageUrl(targetPlayerId, headerUpdatedAt, w)} ${w}w`).join(", ")}
+                sizes={BANNER_SIZES}
                 alt=""
                 className="w-full object-cover aspect-[16/9] cursor-zoom-in"
                 loading="lazy"
                 decoding="async"
+                data-profile-banner
               />
             </button>
           ) : (

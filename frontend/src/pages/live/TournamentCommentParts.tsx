@@ -12,6 +12,23 @@ import { fmtCount, fmtTs } from "../../utils/format";
 import type { CommentAuthor, TournamentComment } from "./tournamentCommentTypes";
 
 /**
+ * A picture in the feed is drawn at the comment column's width, and used to download the
+ * original to do it: the three images on tournament 8 are 3,461,835 / 158,952 / 2,208,930
+ * bytes and are drawn 292px wide on a phone (measured). The `srcset` treatment is the
+ * banner's, for the same reason — this box follows the viewport, so there is no single
+ * rung to ask for. Measured widths of the `<img>` itself: 222 / 292 / 332 at 320 / 390 /
+ * 430 (viewport − 98), 534 / 662 / 794 at 640 / 768 / 900 (viewport − 106), and
+ * 670 / 926 / 1038 at 1024 / 1280 / 1440+, where the page column caps it. `sizes`
+ * over-states each of those by 2px, because too small is a blurry picture and too large
+ * costs one rung.
+ *
+ * The lightbox this picture opens keeps the **original**, with no `w=` at all: it zooms,
+ * and that is the full-size use.
+ */
+const COMMENT_IMAGE_WIDTHS = [384, 768, 1152, 1536] as const;
+const COMMENT_IMAGE_SIZES = "(min-width: 1024px) 1040px, (min-width: 640px) calc(100vw - 104px), calc(100vw - 96px)";
+
+/**
  * Shared/stable card-level values for rendering a comment: the viewer's
  * permissions, the shared draft/reply/edit state, and the callbacks a card
  * can trigger. Bundled into one object (built once via useMemo in
@@ -320,11 +337,14 @@ export function CommentCard({
                 title="Open image"
               >
                 <img
-                  src={commentImageUrl(c.id, c.imageUpdatedAt)}
+                  src={commentImageUrl(c.id, c.imageUpdatedAt, 1152)}
+                  srcSet={COMMENT_IMAGE_WIDTHS.map((w) => `${commentImageUrl(c.id, c.imageUpdatedAt, w)} ${w}w`).join(", ")}
+                  sizes={COMMENT_IMAGE_SIZES}
                   alt=""
                   className="w-full rounded-xl object-cover aspect-[4/3] cursor-zoom-in"
                   loading="lazy"
                   decoding="async"
+                  data-comment-image
                 />
               </button>
             </div>

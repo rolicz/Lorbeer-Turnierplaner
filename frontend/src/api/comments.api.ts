@@ -1,4 +1,5 @@
 import { apiFetch, apiUpload, mediaUrl } from "./client";
+import type { MediaWidth } from "./mediaSizes";
 import type {
   TournamentCommentsResponse,
   TournamentCommentsSummary,
@@ -94,8 +95,9 @@ export function deleteComment(token: string, commentId: number) {
   return apiFetch(`/comments/${commentId}`, { method: "DELETE", token });
 }
 
-export function commentImageUrl(commentId: number, updatedAt?: string | null): string {
-  return mediaUrl(`/comments/${commentId}/image`, updatedAt);
+/** `width` is the rung the feed draws the picture at (W3); omit it for the original. */
+export function commentImageUrl(commentId: number, updatedAt?: string | null, width?: MediaWidth | null): string {
+  return mediaUrl(`/comments/${commentId}/image`, updatedAt, width);
 }
 
 export async function putCommentImage(

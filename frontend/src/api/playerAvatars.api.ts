@@ -1,4 +1,5 @@
 import { apiFetch, apiUpload, mediaUrl } from "./client";
+import type { MediaWidth } from "./mediaSizes";
 
 export type PlayerAvatarMeta = { player_id: number; updated_at: string };
 
@@ -6,8 +7,9 @@ export function listPlayerAvatarMeta(): Promise<PlayerAvatarMeta[]> {
   return apiFetch(`/players/avatars`, { method: "GET" });
 }
 
-export function playerAvatarUrl(playerId: number, updatedAt?: string | null): string {
-  return mediaUrl(`/players/${playerId}/avatar`, updatedAt);
+/** `width` is the rung the disc is drawn at (W2); omit it for the original file. */
+export function playerAvatarUrl(playerId: number, updatedAt?: string | null, width?: MediaWidth | null): string {
+  return mediaUrl(`/players/${playerId}/avatar`, updatedAt, width);
 }
 
 export async function putPlayerAvatar(

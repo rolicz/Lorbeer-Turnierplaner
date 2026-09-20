@@ -1,4 +1,5 @@
 import { apiFetch, mediaUrl } from "./client";
+import type { MediaWidth } from "./mediaSizes";
 import type {
   GuestbookSubjectKind,
   Player,
@@ -162,10 +163,15 @@ export function createPlayerGuestbookEntry(
 /**
  * The pinned copy an entry is about — never the live picture, which may have been
  * replaced since. The snapshot is immutable and its URL carries its id, so `capturedAt`
- * is only the `?v=` habit every other media URL here keeps.
+ * is only the `?v=` habit every other media URL here keeps. `width` is the rung the
+ * citation thumbnail is drawn at (W2); omit it for the full snapshot.
  */
-export function guestbookSubjectImageUrl(snapshotId: number, capturedAt?: string | null): string {
-  return mediaUrl(`/players/guestbook-subjects/${snapshotId}/image`, capturedAt);
+export function guestbookSubjectImageUrl(
+  snapshotId: number,
+  capturedAt?: string | null,
+  width?: MediaWidth | null,
+): string {
+  return mediaUrl(`/players/guestbook-subjects/${snapshotId}/image`, capturedAt, width);
 }
 
 export function editPlayerGuestbookEntry(

@@ -4,7 +4,7 @@ import logging
 import re
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
@@ -51,9 +51,9 @@ from ..services.file_storage import (
     delete_media,
     media_exists,
     media_path_for_comment,
-    read_media,
     upsert_media_row,
 )
+from ..services.media_derivatives import MediaWidthParam, media_response, version_token
 from ..services.notifications import enqueue_global_push, localized_push_message
 
 log = logging.getLogger(__name__)
@@ -682,7 +682,10 @@ async def delete_comment(
 
 
 @router.get("/comments/{comment_id}/image")
-def get_comment_image(comment_id: int):
+def get_comment_image(
+    comment_id: int,
+    w: MediaWidthParam = None,
+):
     with Session(get_engine()) as s:
         get_or_404(s, Comment, comment_id, name="Comment")
         img_file = s.get(CommentImageFile, comment_id)
@@ -690,13 +693,16 @@ def get_comment_image(comment_id: int):
             raise HTTPException(status_code=404, detail="Comment image not found")
         content_type = img_file.content_type
         file_path = img_file.file_path
+        updated_at = img_file.updated_at
 
-    data = read_media(file_path)
-    if data is None:
-        raise HTTPException(status_code=404, detail="Comment image file missing")
-
-    headers = {"Cache-Control": "public, max-age=604800"}
-    return Response(content=data, media_type=content_type, headers=headers)
+    return media_response(
+        source_rel_path=file_path,
+        content_type=content_type,
+        token=version_token(updated_at),
+        width=w,
+        cache_control="public, max-age=604800",
+        missing="Comment image file missing",
+    )
 
 
 @router.put("/comments/{comment_id}/image", response_model=CommentOut)

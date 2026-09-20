@@ -25,7 +25,8 @@
 
 Roli, verbatim: *"can you pre-compute smaller sizes on server -> then serve whats requested
 (needed)"*. Asked how wide to scope it he chose **all media — avatars, header images and
-guestbook subject snapshots**.
+guestbook subject snapshots**; asked about comment images once the plan was written he added
+them too (*"yeah comment images as well, go"*, 2026-09-20), so the families are **four**.
 
 Today every media file is served whole, whatever it is drawn at. There is one endpoint per
 family, it reads the row, it reads the file, it returns the bytes. A 512×512 avatar is 319–502 KB
@@ -43,7 +44,7 @@ is production's media plus this branch's own writes:
 | `profile_headers/` | 4 | **7.17 MB** (524 – 2,940 KB) | 1920×1080 | **yes** |
 | `guestbook_subjects/` | 4 | **6.21 MB** | 2×1920×1080, 2×512×512 | **yes** |
 | `club_crests/` | 591 | 21 MB | 200 px | **no — see below** |
-| `comments/` | 6 | 17 MB | — | no (not in Roli's scope) |
+| `comments/` | 6 | **17 MB** | — | **yes** (added 2026-09-20) |
 | whole `uploads/` | | 53 MB | | |
 
 **Crests are deliberately excluded, and the next reader should not re-propose them.** They are
@@ -51,9 +52,10 @@ is production's media plus this branch's own writes:
 that corpus in September 2026 and **declined it** (`AGENTS.md` §11, "Club crests are 200px PNGs…
 Offered and **declined** (2026-09-16)"). Folding them in here would re-open a closed decision and
 would triple this batch's disk footprint for a corpus whose own measured answer was "palette PNG",
-not "resize". `comments/` is 17 MB over 6 files and is out because Roli named three families, not
-four; the module W1 builds takes a fourth family as **one more call site**, not a new code path,
-so adding it later is a small task and not a rewrite.
+not "resize". `comments/` is 17 MB over 6 files and **is in**: Roli added it after the plan was written,
+and it cost what this paragraph predicted — one more call site on the module W1 builds, not a new
+code path. W1 serves it; no frontend task in this batch asks a comment image for a width yet,
+so the saving on that family is waiting for a call site, not for a mechanism.
 
 ### What the saving actually is, on a real screen
 
@@ -123,7 +125,7 @@ cost is not a trade-off worth thinking about.
    | anything that knows where the media root is | `services/file_storage.py` — and **only** it (its `list_media` docstring already says so) | W1 extends it |
    | throwing a source's derivatives away | `services/media_derivatives.py::purge_derivatives`, called from `file_storage`'s two byte-changing paths | W1 |
    | the boot sweep | `sweep_orphan_derivatives()` from `init_db()`, the `sweep_orphan_subjects` shape | W1 |
-   | serving a media file, derived or not | `routers/players.py::_media_response` — one helper, all three endpoints | W1 |
+   | serving a media file, derived or not | `services/media_derivatives.py::media_response` — one helper, all four endpoints, across two routers | W1 |
    | which widths exist, in the browser | `frontend/src/api/mediaSizes.ts::MEDIA_WIDTHS`, typed `satisfies` the **generated** union so the two sides cannot drift | W2, **its first commit** |
    | "how many device pixels does this CSS box need" | `mediaSizes.ts::mediaWidthFor(cssPx)` | W2 |
    | reading an avatar's px out of its Tailwind size class | `mediaSizes.ts::avatarPxFromSizeClass` | W2 |
@@ -210,7 +212,8 @@ URLs distinct anyway).
 
 - **Pre-compute smaller sizes on the server and serve the one that is needed.** That is the whole
   batch.
-- **Scope: avatars, header images and guestbook subject snapshots.** Three families.
+- **Scope: avatars, header images and guestbook subject snapshots** — plus **comment images**,
+  added by Roli on 2026-09-20 (*"yeah comment images as well, go"*). Four families.
 - **Crests are out.** 591 files, 36 KB average, 21 MB; the re-encode was offered in September and
   declined. Do not fold them in and do not re-propose them here.
 
@@ -332,7 +335,7 @@ animation). Both fall through to the original. A source **already narrower than 
 rung** does the same, which is why `avatars/*` have no rung above 384 in the table above and
 `w=768` on an avatar simply returns the 512-wide original.
 
-**5. The wire: one optional `?w=` on each of the three endpoints, riding beside the existing
+**5. The wire: one optional `?w=` on each of the four endpoints, riding beside the existing
 `?v=`, with the source's own cache headers.**
 
 ```
@@ -340,6 +343,7 @@ GET /players/{player_id}/avatar?v=<updated_at>&w=256        → image/webp, Cach
 GET /players/{player_id}/header-image?v=<updated_at>&w=1152 → image/webp, Cache-Control: public, max-age=604800
 GET /players/guestbook-subjects/{id}/image?v=<captured_at>&w=256
                                                             → image/webp, Cache-Control: public, max-age=31536000, immutable
+GET /comments/{comment_id}/image?v=<updated_at>&w=384       → image/webp, Cache-Control: public, max-age=604800
 ```
 
 **A derivative is exactly as cacheable as its source** — same header, byte for byte, because the
@@ -407,7 +411,7 @@ still renders after this batch even if Pillow hates it.
 
 | # | ID | Title | Files (disjoint per parallel group) | Runs |
 |---|----|-------|-------------------------------------|------|
-| 1 | W1 | Pillow, the derived cache, and `?w=` on the three media endpoints | `backend/requirements.txt`, `backend/app/services/media_derivatives.py` (new), `backend/app/services/file_storage.py`, `backend/app/routers/players.py`, `backend/app/db.py`, `backend/tests/test_media_derivatives.py` (new), `frontend/src/api/generated/schema.d.ts` | **first, alone** |
+| 1 | W1 | Pillow, the derived cache, and `?w=` on the four media endpoints | `backend/requirements.txt`, `backend/app/services/media_derivatives.py` (new), `backend/app/services/file_storage.py`, `backend/app/routers/players.py`, `backend/app/routers/comments.py`, `backend/app/db.py`, `backend/tests/test_media_derivatives.py` (new), `frontend/src/api/generated/schema.d.ts` | **first, alone** |
 | 2 | W2 | The one place the browser asks for a size | `frontend/src/api/mediaSizes.ts` (new, **first commit**), `frontend/src/api/client.ts` (**first commit**), `frontend/src/api/playerAvatars.api.ts` (**first commit**), `frontend/src/api/playerHeaders.api.ts` (**first commit**), `frontend/src/api/players.api.ts` (**first commit**), `frontend/src/ui/primitives/AvatarCircle.tsx`, `frontend/src/test/mediaSizes.test.ts` (new), `frontend/src/test/avatarMediaWidth.test.tsx` (new) | second; group A after its first commit |
 | 3 | W3 | The two big pictures: the banner and the citation thumbnail | `frontend/src/pages/profile/ProfileHeader.tsx`, `frontend/src/pages/profile/GuestbookEntryCard.tsx`, `frontend/src/test/profileBannerSizes.test.tsx` (new), `frontend/src/test/subjectCitationWidth.test.tsx` (new) | group A |
 | 4 | W4 | Documentation pass | `AGENTS.md`, `DESIGN.md`, this file | last |
@@ -426,11 +430,11 @@ first commit is in.
 
 ---
 
-## W1 — Pillow, the derived cache, and `?w=` on the three media endpoints  ☐
+## W1 — Pillow, the derived cache, and `?w=` on the four media endpoints  ☑
 
-**The gap.** `routers/players.py::get_player_avatar` (`:376`), `get_player_header_image` (`:446`)
-and `get_guestbook_subject_image` (`:462`) each read a row, `read_media` the file and return every
-byte of it; `services/file_storage.py` has five path builders, `read_media`, `list_media`,
+**The gap.** `routers/players.py::get_player_avatar` (`:376`), `get_player_header_image` (`:446`),
+`get_guestbook_subject_image` (`:462`) and `routers/comments.py::get_comment_image` (`:684`) each
+read a row, `read_media` the file and return every byte of it; `services/file_storage.py` has five path builders, `read_media`, `list_media`,
 `media_exists`, `write_media`, `delete_media` and `upsert_media_row`, and nothing that resizes
 anything; `backend/requirements.txt` has no image library.
 
@@ -496,7 +500,7 @@ committed. Every later worker in this batch does the same.
    never reaches here at all (FastAPI rejects it).
    """
 
-   #: The only widths that exist. Spelled once, here. The three endpoints annotate `w` with
+   #: The only widths that exist. Spelled once, here. The four endpoints annotate `w` with
    #: `MediaWidth`, FastAPI publishes it as an OpenAPI enum, and the browser's ladder is
    #: `satisfies` the generated union — so the two sides cannot drift apart.
    MEDIA_WIDTHS: tuple[int, ...] = (64, 128, 256, 384, 768, 1152, 1536)
@@ -552,8 +556,10 @@ committed. Every later worker in this batch does the same.
    Log a `log.warning` — never raise — when Pillow refuses a source, naming the path, because a
    picture the app cannot resize is worth knowing about even though it still renders.
 
-4. **`routers/players.py`** — one helper and three three-line edits. Import `MediaWidth`,
-   `DERIVED_CONTENT_TYPE`, `derived_bytes`, `version_token` from the new service.
+4. **`routers/players.py` and `routers/comments.py`** — one helper and four three-line edits.
+   Import `MediaWidthParam`, `media_response` and `version_token` from the new service. The helper
+   itself lives **in the service**, not in a router, because the fourth family is in the other
+   router and a router that imports a router is how one mechanism becomes two.
    ```python
    def _media_response(*, source_rel_path: str, content_type: str, token: str, width: int | None,
                        cache_control: str, missing: str) -> Response:
@@ -608,7 +614,7 @@ committed. Every later worker in this batch does the same.
 6. **`backend/tests/test_media_derivatives.py` (new)** — the conftest already puts `UPLOADS_DIR`
    in `tmp_path`, so these write nowhere real. At least:
    - `w` omitted → the original bytes, the source's content type, the source's `Cache-Control`
-     (all three endpoints);
+     (all four endpoints);
    - `w=128` on an uploaded 512×512 PNG avatar → **200**, `content-type: image/webp`, fewer bytes
      than the source, and `Image.open(...)` on the body reports width 128;
    - the same request twice → identical bytes and the cache file exists on disk after the first;
@@ -630,7 +636,7 @@ committed. Every later worker in this batch does the same.
      with an mtime older than its source, are both removed; a second call returns 0.
 
 **Definition of done.**
-- `?w=` exists on all three endpoints, typed so that only the seven rungs parse.
+- `?w=` exists on all four endpoints, typed so that only the seven rungs parse.
 - No table, no column, no `_RUNTIME_COLUMNS` entry, no `create_all` change. `git diff` touches
   `backend/app/models.py` **not at all**.
 - On the isolated stack (`:8151`, DB copy, uploads copy **outside the repo**), record in
@@ -661,17 +667,160 @@ key yet).
 - §4/§7: `uploads/derived/` is a **cache** — inside the bind mount because it holds files, safe to
   delete at any time, regenerated on demand, never backed up on its own account.
 - §5 media: the derived path shape and the version token; **no schema change at all**.
-- §6 API: `?w=` on the three media GETs, seven rungs, 422 off-ladder, WebP out, the source's own
-  `Cache-Control` on the derivative, and the rule that every failure serves the original.
+- §6 API: `?w=` on the **four** media GETs (avatar, header image, guestbook subject snapshot,
+  comment image), seven rungs, 422 off-ladder, WebP out, the source's own `Cache-Control` on the
+  derivative, and the rule that every failure serves the original.
 - §9: Pillow is the first image dependency, the plan said so, and why (wheels on both targets).
 - §10: `make test` fails with `ModuleNotFoundError: No module named 'PIL'` until the venv is
   re-installed — the one manual step on this machine.
 
 **Deviations:**
 
+- **Comment images are in** (Roli, 2026-09-20, after the plan was written: *"yeah comment images as
+  well, go"*). `GET /comments/{comment_id}/image` is the fourth family and it cost exactly what
+  this plan predicted for it — **one more call site**, no new code path: the same `media_response`,
+  and its purges come free, because `_upsert_comment_image_file` already goes through
+  `upsert_media_row` and the image DELETE through `delete_media`, which are the two paths W1 hangs
+  the purge on. The four places that said "out of scope" are corrected above (the corpus table, the
+  prose under it, the decisions list and "Decisions still needed" item 3). **Crests stay out** — that
+  decision is Roli's, from 2026-09-16, and this batch does not reopen it.
+- **`Optional[Literal[64, …]]` alone rejects every single request, and that is a bug in this plan,
+  not a preference.** Measured before anything was built on it: with `w: MediaWidth | None =
+  Query(None)`, `?w=128` answers **422** — `{"type":"literal_error","input":"128"}`. A query value
+  is always a string, and pydantic v2 coerces a string into an `int` but **not** into an int
+  `Literal`. The fix is the smallest thing that keeps every promise the plan makes about the wire:
+  ```python
+  MediaWidthParam = Annotated[MediaWidth | None, BeforeValidator(_width_from_query), Query(description=…)]
+  ```
+  spelled once in `media_derivatives.py` and used by all four endpoints, where `_width_from_query`
+  turns digits into an int and does nothing else — the `Literal` still does all the deciding.
+  **`Query` must sit inside the `Annotated`**: as a plain default (`w: MediaWidthParam =
+  Query(None, …)`) it silently replaces the validator and every request is a 422 again. Both
+  measured. The generated type is exactly what the plan predicted, so W2's spec stands unchanged:
+  `w?: (64 | 128 | 256 | 384 | 768 | 1152 | 1536) | null`. Off-ladder is still the framework's
+  answer, measured: `?w=137`, `?w=1920`, `?w=abc`, `?w=0` and `?w=` are all **422**, and nothing is
+  written under `derived/`.
+- **The one helper lives in the service, not in a router** — `media_derivatives.py::media_response`,
+  not `routers/players.py::_media_response`. The fourth family is in `routers/comments.py`, and a
+  router importing another router is how one mechanism quietly becomes two.
+- **EXIF orientation is applied** (`ImageOps.exif_transpose`), which the plan does not mention
+  because it was written for avatars and headers — both of which arrive from the frontend's crop
+  editor as a canvas re-encode with no EXIF at all. A comment image is a raw phone upload, the
+  browser rotates it when it draws the original, and a derivative that ignored the tag would be the
+  same picture lying on its side.
+- **Three small shapes the plan did not spell**, each written down because a later reader would
+  otherwise have to re-derive them: `purge_derivatives` is a **no-op for a path already under
+  `derived/`** (a derivative has no derivatives — that is what keeps the sweep's own deletes from
+  recursing through `delete_media`); `file_storage` got a private `_purge_derivatives` wrapper, so
+  the lazy import that breaks the cycle is written once instead of at both call sites; and the sweep
+  removes a source's **empty directory** as well as its stale files, so a second sweep has nothing
+  to look at. `derived_bytes` also returns None when the source is *exactly* the requested width,
+  not only when it is narrower, and `version_token(None)` is `"0"` (no row in the app has a null
+  timestamp; it is there so a future one cannot 500).
+
+**Measured on the isolated stack** (`:8151`, `backend/data/verify-w1.db`, an uploads copy **outside
+the repo**; real dev media, which is production's):
+
+| request | bytes | content-type | `Cache-Control` |
+|---|---|---|---|
+| `/players/1/avatar` | 326,702 | image/png | `public, max-age=604800` |
+| `…?w=64` | **1,060** | image/webp | `public, max-age=604800` |
+| `…?w=128` | **2,430** | image/webp | `public, max-age=604800` |
+| `…?w=256` | **5,784** | image/webp | `public, max-age=604800` |
+| `…?w=768` | 326,702 | image/png | `public, max-age=604800` |
+| `/players/1/header-image` | 2,662,379 | image/png | `public, max-age=604800` |
+| `…?w=384` | **9,080** | image/webp | `public, max-age=604800` |
+| `…?w=768` | **21,930** | image/webp | `public, max-age=604800` |
+| `…?w=1152` | **40,178** | image/webp | `public, max-age=604800` |
+| `…?w=1536` | **55,868** | image/webp | `public, max-age=604800` |
+| `/players/guestbook-subjects/4/image` (a header pin) | 2,662,379 | image/png | `public, max-age=31536000, immutable` |
+| `…?w=256` | **4,926** | image/webp | `public, max-age=31536000, immutable` |
+| `/players/guestbook-subjects/5/image` (an avatar pin) | 326,702 | image/png | `public, max-age=31536000, immutable` |
+| `…?w=128` | **2,430** | image/webp | `public, max-age=31536000, immutable` |
+| `/comments/79/image` | 4,412,874 | image/png | `public, max-age=604800` |
+| `…?w=384` | **10,784** | image/webp | `public, max-age=604800` |
+| `…?w=768` | **29,488** | image/webp | `public, max-age=604800` |
+
+The `Cache-Control` column is the point of that table as much as the byte column: a derivative
+carries its source's header **byte for byte**, `immutable` included. `?w=768` on a 512 px avatar is
+the original, unchanged, at its own content type — never an upscale. The plan predicted 39.2 KB for
+the 1152 rung of `profile_headers/1.png` from a bench script; the endpoint served **40,178 bytes**,
+which is that same number to three figures.
+
+**Cold versus cached**, same stack, `make test` running on the same Pi at the time (so the cold
+numbers are if anything pessimistic): the 1152 rung **275 ms** cold, **3.5 ms** cached (3.50 / 3.50 /
+3.54 over three runs); an avatar's 128 rung **27.7 ms** cold, **3.5 ms** cached. Serving the 2.66 MB
+original from disk takes 5.5 ms locally — i.e. after the first request a rung is *faster* than the
+original as well as 66× smaller.
+
+**The whole cache, every rung of every file in all four families**: **116 files, 2,684,334 bytes**
+(`derived/avatars` 24 / 190,288 · `derived/profile_headers` 28 / 921,452 ·
+`derived/guestbook_subjects` 22 / 456,974 · `derived/comments` 42 / 1,115,620), built in **24 s**.
+The three families the plan costed come to **74 files / 1,568,714 bytes** against its predicted
+"1.43 MB over 74 files" — the file counts are exact, the bytes 7 % over. An avatar holds only four
+rungs (64–384) because 768 and up are wider than a 512 px source and return the original, exactly as
+§3's table says. On disk it looks like this, which is the shape one `purge_derivatives(rel_path)`
+serves for every family present and future:
+
+```
+derived/avatars/1.png/20260207224955205956-{64,128,256,384}.webp
+derived/profile_headers/1.png/20260214214546578278-{64,128,256,384,768,1152,1536}.webp
+derived/guestbook_subjects/4.png/20260919175011010559-{64,…,1536}.webp
+derived/comments/79.png/20260402213312392088-{64,…,1536}.webp
+```
+
+**The rollback claim, measured rather than asserted** (the K1/M2 method: `a0b1392` extracted with
+`git archive | tar -x` into a temp dir, so `.git` was never touched, and booted on the repo's own
+venv against the **same** DB copy and the **same** uploads copy the new code had already written
+116 derivatives into):
+
+- it boots clean — no new log line, because there is no schema change to absorb;
+- `GET /players/1/avatar` → **200**, `image/png`, md5 `50dd9d1e71cc2b09ba0cf58d20db5d36`,
+  **byte-identical to `avatars/1.png` on disk**;
+- `GET /players/1/avatar?w=128` → **200 and the original** (326,702 bytes, `image/png`, same md5):
+  old FastAPI ignores an unknown query parameter. **Confirmed, not assumed** — and so does
+  `?w=137`, which the new code 422s;
+- the header, the snapshot and the comment image answer the same way with `?w=`;
+- **`derived/` is untouched**: a `find … -printf "%P %s %T@"` manifest before and after is identical,
+  116 files, same sizes, same mtimes.
+
+Then the case the sweep exists for: **still rolled back**, an avatar was re-uploaded through the old
+code (Berni, player 4), which overwrote `avatars/4.png` in place and left its four cached rungs
+sitting there, now older than their own source. Booting the new code logged exactly
+**`Derived media swept: 4`**, removed the empty directory with them, and the next request re-derived
+on demand (200, `image/webp`, 3,546 bytes). A **third** boot printed no sweep line at all — a boot
+with nothing to do is silent, which is the other half of that DoD.
+
+**Pillow arrives as a wheel on both targets, measured.** On this Pi, `pip` took
+`pillow-12.3.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl` (6.3 MB, "Using
+cached", no compile), and `PIL.features.check("webp")` is `True`. For the production image
+(`python:3.11-slim`, Debian/glibc x86-64) PyPI carries
+`pillow-12.3.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl`, **6.93 MB** — so the
+deploy note's "expect a download, not a compile" is a fact about a file that exists, not a hope.
+**One side effect of Step 0 worth writing down**: `pip install -r requirements.txt` also installed
+**cryptography 45.0.7** (with cffi and pycparser), which `requirements.txt` has always listed but
+this venv did not have — that absence is what `AGENTS.md` §11 means by "no `cryptography` in the
+venv". Push still has no VAPID key here and still goes nowhere from this machine; the venv simply
+now matches the file it was installed from.
+
+**Gates, on the committed tree.** `make test` **303 passed** in 13:45 (the baseline 286 plus this
+task's 17; nothing pre-existing moved), `make lint` clean, `make gen-types` regenerated and then
+**idempotent** (a second run is a no-diff), `cd frontend && npm run check` **780 tests in 80 files**
+in 78 s — the baseline exactly, because nothing in the browser consumes the new key yet. Step 0's
+`pip install -r requirements.txt` is a venv change, not a tree change, and **every later worker in
+this batch owes it** or the suite dies on `ModuleNotFoundError: No module named 'PIL'`.
+
+**What W1 deliberately left.** No call site asks for a width yet — the browser half is W2 and W3,
+and until then `?w=` is a capability nobody uses, which is why `npm run check` is unchanged at
+780/80. **Comment images have no drawn-size call site in this batch at all**: the server serves them
+at any rung, and what the feed actually draws them at was never measured, so nobody should assume
+the 17 MB is saved until someone does. `/ideas/{id}/image` and `/clubs/{id}/crest` were **not**
+given `?w=` — the first is outside the plan, the second is Roli's closed decision. And nothing
+pre-warms the cache, as decided.
+
 ---
 
-## W2 — The one place the browser asks for a size  ☐
+## W2 — The one place the browser asks for a size  ☑
 
 **The gap.** `mediaUrl` (`api/client.ts:79`) takes a path and an `updatedAt` and nothing else;
 `playerAvatarUrl` (`api/playerAvatars.api.ts:9`), `playerHeaderImageUrl`
@@ -754,7 +903,8 @@ W3 waits for; it changes no pixel, because nothing passes a width yet):
 3. **The three helpers** gain `width?: MediaWidth | null` as a third parameter and forward it:
    `playerAvatarUrl`, `playerHeaderImageUrl`, `guestbookSubjectImageUrl`. Nothing else in those
    files moves. `clubCrestUrl` and `commentImageUrl` and `ideaImageUrl` are **not** touched —
-   crests and comment images are out of scope, and `mediaUrl`'s new parameter is optional.
+   crests are out of scope, and no task in this batch draws a comment image at a known size
+   (W1 serves `?w=` for them; nothing asks yet), and `mediaUrl`'s new parameter is optional.
 
 **The change — commit 2, `perf(W2): an avatar asks for the size it is drawn at`:**
 
@@ -810,9 +960,77 @@ W3 waits for; it changes no pixel, because nothing passes a width yet):
 
 **Deviations:**
 
+- **The module, `mediaUrl`, the three helpers, `AvatarCircle` and both tests shipped exactly as
+  specced**, in the two commits the plan asked for: `dc788fd` *feat(W2): the widths the browser may
+  ask for* (the mechanism W3 codes against — `mediaSizes.ts`, `client.ts`, the three api helpers;
+  no pixel moves, because nothing passes a width yet) and the commit this paragraph is in,
+  *perf(W2): an avatar asks for the size it is drawn at*. `MediaWidth` really is the generated
+  union and not `unknown`: probed with a throwaway `const bad: MediaWidth = 137`, which is
+  `TS2322`.
+- **The plan's own measuring recipe does not work against a vite dev server, and the next worker
+  should not reach for it.** The "Playwright note" says to read
+  `performance.getEntriesByType("resource")` and sum `transferSize`. Two things, both measured
+  here: media entries report **`transferSize: 0`**, because the API is a different origin and sends
+  no `Timing-Allow-Origin`; and the 250-entry resource-timing buffer is **full of ES modules**
+  before an avatar is ever requested, so Stats → Table reported **zero** avatar entries at all
+  while the screenshot plainly showed six. The numbers below were taken from `page.on("response")`
+  and each response's own `content-length` — the wire, not the timing API.
+- **A test that spells `/api` fails on this machine**: vitest *does* load `.env.local`, so during
+  `npm run check` `import.meta.env.VITE_API_BASE_URL` is the Pi's LAN address and `API_BASE` is
+  `http://192.168.178.78:8001`. `avatarMediaWidth.test.tsx` builds its expected `src` from
+  `API_BASE`; what it pins is everything after the base.
+- **Every avatar in the app parses today** — the `null` branch is a promise to the future, not a
+  live fallback. The size classes in use are `h-6/7/8/9/10/12/14/20` over 20 `<AvatarCircle>` and 5
+  `<AvatarButton>` call sites (`AvatarButton` forwards its own `className` as `sizeClass`, default
+  `h-9 w-9`), so nothing falls through to the original; `mediaSizes.test.ts` and
+  `avatarMediaWidth.test.tsx` pin the unparseable case instead.
+- **One arithmetic consequence W3 and W4 should know**: `mediaWidthFor` was built as specced —
+  the smallest rung `>= cssPx × dpr`, else `undefined` — so at **dpr 3** a 1104px desktop banner
+  needs 3,312 and gets `undefined`, i.e. the original. That is deliberate (§3's rung table caps
+  the banner at 1536 by *choosing* a rung, which is what `srcset` does per-candidate), and it is
+  why the banner must go through `srcset`/`sizes` rather than through one `mediaWidthFor` call.
+  No avatar can reach it: the largest disc is 80px, which is 240 at dpr 3.
+
+**Measured on the isolated stack** (`:8152`/`:8172`, `backend/data/verify-w2.db`, an uploads copy
+**outside the repo**; fresh browser context per row, so every row is a cold cache). Six avatars,
+the same six files each time; **both themes produced byte-identical numbers**, as they must — a
+theme cannot change a picture — so the theme column is folded:
+
+| screen | viewport / dpr | requests | total bytes | each carried |
+|---|---|---|---|---|
+| Stats → Table | 390 / dpr 3 | 6 | **2,168,688 → 19,098** (−99.1 %) | `w=128` |
+| Stats → Table | 1280 / dpr 2 | 6 | **2,168,688 → 7,420** (−99.7 %) | `w=64` |
+| Players | 390 / dpr 3 | 6 | **2,168,688 → 19,098** (−99.1 %) | `w=128` |
+| Players | 1280 / dpr 2 | 6 | **2,168,688 → 19,098** (−99.1 %) | `w=128` |
+
+The plan predicted 2,117 KB → 18.8 KB for the six `h-7` discs at 390/dpr 3; the wire says
+**2,118 KB → 18.7 KB**. Per file at `w=128`: 2,430 · 2,744 · 2,940 · 3,492 · 3,546 · 3,946 B; at
+`w=64`: 1,060 · 1,124 · 1,130 · 1,314 · 1,364 · 1,428 B. The Players page draws `h-10` (40px), so
+it asks for `w=128` at dpr 3 **and** at dpr 2 (80 → 128) — the one row where the desktop saves no
+more than the phone.
+
+**The pictures are the rung, and the rung is enough.** `naturalWidth` in the DOM is **128** at
+390/dpr 3 and **64** at 1280/dpr 2, against a drawn box of 26px (28px minus the 1px hairline ring
+on each side; 23px where a cup ring takes 2.5px) — 26 × 3 = 78 ≤ 128 and 26 × 2 = 52 ≤ 64, so no
+disc is upscaled, in either theme, at either width. Screenshots in both themes at both widths show
+sharp faces and untouched rings, and no page error was recorded on any of the eight runs.
+
+**The no-width invariant, on a real screen and not only in a test.** On `/clubs` and `/profiles/1`
+at 390/dpr 3: `/players/1/header-image` and `/clubs/{id}/crest` were requested with **`?v=` only,
+no `w=`** — byte-identical to the URLs they had before this batch — while the profile's 80px
+avatar asked for `w=256`, the rung §3 predicts for it. In `mediaSizes.test.ts` the same promise is
+pinned against a copy of the pre-W2 builder over six URL shapes (absolute and relative path, a
+version, `null`, `undefined`, `""`), each asserted three ways: no third argument, `undefined` and
+`null`.
+
+**Gates, on the committed tree.** `cd frontend && npm run check` **795 tests in 82 files** in 87 s
+(the baseline 780/80 plus this task's 15 in 2 files; nothing pre-existing moved) and
+`npm run build` green (`index-*.js` 734.99 kB, the pre-existing >500 kB hint). W3 had nothing in
+the tree while this ran, so the count is exactly mine.
+
 ---
 
-## W3 — The two big pictures: the banner and the citation thumbnail  ☐
+## W3 — The two big pictures: the banner and the citation thumbnail  ☑
 
 **The gap.** `ProfileHeader.tsx:83-85` builds one `avatarImageSrc` and one `headerImageSrc` and
 uses each for **two** jobs — the drawn picture and the lightbox — so the banner at 358 px CSS and
@@ -922,19 +1140,116 @@ W2's first commit must be in: `grep -n "export function mediaWidthFor" frontend/
 - §10: the banner's `sizes` string and where its three numbers come from (358 px at 390, 1104 px
   max on desktop, the 16/20/24 px gutters), so the next person to change the page column knows
   what else moves.
+- §2/§6 and `DESIGN.md` §7: **comment images are the fourth call site** and they took the
+  banner's treatment, not a rung — `TournamentCommentParts.tsx`'s `COMMENT_IMAGE_WIDTHS` /
+  `COMMENT_IMAGE_SIZES`, and `commentImageUrl(id, v, w)` beside the other three helpers.
 
 **Deviations:**
 
+- **Comment images are in, and they are the banner's problem, not the citation's** (Roli,
+  2026-09-20, after the plan was written: *"yeah comment images as well, go"*). W1 gave
+  `GET /comments/{id}/image` its `?w=` and left the browser side open, saying in as many words that
+  "what the feed draws them at was never measured". It is measured now, and the measurement is what
+  chose the treatment rather than a preference: the feed's picture is `w-full` inside the comment
+  column, so its width **follows the viewport** exactly as the banner's does — measured `<img>`
+  widths **222 / 292 / 332** at 320 / 390 / 430 (viewport − 98), **534 / 662 / 794** at 640 / 768 /
+  900 (viewport − 106), and **670 / 926 / 1038** at 1024 / 1280 / 1440+, where the page column caps
+  it. No single rung covers a range of 222 → 1038: `mediaWidthFor(292)` is 1152 at dpr 3 but **384**
+  at dpr 1, which is a visibly blurry picture on a 926 px desktop box, and a hard-coded 1152 is
+  4.4× more bytes than a dpr-1 phone needs. So it gets `srcset`/`sizes` — **the same mechanism this
+  task introduces for the banner, one more consumer of it, not a second one** (rule 8). The rung
+  both real screens land on is **1152**: 292 × 3 = 876 on Roli's phone, 926 × 1 = 926 on a 1280 px
+  desktop, and that is also the `src` fallback. This cost two files outside W3's declared set —
+  `frontend/src/pages/live/TournamentCommentParts.tsx` (the only place in the app that draws a
+  comment image; `grep -rn commentImageUrl frontend/src` is that file and `comments.api.ts`) and
+  `frontend/src/api/comments.api.ts`, whose `commentImageUrl` gained the same optional third
+  parameter W2 gave the other three helpers. Neither is in W2's set — W2's own text names
+  `commentImageUrl` as deliberately untouched — so there was no collision, and a third test file,
+  `frontend/src/test/commentImageWidth.test.tsx`, went with them.
+- **EXIF was checked with a rotated upload, because the dev corpus cannot check it.** All six
+  comment images in `backend/data/uploads/comments/` are 1920×1440 and carry **no** orientation
+  tag: they came through `CommentImageCropper`, which is a canvas re-encode, not a raw phone
+  upload. So one was made — a 1600×1200 JPEG stored landscape with `orientation=6`, a red bar down
+  its stored left edge — and `PUT /comments/265/image` on the isolated stack took it. The browser
+  reads the **original** as 1200×1600 (it applies the tag) and the derivatives as **384×512** and
+  **1152×1536**, with the red bar on the displayed **top** edge and no EXIF tag of their own: W1's
+  `ImageOps.exif_transpose` bakes the rotation in, so a rung renders identically to the original
+  and no `srcset` candidate can flip relative to another.
+- **The plan's `BANNER_SIZES` string is right and was re-measured rather than trusted.** The
+  `<img>` is **286 / 356 / 396** at 320 / 390 / 430 — viewport − 34, not − 32, because the card
+  around it has a 1 px border on each side — **598 / 726 / 858** at 640 / 768 / 900 (− 42, not
+  − 40), and **734 / 990 / 1102** at 1024 / 1280 / 1440+. The plan's three terms each over-state
+  by 2 px and the desktop term by up to 370 px at 1024, which is the over-statement it asks for in
+  writing; it was kept verbatim.
+- **Two small shapes the plan did not spell.** The banner `<img>` carries `data-profile-banner` and
+  the comment `<img>` carries `data-comment-image`, so a test (and the byte measurement) can name
+  the *drawn* picture and tell it from the lightbox's copy of the same file — there was no selector
+  that distinguished them. And `SubjectCitation`'s number is a local `thumbCssWidth` rather than the
+  plan's module-level `CITATION_THUMB_CSS_W`, because it depends on `subject.kind` and so cannot be
+  a module constant.
+
+**Measured on the isolated stack** (`:8153`/`:8173`, `backend/data/verify-w3.db`, an uploads copy
+**outside the repo**; player 1, who has a header image, two citations of a header snapshot and one
+of an avatar snapshot; tournament 8, whose feed carries three images). **Blue and light are
+byte-for-byte identical at every viewport** (asserted, not assumed — the theme changes no URL).
+
+| surface | before | after | |
+|---|---|---|---|
+| **identity block** (banner + 80 px avatar), 390/dpr3 | **2,989,081** (2,662,379 + 326,702) | **45,962** (`w=1152` 40,178 + `w=256` 5,784) | **−98.5 %** |
+| identity block, 1280/dpr1 | 2,989,081 | **42,608** (`w=1152` + `w=128`) | −98.6 % |
+| **one citation of a header snapshot**, 390/dpr3 | **2,662,379** | **4,926** (`w=256`) | **−99.8 %** |
+| the same citation, 1280/dpr1 | 2,662,379 | **1,406** (`w=128`) | −99.9 % |
+| one citation of an avatar snapshot, 390/dpr3 | 326,702 | **2,430** (`w=128`) | −99.3 % |
+| **the comments feed of tournament 8** (3 images), 390/dpr3 **and** 1280/dpr1 | **5,829,717** (3,461,835 + 158,952 + 2,208,930) | **116,382** (all three at `w=1152`: 37,910 + 50,972 + 27,500) | **−98.0 %** |
+| the whole profile page, guestbook tab, 390/dpr3 | 6,492,268 | **59,694** | −99.1 % |
+| the whole comments page, 390/dpr3 | 6,603,188 | **122,358** | −98.1 % |
+
+The plan predicted **2,919 KB → 44.8 KB** for the identity block; the page did 2,919.0 KB →
+**44.9 KB**. It predicted 8.9 KB for a citation against a 2,940 KB snapshot; player 1's snapshot is
+2,600 KB and its citation is **4.8 KB**. The "before" column is the tree at `9a55829`, i.e. W1's
+server with no browser-side width; W2's own commits had already taken the avatars down before this
+task ran, and the avatar figures above are its saving, quoted so the identity block is one number.
+
+**The DoD's own checks, each answered:**
+- `img[data-profile-banner].currentSrc` carries **`w=1152`** at 390/dpr3 **and** at 1280/dpr1, and
+  `img[data-subject-thumb='image'].currentSrc` carries **`w=256`** at dpr 3 (`w=128` at dpr 1).
+- **Nothing visual moved.** Identity block top **287 → 287**, avatar top **302 → 302**, tab strip
+  top **508 → 508**, document height **1358 → 1358** (overview) and **1833 → 1833** (guestbook), at
+  390 px in **both** themes; 643 / 643 / 832 and 1576 / 2109 at 1280 px, likewise unchanged. M8 and
+  M9 spent two tasks on those numbers and this task cost none of them.
+- **The lightbox still shows the original.** Opened from the banner and zoomed with the wheel until
+  the picture was drawn **1519 px** wide, its `currentSrc` is
+  `/players/1/header-image?v=…` with **no `w=`** — and the network shows the request for the
+  original being made at that moment, because the page never fetched it before. The comment
+  lightbox is the same: `onOpenImage` is handed a URL with no width, asserted in the test too.
+- **Desktop density, the plan's one deliberate regression.** At 1280/dpr2 and 1440/dpr2 both the
+  banner (box 990 / 1102) and the comment image (box 926 / 1038) take the top rung **1536** against
+  a 1920 px original — 55,868 bytes instead of 2,662,379. At 1920/dpr1 they take 1152 for a 1102 px
+  box, the over-stated `sizes` costing one rung exactly as designed. Roli accepted the ceiling
+  knowing the lightbox shows the true original, and the lightbox does.
+
+**Gates, on the committed tree.** `cd frontend && npm run check` **806 tests in 85 files** in 73 s
+(780/80 at the batch baseline, plus W2's 15 in 2 files and this task's 11 in 3), `npm run build`
+green (`index-*.js` **735.23 kB**, the pre-existing >500 kB hint). Step 0's
+`backend/.venv/bin/python -m pip install -r backend/requirements.txt` was run first, as every
+worker in this batch owes.
+
+**What W3 deliberately left.** `GuestbookSection.tsx`'s snapshot lightbox and
+`ProfileHeader`'s crop editor still pass no width, which is correct and is the point.
+`/ideas/{id}/image` has no `?w=` on the server and so has no call site here either, and crests stay
+Roli's closed decision. Nothing pre-warms the cache: the first phone to open a profile pays the
+275 ms W1 measured for the 1152 rung, once, ever.
+
 ---
 
-## W4 — Documentation pass  ☐
+## W4 — Documentation pass  ☑
 
 **Verify first.** `grep -n "Pillow\|derived/\|mediaSizes" AGENTS.md` → 0;
 `grep -n "mediaWidthFor\|srcSet" DESIGN.md` → 0.
 
 **The change.** Fold every "Canon" block above into `AGENTS.md` (§2 backend and frontend modules,
 §4 the config table if `UPLOADS_DIR`'s description needs it, §5 media, §6 the API map and the
-three endpoints' contract, §7 deployment and the persistent-data list, §9 the dependency decision
+four endpoints' contract, §7 deployment and the persistent-data list, §9 the dependency decision
 and the icon/format conventions it touches, §10 the gotchas, §11 "Current state" — the batch, its
 commit count, **no new tables**, the expected log lines, the deploy shape) and `DESIGN.md` (§7's
 `AvatarCircle`, citation and `ImageLightbox` rows), in the voice those files use, and correct
@@ -955,6 +1270,63 @@ Three things `AGENTS.md` says today that this batch changes and that must not be
 **Gates.** All of them, on the final tree; `git status` shows only the three files.
 
 **Deviations:**
+
+- **Where it went.** `AGENTS.md` §2 (the `media_derivatives.py` bullet — the one module that
+  knows a derivative exists — plus `media_derivatives.py` in the services list and
+  `mediaSizes.ts` in the `src/api/` one), §4 (`UPLOADS_DIR` also holds the cache), §5 (a new
+  bullet: the derived path shape, the row's own token, the seven-file ceiling, the two purging
+  paths, the boot sweep — and **no schema change at all**), §6 (the `?w=` contract on the
+  **four** GETs, the 422, the WebP out, the source's `Cache-Control` byte for byte, every
+  failure serving the original, and the two endpoints deliberately left without it), §7 (the
+  first image dependency and what its build log must show, `uploads/derived/` in the bind mount
+  but not among the stateful things, and what a rollback does), §8 (the cache rides along with
+  `uploads/` in both the backup and the sync, harmlessly), §9 (the dependency exception spelled
+  at the rule it excepts, and a new convention bullet: *a picture asks for the size it is drawn
+  at, and the picture you open is a different URL*), §10 (four new gotchas, below), §11
+  (rewritten) and §12 (this file in the tracker list). `DESIGN.md` §7: the citation row's
+  "there is no thumbnail endpoint" sentence is **replaced** by the fixed-rung rule, the
+  `ImageLightbox` row gains "always handed the original", the Identity row gains "the disc asks
+  for its own size", one **new row** covers the two `srcset` consumers, and §11 gains one
+  Do/Don't line. Nothing else in `DESIGN.md` was touched and nothing was reflowed — another
+  worker is in §9b on a different branch.
+- **Where a Canon block and the shipped code disagreed, the code won, and the file says what
+  shipped.** Three of them, all already corrected in W1's and W3's own Deviations rather than
+  found here: the helper is `media_derivatives.py::media_response`, **in the service**, not
+  `routers/players.py::_media_response` as W1's canon block spells it (a router importing a
+  router is how one mechanism becomes two, and the fourth family lives in the other router);
+  the parameter is `MediaWidthParam` — `Annotated[MediaWidth | None, BeforeValidator(...),
+  Query(...)]` — not the plan's `Optional[Literal[...]] = Query(None)`, which 422s every
+  request (§10 now carries that trap, both halves of it); and the citation's number is a local
+  `thumbCssWidth`, not a module-level `CITATION_THUMB_CSS_W`, because it depends on
+  `subject.kind`. `AGENTS.md` documents the shipped shapes and never the planned ones.
+- **One number the plan predicted and the code overran, recorded as measured.** "The entire
+  cache … is 1.43 MB over 74 files" was written for three families; with comment images it is
+  **116 files, 2,684,334 bytes** (the three the plan costed: 74 files exactly, 1,568,714 bytes,
+  7 % over its estimate). §5 carries the four-family number, because that is what a disk holds.
+- **Two things in §11 were stale rather than canon, and were corrected in passing**: `main` had
+  moved to `a0b1392` and the guestbook batch was **merged** (`87586f8`) while §11 still called
+  it complete-and-unmerged, so the deploy queue now reads four merged batches and one unmerged
+  (this one). Nothing about the media batch caused either; they are what a dated section costs.
+- **The three gotchas each worker paid for are §10 entries now**, in their own words: pydantic
+  v2 not coercing a query string into an int `Literal` (and `Query` having to sit *inside* the
+  `Annotated`); `performance.getEntriesByType("resource")` being unable to see media against a
+  vite dev server (`transferSize: 0`, and a 250-entry buffer full of ES modules — measure with
+  `page.on("response")`); and vitest loading `.env.local`, so `API_BASE` in a test run is the
+  Pi's LAN address. A fourth records the two `sizes` strings and where their numbers come from,
+  and a fifth the one manual step this batch costs this machine —
+  `ModuleNotFoundError: No module named 'PIL'` until the venv is re-installed.
+- **What was deliberately not written down.** No new "Open" item: the batch's two unknowns (a
+  production comments corpus that is not this dev one, and the fact that no rung has ever been
+  served to a real phone) live inside its own §11 bullet, and §11's first bullet already says
+  nothing in the queue has run on iOS. The accepted 1536 ceiling is recorded as a decision, not
+  as an open question, because Roli took it knowingly.
+- **Gates, on the final tree** (`make test` and `make lint` on the backend, which this task did
+  not touch, plus the full frontend set): `make test` **303 passed** in 15:28,
+  `make lint` clean, `make gen-types` **no diff**, `cd frontend && npm run check` **806 tests in
+  85 files** in 82 s, `npm run build` green (`index-*.js` **735.23 kB**, the pre-existing
+  >500 kB hint). The frontend numbers are W3's exactly, as they must be for a documentation
+  pass. Step 0's `backend/.venv/bin/python -m pip install -r backend/requirements.txt` was run
+  first here too.
 
 ---
 
@@ -1013,9 +1385,10 @@ Three things `AGENTS.md` says today that this batch changes and that must not be
 2. **The cache is never pre-warmed and never pre-generated.** The first viewer of each size pays
    0.1–0.4 s once. The alternative is a `manage.py warm-media` command and a deploy step; this plan
    says no, because a step that must be remembered is a step that will be forgotten.
-3. **Comment images (17 MB over 6 files) are out of scope**, because he named three families. They
-   are the obvious fourth and the mechanism takes them as one more call site. Worth a look at what
-   they are actually drawn at before anyone volunteers.
+3. ~~**Comment images (17 MB over 6 files) are out of scope**~~ — **answered 2026-09-20: they are
+   in.** The mechanism took them as one more call site, exactly as predicted. What is still open is
+   the *browser* half: no surface asks a comment image for a width yet, so W1's saving on that
+   family only lands once someone measures what the feed actually draws them at.
 4. **WebP for everything derived, with no fallback for a browser that cannot read it.** Every
    browser this app runs in has read WebP since 2020. Saying so out loud because it is the one
    decision here that is a *compatibility* bet rather than a measurement.

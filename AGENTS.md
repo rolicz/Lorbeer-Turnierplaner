@@ -45,7 +45,8 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   comments, friendlies, ideas, push). Routers should stay thin; bodies live in `app/services/`.
 - `app/services/` — `tournament_view.py` (serialization), `tournament_list.py`, `events.py`
   (WS broadcasts), `notifications.py` + `webpush.py` + `notification_texts.py` (push pipeline),
-  `cup.py` (cup ownership fold), `file_storage.py` (media on disk), `authorization.py`
+  `cup.py` (cup ownership fold), `file_storage.py` (media on disk), `media_derivatives.py`
+  (the derived-size cache behind `?w=` — §5, §6), `authorization.py`
   (owner/admin guards), `comments_view.py`, `guestbook*.py`, `ideas_view.py` + `idea_events.py`
   (the Ideas board's event log, and the one helper that answers who hears about an event — §6),
   `poke_summary.py`, `stats/` (players, h2h, h2h_matches, streaks, ratings, odds, player_matches,
@@ -63,6 +64,19 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   serve is in §5. Its two halves in `file_storage.py` are `media_path_for_guestbook_subject` and
   `list_media(rel_dir)` (the sweep's eyes, sorted), with `GUESTBOOK_SUBJECT_DIR` spelled **once**
   there because the path builder and the sweep both name that directory.
+- **`media_derivatives.py` is the only module that knows a derivative exists** (W1,
+  2026-09-20). `MEDIA_WIDTHS` / `MediaWidth` is the one ladder of seven widths — a `Literal`,
+  so FastAPI publishes it as an OpenAPI enum and the browser's copy is typed off the generated
+  schema; `MediaWidthParam` is the one annotation all four media GETs spell; `derived_bytes`
+  the one derivation (LANCZOS → WebP q82, with `ImageOps.exif_transpose` so a phone's rotated
+  upload does not come back lying on its side); `derived_rel_path` the one place a cached
+  file's path is written; `media_response` the one helper that turns a row into bytes — **in
+  the service, not in a router**, because the fourth family lives in `routers/comments.py` and
+  a router importing a router is how one mechanism quietly becomes two; `purge_derivatives`
+  the throw-away, called by `file_storage` from its two byte-changing paths and by no router
+  at all; and `sweep_orphan_derivatives` the boot sweep `init_db()` runs. `file_storage.py`
+  gained `list_media_tree`, `media_mtime` and `delete_media_dir` for it and **stays the only
+  module that knows where the media root is**. The rule they serve is §5's, the wire is §6's.
 - **`stats/records.py` is the only place that decides what a record is** (M1). `RECORD_DEFS` is the
   registry — sixteen keys, each with its English label, its one-line explainer, its sort column and
   its deep-link `path` — and `compute_stats_records` folds the answer out of
@@ -93,6 +107,14 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   event), one `*.api.ts` per resource, `queryKeys.ts` (`qk` factory — **always use it**),
   `types.ts` (aliases over `generated/schema.d.ts` + a few deliberate narrowings), `generated/`
   (from OpenAPI via `make gen-types`; never hand-edit).
+  `mediaSizes.ts` (W2) is the browser's half of the server's width ladder and the **only** thing
+  in the app that decides how wide a picture is asked for: `MEDIA_WIDTHS`, typed off the
+  **generated** schema (a rung added or removed on the server is a type error here on the next
+  `make gen-types`), `MAX_DPR` = 3, `mediaWidthFor(cssPx)` (the smallest rung that covers a box,
+  `undefined` when none does, which means "ask for the original") and `avatarPxFromSizeClass`
+  (the px behind `h-20 w-20`). `mediaUrl(path, v, w)` stays the one media URL builder, and a
+  call that passes no width produces the **byte-identical** URL it produced before the batch —
+  deliberately, so nothing a browser has already cached is invalidated.
 - `src/hooks/realtime/` — pooled WebSocket layer (`connection.ts`: heartbeat 25s, liveness 35s,
   backoff), `wsEvents.ts` (event contract mirror of `services/events.py`), `applyEvent.ts`
   (cache merge), `RealtimeProvider.tsx`.
@@ -240,7 +262,7 @@ agents** (Roli declined that explicitly). Template: `backend/secrets.json.exampl
 | `ws_require_auth` | If true, WS connections need `?token=`. Default false (public read). |
 | `push_vapid_public_key`, `push_vapid_private_key_file`, `push_vapid_subject`, `push_ttl_seconds` | Web push (VAPID). Private key PEM lives in `backend/data/vapid_private_key.pem` (dev) / `/data/vapid_private_key.pem` (prod). |
 | `CUPS_CONFIG_PATH` (env) | Cup definitions JSON; falls back to bundled `backend/app/cups.json`. Prod: `/data/cups.json`. Validated at startup — **malformed config = backend refuses to boot**. |
-| `UPLOADS_DIR` (env) | Media root. Docker `/data/uploads`; local fallback `./data/uploads`. |
+| `UPLOADS_DIR` (env) | Media root. Docker `/data/uploads`; local fallback `./data/uploads`. Also holds the derived-size cache at `<root>/derived` (W1, §5) — files, not data, safe to delete. |
 | `CORS_ALLOW_ORIGINS` (env) | Default `*`. |
 
 **Frontend** (Vite, build-time only): `VITE_API_BASE_URL`, `VITE_WS_BASE_URL`.
@@ -425,6 +447,34 @@ Current prod config (mirrored in `backend/app/cups.json` and `backend/data/cups.
   one picture in the app the backend serves `public, max-age=31536000, immutable` — a snapshot never
   changes and its path already carries its id, so the `?v=<captured_at>` its client URL still gets
   from `mediaUrl` is belt and braces rather than the mechanism.
+- **The smaller sizes are a cache of files, not data** (W1, 2026-09-20). Every media GET takes
+  an optional `?w=` (§6) and the answer lives at
+  `uploads/derived/{source relative path}/{token}-{width}.webp`, e.g.
+  `derived/avatars/3.png/20260912132900123456-256.webp`. Keyed on the **source's own relative
+  path**, so one `purge_derivatives(rel_path)` serves every family present and future and the
+  boot sweep is a question about files rather than about the database. **No table, no column,
+  no `_RUNTIME_COLUMNS` entry, no `create_all` change** — `app/models.py` was not touched at
+  all: the only new persistent thing is a directory that is safe to delete at any moment, and
+  the next request re-derives whatever was thrown away.
+  - The `token` is the **row's own** `updated_at` (avatar, header image, comment image) or
+    `captured_at` (a pinned snapshot) — never the caller's `?v=`, so a client cannot choose a
+    path on our disk, and a replaced source lands on a path that has never been written. The
+    chain `upload → new updated_at → new ?v= → browser refetches → new token → fresh
+    derivative` holds end to end.
+  - **At most seven files per source**, because the ladder is closed (§6), so the cache's
+    ceiling is exact and knowable. Measured over the real dev media, which is production's plus
+    this branch's own writes: **116 files, 2,684,334 bytes** for every rung of every file in all
+    four families, built in 24 s. An avatar holds only four rungs — 768 and up are wider than a
+    512 px source, and a request for one serves the original rather than an upscale.
+  - **Two paths change the bytes under a relative path and both purge**: `upsert_media_row`
+    (overwrite in place, where the path never moves and `delete_media` is never called) and
+    `delete_media` (every DELETE endpoint, `release_subjects`, `sweep_orphan_subjects`, the
+    extension-changed branch). No router has to remember it, and a path already under
+    `derived/` is a no-op, which is what keeps the sweep's own deletes from recursing.
+  - **`init_db()` sweeps** what is no longer worth keeping — a directory whose source file is
+    gone, and any cached file **older than its own source**, which is exactly what a rollback
+    leaves behind — and logs `Derived media swept: N` **only when it removed something**.
+    Silence is the expected line on a healthy boot.
 - Stats scopes: `tournaments | both | friendlies`, taken as a `scope` query param by **every**
   `/stats/*` endpoint that reads matches — `/stats/players` learned it last (A4), so no stats
   surface can show the Source filter and ignore it. Ratings are Elo-like per mode.
@@ -451,6 +501,23 @@ player-matches,ratings,ratings/history,odds,records}`, `/friendlies`, `/ideas` (
 Roles: `reader` (no token) < `editor` < `admin`; deps `require_editor` / `require_admin`;
 owner-only checks in `services/authorization.py`. Error helpers in `app/api_utils.py`
 (400/403/404/409).
+**`?w=` is the size the picture is drawn at, on four media GETs** (W1): `/players/{id}/avatar`,
+`/players/{id}/header-image`, `/players/guestbook-subjects/{sid}/image` and
+`/comments/{cid}/image`. It is optional, public like the GET it rides on, and it sits **beside**
+`?v=`, which is still the client's cache-buster and is still ignored by the server. The ladder is
+seven rungs — `64, 128, 256, 384, 768, 1152, 1536` — spelled once in
+`services/media_derivatives.py::MediaWidth`, so anything else (`?w=137`, `?w=1920`, `?w=abc`,
+`?w=0`, `?w=`) is a **422 from FastAPI before a line of our code runs**: there is no arbitrary
+integer to snap, and therefore no way to fill the disk. A served rung is `image/webp` (LANCZOS,
+quality 82) and carries **its source's own `Cache-Control` byte for byte**, `immutable`
+included — a derivative is exactly as cacheable as its source, because `?w=` only ever makes a
+URL *more* specific. **Every failure serves the original**, with the source's own content type
+and a 200: a never-derived format (`image/svg+xml`, `image/gif`), a source already at most that
+wide (a 512 px avatar at `w=768`), one Pillow cannot open, an encode that raises — and a source
+file that is *gone* falls through to the same `read_media` and the same 404 it always gave. A
+derivative is an optimisation and must never be able to turn a working picture into a 500. Omit `?w=` and the response is what it was before this batch, byte for byte.
+`/ideas/{id}/image` and `/clubs/{id}/crest` deliberately have **no** `?w=` — the first was
+outside the plan, the second is Roli's closed decision (§11).
 **The editor's grace window (A10)** lives in `services/authorization.py` and nowhere else:
 an editor may edit / set the decider on a tournament while it is not done **and for one hour
 after its last match finished**, and may delete a tournament or a friendly only if they are its
@@ -720,7 +787,10 @@ doing only what it is for — the combination nobody has asked for yet.
 - **Persistent data on the server** = `backend/data/` (`app.db`, `cups.json`,
   `vapid_private_key.pem`,
   `uploads/{avatars,profile_headers,comments,club_crests,ideas,guestbook_subjects}`) plus the
-  git-ignored `backend/secrets.json`. Nothing else is stateful.
+  git-ignored `backend/secrets.json`. Nothing else is stateful. `uploads/derived/` lives in the
+  same bind mount but is **not** data: it is the derived-size cache (§5), it has to be on the
+  mount because it holds files a container rebuild would otherwise discard on every deploy, and
+  deleting it costs one slow request per size and nothing else.
 - **Standard deploy** (run on the server):
   ```bash
   ssh hetzner
@@ -728,6 +798,17 @@ doing only what it is for — the combination nobody has asked for yet.
   docker compose logs -f backend      # expect "Cup defs validated", "DB initialized"
   ```
   Only the frontend changed → `docker compose up -d --build frontend` (Vite env is baked in).
+- **The media batch adds the project's first image dependency** (W1, 2026-09-20):
+  `Pillow==12.3.0` in `backend/requirements.txt`, which makes that deploy a **full** one (the
+  backend image is rebuilt with a new wheel in it) even though it changes no schema. **The one
+  thing to watch in the build log is `pip install`**: expect a
+  `pillow-12.3.0-cp311-cp311-manylinux…_x86_64.whl` **download** — 6.93 MB, a file that was
+  looked up on PyPI rather than assumed — never a compile. If it starts building from source,
+  stop and report: it means the wheel did not match and the image would need build tooling,
+  which `backend/Dockerfile` deliberately does not have. The wheel costs ≈ 24 MB unpacked
+  (`PIL/` 8.3 MB + `pillow.libs/` 16 MB) and nothing else about the image changes. The
+  frontend's alpine/musl lockfile problem (§10) does not carry over: the backend image is
+  Debian/glibc x86-64 and this dev Pi is arm64 glibc, and a wheel exists for both.
 - **Deploy checklist** (do these in order, before/after `up -d --build`):
   1. Local: `make test && make lint && cd frontend && npm run check && npm run build` green,
      `make gen-types` yields no diff, work merged to `main` and pushed.
@@ -766,6 +847,12 @@ doing only what it is for — the combination nobody has asked for yet.
 - **Rollback:** `git checkout <previous-sha> && docker compose up -d --build`. Schema changes are
   additive, so old code boots on the new DB. If data must be restored, rsync the desired
   `backup/deploy/<ts>/data/` back to `backend/data/` on the server and restart backend.
+  **A rollback past the media batch costs nothing and was measured, not asserted** (W1): old
+  code ignores an unknown `?w=` and serves the original, and it never reads or writes
+  `uploads/derived/`, so the cache is simply left alone (a before/after manifest of 116 files
+  was identical). The one consequence is a source replaced *while* rolled back, whose rungs are
+  then older than their own file; the next boot of the new code removes exactly those
+  (`Derived media swept: 4`, measured) and the next request re-derives them.
 - **Not automated:** there is no CI/CD, no GitHub Actions, no scheduled backups. Deploys and
   backups are manual from this dev machine.
 - Push notifications on prod need `PUSH_VAPID_PUBLIC_KEY` and `PUSH_VAPID_SUBJECT` in the
@@ -786,6 +873,12 @@ git-ignored; the latest deploy snapshot is the best offline picture of productio
 **Restart the backend after a sync** — `init_db()` runs at startup only, so a database swapped
 underneath a running server keeps serving production's schema and 500s on every table added since
 (§10).
+**`uploads/derived/` rides along, harmlessly** (W1, 2026-09-20): `backup-deploy-data` pulls
+`/uploads/***` recursively, so a prod snapshot now carries the derived-size cache too, and
+`sync-local-from-deploy` mirrors it into the dev tree with `--delete` like the rest of
+`uploads/`. Both are fine — it is a cache of the very files being copied beside it, and §5 says
+why deleting it is always safe. It is written down only so nobody reports a snapshot that grew a
+`derived/` directory as a bug.
 Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upsert),
 `add-match --file`, `vacuum-db [--analyze]`, `generate-vapid`.
 
@@ -912,11 +1005,30 @@ every past match simply keeps counting today's rating.
   different records at once; the sixteen glyphs were approved by Roli on 2026-09-19 (the table at
   the top of `FEATURES_2026-09-badges.md`, mirrored in `DESIGN.md` §7). An unknown key still gets a
   glyph. Never spell a record's icon inline again.
+- **A picture asks for the size it is drawn at, and the picture you *open* is a different URL**
+  (W1–W3, 2026-09-20). Three shapes, one rule each: an **avatar** asks from **inside**
+  `AvatarCircle`, which reads the `sizeClass` its 25 call sites already hand it — no call site
+  spells a width, because a component with 25 chances to disagree with itself is the bug this
+  avoids; a box whose width **follows the viewport** (the profile banner, a comment's picture)
+  uses `srcset`/`sizes`, the platform's own answer, which needs no measurement in JS, no resize
+  listener and survives a rotation; a box that is a **fixed size at every viewport** (the
+  guestbook citation's 71×40 / 40×40 thumbnail) asks for one rung with `mediaWidthFor`. And the
+  **lightbox and the crop editor always get the original, with no `w=` at all** — `ImageLightbox`
+  zooms to 6×, which *is* the full-size use. Never feed one variable to both jobs: that the
+  drawn banner and the lightbox were the same string in `ProfileHeader` is what made a 358 px
+  picture download 2.66 MB. Widths come from `api/mediaSizes.ts` and nothing else spells one;
+  `DESIGN.md` §7 carries the visual half.
 - **Style:** match surrounding code; Tailwind + design tokens (no raw colors); compact-mobile
   idiom (`md:hidden` icon + `hidden md:inline` label, `text-xs` for dense text and `.text-micro`
   for markers — arbitrary `text-[Npx]` is banned, `DESIGN.md` §5);
   `qk` for every query key; generated types, no hand-written API mirrors; thin routers, logic in
-  services; error helpers from `api_utils.py`. No new dependencies unless the plan says so.
+  services; error helpers from `api_utils.py`. No new dependencies unless the plan says so —
+  and the backend's first and so far only exception is **`Pillow==12.3.0`** (W1, 2026-09-20),
+  which `FEATURES_2026-09-media.md` said in as many words and argued for in writing: there is no
+  way to resize a JPEG in the standard library, Pillow ships a wheel for **both** of this
+  project's targets so nothing is compiled anywhere (§7), and it is imported **inside**
+  `media_derivatives._encode`, so no other part of the backend can come to depend on it by
+  accident.
 - **Words are canon too** (C10, 2026-09-17): `DESIGN.md` §5b is the app's word list — one word per
   quantity, `fmtCount` for a count in prose, `fmtAvg` for a per-match average, `joinNames` for two
   names on one line, sentence case, `…`. Read it before naming a label.
@@ -1288,10 +1400,51 @@ every past match simply keeps counting today's rating.
   **144** with `EXIT` trapped, 0 without it). The recipe itself is not verified end to end —
   reproducing a terminal's Ctrl+C needs a real foreground job on a tty, and a backgrounded harness
   inherits SIGINT ignored — so the next Ctrl+C is the real check.
+- **`Optional[Literal[64, …]]` as a query parameter rejects every request** (W1, measured before
+  anything was built on it). Pydantic v2 coerces a query string into an `int` but **not** into an
+  int `Literal`, so `w: MediaWidth | None = Query(None)` answers **422** to `?w=128` with
+  `{"type":"literal_error","input":"128"}` — the media plan specified exactly that shape, and it
+  is a bug in the plan, not a preference. The fix is a `BeforeValidator` that turns digits into an
+  int and does nothing else, inside the `Annotated` (`MediaWidthParam`, spelled once for all four
+  endpoints), so the `Literal` still does every bit of the deciding and an off-ladder width is
+  still the framework's 422. **`Query` must sit inside the `Annotated` too**: as a plain default
+  (`w: MediaWidthParam = Query(None, …)`) it silently replaces the validator and every request is
+  a 422 again — which looks exactly like the first bug and is a second one.
+- **`performance.getEntriesByType("resource")` cannot measure media against the vite dev
+  server** (W2 lost time to it, and the next visual-verification task would walk into it). Two
+  things, both measured here: a media entry reports **`transferSize: 0`**, because the API is a
+  different origin and sends no `Timing-Allow-Origin`; and the 250-entry resource-timing buffer is
+  **full of ES modules** before an image is ever requested, so Stats → Table reported *zero*
+  avatar entries while the screenshot plainly showed six. Measure bytes with Playwright's
+  `page.on("response")` and each response's own `content-length` — the wire, not the timing API.
+- **vitest loads `.env.local`** (W2), so during `npm run check` `import.meta.env.VITE_API_BASE_URL`
+  is this Pi's LAN address and `API_BASE` is `http://192.168.178.78:8001`, not `/api`. A test that
+  spells a whole URL therefore fails on this machine and nowhere else: build the expected string
+  from `API_BASE` and pin everything after it.
+- **The two `sizes` strings are measured, deliberately over-stated, and are what to re-read when
+  the page column changes** (W3). The profile banner is `(min-width: 1024px) 1104px, (min-width:
+  640px) calc(100vw - 40px), calc(100vw - 32px)` and a comment's picture `(min-width: 1024px)
+  1040px, (min-width: 640px) calc(100vw - 104px), calc(100vw - 96px)`; the numbers come from
+  `mx-auto w-full max-w-6xl page-x` with `--page-pad-x` 16/20/24 px and the `lg:` sidebar, which
+  makes the banner **358 px** at a 390 px viewport and at most **1104 px** on any desktop.
+  Measured `<img>` widths: the banner 286 / 356 / 396 at 320 / 390 / 430 (viewport − 34, not
+  − 32 — the card has a 1 px border on each side) and 734 / 990 / 1102 at 1024 / 1280 / 1440+; a
+  comment image 222 / 292 / 332 and 670 / 926 / 1038. **Over-state, never under-state**: a `sizes`
+  that is too small picks a rung that is too small and the picture is blurry, while one that is
+  too large costs exactly one rung on a narrow desktop. Both `<img>`s carry a `data-` attribute
+  (`data-profile-banner`, `data-comment-image`) so a test — or a byte measurement — can tell the
+  *drawn* picture from the lightbox's copy of the same file, which no selector could before.
 - Frontend Docker build uses `npm install` (not `ci`) on purpose: the lockfile is generated on the
   arm64/glibc Pi, the image is alpine/musl on x86.
 - Tests use a temp SQLite file + `UPLOADS_DIR` in tmp (`backend/tests/conftest.py`); accounts
   `Editor`/`Admin`. Frontend tests: vitest + jsdom, files in `frontend/src/test/`.
+- **`make test` dies with `ModuleNotFoundError: No module named 'PIL'` until this machine's venv
+  is re-installed** (W1, 2026-09-20): `backend/.venv/bin/python -m pip install -r
+  backend/requirements.txt`. It is a venv change, not a tree change (`backend/.venv` is
+  gitignored), and it is the **only** manual step the media batch costs anybody — production
+  installs from the same file when the image is built. The same command also pulls in
+  `cryptography`, which `requirements.txt` has always listed and this venv did not have; push
+  still goes nowhere from here, since there is no VAPID key.
 - `backend/app.db*`, `backend/data/app.db` are real (synced) data — never commit, never run
   destructive experiments on them; copy first.
 - **A throwaway `secrets.json` for a verification stack must name the task's own DB copy.** The
@@ -1302,27 +1455,62 @@ every past match simply keeps counting today's rating.
   (`"db_url": "sqlite:////abs/path/backend/data/verify-<task>.db"`) so a forgotten flag cannot
   reach the real data at all.
 
-## 11. Current state (2026-09-19)
+## 11. Current state (2026-09-20)
 
 - **`f425961` (2026-09-16) is still the only thing that has ever run on the server.** `main` is
-  `14e27db` and carries **three** batches that are merged and undeployed: the 2026-09 design batch
-  (frontend-only), the Ideas batch (`feature/2026-09-ideas`, merged as `a547193`) and the badges
-  batch (`feature/2026-09-badges`, merged 2026-09-19 as `14e27db`). In front of all three sits a
-  fourth that is **not merged at all** — `feature/2026-09-guestbook`, below. Ideas, badges and
-  guestbook each touch the **backend and the schema**, so the next deploy is the **full** one —
-  `git pull && docker compose up -d --build`, with the §7 step-2 data backup taken first — and it
-  carries whatever is on `main` at that moment (Roli's call: one deploy, not one per batch). No
-  manual step in any of them: every new table is created by `init_db()` at startup, and in all three
-  backend batches old code was run against a migrated database to prove it still boots.
-  **Nothing in any of the four has run on iOS, and no push has ever gone over the wire from this
+  `a0b1392` and carries **four** batches that are merged and undeployed: the 2026-09 design batch
+  (frontend-only), the Ideas batch (`feature/2026-09-ideas`, merged as `a547193`), the badges
+  batch (`feature/2026-09-badges`, merged as `14e27db`) and the guestbook batch
+  (`feature/2026-09-guestbook`, merged 2026-09-19 as `87586f8`; `a0b1392` is the same branch's
+  merge of the media batch's plan file and carries no code). In front of all four sits a fifth
+  that is **not merged at all** — `feature/2026-09-media`, below. Ideas, badges and guestbook each
+  touch the **backend and the schema**, and media touches the **backend and the requirements
+  file**, so the next deploy is the **full** one — `git pull && docker compose up -d --build`,
+  with the §7 step-2 data backup taken first — and it carries whatever is on `main` at that moment
+  (Roli's call: one deploy, not one per batch). No manual step in any of them: every new table is
+  created by `init_db()` at startup, the media batch creates none at all, and in each backend
+  batch old code was run against a migrated database to prove it still boots.
+  **Nothing in any of the five has run on iOS, and no push has ever gone over the wire from this
   machine** (dev has no VAPID and is not HTTPS), so production is the first real test of P2, P5 and
   the record push — **including whether iOS renders a non-ASCII push body**, which nothing here can
   check (§9).
-- **`feature/2026-09-guestbook` (K1–K4, then Q-A/Q-B, G1–G3 and G4/G5) is complete and unmerged** —
-  branched from `14e27db`, thirteen commits, 34 files, **two new tables
-  and one new media directory**, so it is a **full** deploy when Roli says
-  so. Roli asked to be able to comment on a profile's header image, About text and avatar, *"make
-  sure the image and about texts persist so it is also clear what its about later when they
+- **`feature/2026-09-media` (W1–W4, `FEATURES_2026-09-media.md`) is complete and unmerged** —
+  branched from `a0b1392`, five commits, 26 files, and **no new table, no new column and no
+  `_RUNTIME_COLUMNS` entry**: what it adds to production is one wheel in the backend image and one
+  cache directory inside the bind mount (§5, §7). Roli, verbatim: *"can you pre-compute smaller
+  sizes on server -> then serve whats requested (needed)"* — scoped by him to avatars, header
+  images and guestbook snapshots, and then, once the plan was written, to comment images as well
+  (*"yeah comment images as well, go"*). Four families; **crests stay out**, his own 2026-09-16
+  decision, and this batch did not reopen it. What landed: **W1** Pillow, `media_derivatives.py`
+  and `?w=` on the four media GETs, where every failure path serves the original (§6); **W2**
+  `api/mediaSizes.ts` and an avatar that asks for its own size from **inside** `AvatarCircle`,
+  with not one of the 25 call sites edited; **W3** the two big pictures — the banner and a
+  comment's picture through `srcset`/`sizes`, the guestbook citation through one fixed rung — and
+  the lightbox split off onto its own URL; **W4** this documentation pass.
+  **The saving, measured on the wire** (`page.on("response")` and `content-length`, a cold
+  context per row, real dev media, both themes byte-identical): Stats → Table's six avatars
+  **2,168,688 → 19,098 B** at 390/dpr 3 and **→ 7,420 B** at 1280/dpr 2; the profile's identity
+  block (banner + 80 px avatar) **2,989,081 → 45,962 B**; one guestbook citation of a header
+  snapshot **2,662,379 → 4,926 B**; a comments feed with three pictures **5,829,717 → 116,382 B**;
+  the whole profile guestbook tab **6,492,268 → 59,694 B**. Nothing visual moved — identity block,
+  avatar and tab-strip offsets and both document heights identical at 390 and 1280 in both themes,
+  the numbers M8 and M9 spent two tasks on — and the lightbox still opens the true original.
+  **The one accepted regression**: on a retina desktop both big pictures cap at the **1536** rung
+  against a 1920 px original (55,868 B instead of 2,662,379), because 1536 is the top of the
+  ladder. **Roli accepted that knowingly**, the lightbox being where the real file still is.
+  Deploy shape: **no manual step**, and nothing pre-warms the cache — it is empty on the first
+  boot and fills on demand, the worst first load paying ~275 ms once, ever, for a 1152 rung on
+  this Pi (the VPS is faster). `curl -sI 'https://lorbeerkranz.xyz/api/players/1/avatar?w=128' |
+  grep -i content-type` → `image/webp` proves the new code is up; `Derived media swept:` on the
+  first boot would be a surprise rather than a confirmation, because a cache that has never
+  existed has nothing to sweep. Two things nobody has measured yet, said plainly: the **17 MB**
+  in `uploads/comments/` is six files and their drawn sizes were measured, but production's feed
+  is not this dev corpus; and no rung has ever been served to a real phone.
+- **`feature/2026-09-guestbook` (K1–K4, then Q-A/Q-B, G1–G3 and G4/G5) is merged** (`87586f8`,
+  2026-09-19) and can be deleted — branched from `14e27db`, thirteen commits, 34 files, **two
+  new tables and one new media directory**, part of the same full deploy. Roli asked to be able
+  to comment on a profile's header image, About text and avatar, *"make sure the image and
+  about texts persist so it is also clear what its about later when they
   change"* — and the answer is that **the guestbook absorbs it**: an entry gains a subject and
   nothing else is built, so the feed, the composer, the read state, the push, the bell kind and the
   realtime event are all the ones that already existed (§9). What landed: **K1** the two tables,
@@ -1353,7 +1541,8 @@ every past match simply keeps counting today's rating.
   code is up (the key is present and `null` on every untagged entry). Rollback to `14e27db` ignores
   both tables — measured, not assumed (§5) — and costs two things: tagged entries render as plain
   entries, and an entry deleted while rolled back leaves a link and a file that the next boot of the
-  new code sweeps.
+  new code sweeps. Its `guestbook_subjects/` pinned copies are the third family the media batch
+  learned to serve at a thumbnail's size, which is the fix Q-B asked for in writing.
 - **G1–G3 answered a measured design audit of that tab, and one of the three changed the canon
   rather than the code** (`facdef5`, `b3a618c`, `57050e4`, then their docs pass `6de35f6`),
   frontend-only, no schema, no backend.
@@ -1477,6 +1666,15 @@ every past match simply keeps counting today's rating.
   score-only match row wears one, across all seven surfaces, not just the friendlies list.
   The design-fixes batch above is merged (`5a97fa9`) and is in that same queue; its
   smoke list is in that plan's "Deployment" section.
+- Checks at the **media** branch head (code at `7da765f`, re-run on W4's documentation tree, which
+  touches no code): `make test` **303 passed** in 15:28, `make lint` clean, `make gen-types`
+  **no diff**, `cd frontend && npm run check` **806 tests in 85 files** in 82 s, `npm run build`
+  green (`index-*.js` **735.23 kB**, the pre-existing >500 kB hint). That is the guestbook head's
+  286 plus W1's 17 on the backend, and its 780/80 plus W2's 15 in 2 files and W3's 11 in 3 on the
+  frontend; nothing pre-existing moved in either. W1 read the same 303 in 13:45 and this run
+  took 15:28 with `npm run check` sharing the Pi for part of it — the machine's variance, not
+  the suite's. **The suite needs `PIL`**, so run §10's one `pip install` line before
+  `make test` on this machine or it dies before it starts.
 - Checks at the **guestbook** branch head (code at `34a48e2`, G4's tree; G5 is documentation only
   and touches no code): `cd frontend && npm run check` **780 tests in 80 files** in 68 s,
   `npm run build` green (`index-*.js` 734.56 kB — the same pre-existing >500 kB hint). G4 added the
@@ -1568,7 +1766,12 @@ every past match simply keeps counting today's rating.
   for this content (lossless 18 KB, lossy-90 9 KB) because flat badges are exactly what a 256-colour
   palette describes. **Do not shrink the dimensions**: 200px is barely enough for a 22px badge at
   dpr 3 and leaves room for a larger crest later. Offered and **declined** (2026-09-16) — raise it
-  again only if crest weight becomes a real complaint.
+  again only if crest weight becomes a real complaint. **The media batch's mechanism now exists
+  and crests were deliberately left outside it** (W1, 2026-09-20): `?w=` could be given to
+  `/clubs/{id}/crest` in an afternoon, but the measured answer for flat badge art was a palette
+  re-encode and not a resize, and that is the offer Roli declined — so this is a standing
+  decision, not an oversight, and folding 591 files into the derived cache would triple its
+  footprint to settle a closed question.
 - **The design-system half of the audit is deferred to a later batch, by Roli's decision** — the
   eight section-heading treatments, the eight `.inset` paddings and eleven `.card` overrides,
   adopting `Button.iconOnly` across the 43 hand-sized icon buttons, an avatar size scale, the nine
@@ -1598,7 +1801,7 @@ every past match simply keeps counting today's rating.
 | Visual language (surfaces, tokens, type, primitives) | `DESIGN.md` — the design canon, follow it for every UI change |
 | Tool entry points | `CLAUDE.md` (imports this file), `GEMINI.md` (points here) |
 | Human README / setup narrative | `README.md` |
-| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md`, `DESIGN_FIXES_2026-09.md`, `FEATURES_2026-09-ideas.md`, `FEATURES_2026-09-badges.md`, `FEATURES_2026-09-guestbook.md` |
+| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md`, `DESIGN_FIXES_2026-09.md`, `FEATURES_2026-09-ideas.md`, `FEATURES_2026-09-badges.md`, `FEATURES_2026-09-guestbook.md`, `FEATURES_2026-09-media.md` |
 | The blind design audit behind the C-batch | `DESIGN_AUDIT_2026-09-17.md` + `design-audit-2026-09-17/` (eight raw reports) |
 | Claude Code auto-memory (per-machine, not in git) | `~/.claude/projects/-home-roli-projects-turnierplaner-reloaded/memory/` |
 | Production data snapshots (not in git) | `backup/deploy/<ts>/`, `backup/local/<ts>/` |

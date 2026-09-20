@@ -75,11 +75,23 @@ export async function apiFetch<T>(
   return JSON.parse(text) as T;
 }
 
-// Build a media resource URL with optional cache-busting via ?v=<updatedAt>.
-export function mediaUrl(path: string, updatedAt?: string | null): string {
+/**
+ * Build a media resource URL with optional cache-busting via `?v=<updatedAt>` and an
+ * optional `?w=<width>` (W2), which asks the server for the pre-computed size that is
+ * actually drawn instead of the original file.
+ *
+ * This is the app's **one** media URL builder, and a call that passes no width still
+ * produces the byte-identical URL it produced before W2 — deliberately, so this batch
+ * invalidates nothing a browser has already cached. Widths come from
+ * `api/mediaSizes.ts`; nothing else spells one.
+ */
+export function mediaUrl(path: string, updatedAt?: string | null, width?: number | null): string {
   const base = API_BASE.replace(/\/+$/, "");
-  const v = updatedAt ? `?v=${encodeURIComponent(updatedAt)}` : "";
-  return `${base}${path.startsWith("/") ? "" : "/"}${path}${v}`;
+  const qs: string[] = [];
+  if (updatedAt) qs.push(`v=${encodeURIComponent(updatedAt)}`);
+  if (width) qs.push(`w=${width}`);
+  const q = qs.length ? `?${qs.join("&")}` : "";
+  return `${base}${path.startsWith("/") ? "" : "/"}${path}${q}`;
 }
 
 // FormData uploads must not set Content-Type (browser adds the multipart boundary).

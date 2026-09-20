@@ -8,6 +8,7 @@ import VoteButton from "../../ui/primitives/VoteButton";
 import { CommentSendRow } from "../live/comments/CommentComposer";
 import type { PlayerGuestbookEntry, PlayerGuestbookSubject } from "../../api/types";
 import { fmtCount, fmtDateTime } from "../../utils/format";
+import { mediaWidthFor } from "../../api/mediaSizes";
 import { guestbookSubjectImageUrl } from "../../api/players.api";
 import { SUBJECT_ICON, subjectCitationLabel, subjectCitationTitle, subjectExcerpt } from "./guestbookSubjects";
 
@@ -90,10 +91,12 @@ function useGuestbookCard(): GuestbookCardContextValue {
  *
  * The thumbnail keeps the source's own shape — 16:9 for the banner, square for the avatar
  * — because a header image center-cropped to a square is a different picture. Both are
- * 40px tall, one `inset` radius step, and lazy: the bytes are the full pinned copy (there
- * is no thumbnail endpoint and this batch adds no backend), but the URL carries the
- * snapshot id and is served `immutable`, so two entries about one version cost one request
- * and a return visit costs none.
+ * 40px tall, one `inset` radius step, and lazy, and since W3 the bytes are a **thumbnail**
+ * rather than the full pinned copy: a 71x40 citation of a 1920px header used to download
+ * 2,662,379 bytes to draw it (measured), and now asks the server for the rung it is drawn
+ * at. The URL still carries the snapshot id and is still served `immutable`, so two
+ * entries about one version cost one request and a return visit costs none — and the
+ * lightbox this citation opens still gets the real thing.
  */
 function SubjectCitation({
   subject,
@@ -111,6 +114,11 @@ function SubjectCitation({
   const thumbShape = `h-10 shrink-0 rounded-xl ring-1 ring-inset ring-border-card-chip/55 ${
     subject.kind === "avatar" ? "aspect-square" : "aspect-[16/9]"
   }`;
+  // The citation's own geometry, in one place, and the only number the width comes from:
+  // `h-10` is 40px tall, square for an avatar and 16:9 — 71px — for a banner. Both are
+  // fixed, measured unchanged at every viewport from 320px to 1920px, which is why this
+  // one picture needs no `srcset` where the banner does. At dpr3 that is w=256 and w=128.
+  const thumbCssWidth = subject.kind === "avatar" ? 40 : 71;
 
   return (
     <button
@@ -134,7 +142,7 @@ function SubjectCitation({
           </span>
         ) : (
           <img
-            src={guestbookSubjectImageUrl(subject.snapshot_id, subject.captured_at)}
+            src={guestbookSubjectImageUrl(subject.snapshot_id, subject.captured_at, mediaWidthFor(thumbCssWidth))}
             alt=""
             loading="lazy"
             decoding="async"
