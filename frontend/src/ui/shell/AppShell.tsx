@@ -18,6 +18,7 @@ import BottomTabBar from "./BottomTabBar";
 import { ErrorToastViewport } from "../primitives/ErrorToast";
 import RouteErrorBoundary from "./RouteErrorBoundary";
 import PushSetupNotice from "./PushSetupNotice";
+import SecureAccountNotice from "./SecureAccountNotice";
 import { useSwipeNav } from "./useSwipeNav";
 import { readStored, writeStored } from "../../utils/safeStorage";
 import { useLocationRestore } from "./useLocationRestore";
@@ -119,6 +120,9 @@ function ShellInner({ children }: { children: React.ReactNode }) {
               reader is on — the one surface that finds someone who does not know
               they have a problem (P5). It renders nothing in every other case. */}
           <PushSetupNotice />
+          {/* An account still on the password it was given, with no passkey (L9). Not
+              dismissible; it stops when a passkey exists. Renders nothing otherwise. */}
+          <SecureAccountNotice />
           <RouteErrorBoundary resetKey={location.pathname}>{children}</RouteErrorBoundary>
         </main>
 

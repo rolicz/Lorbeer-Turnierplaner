@@ -6,6 +6,7 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/client";
@@ -21,6 +22,13 @@ const api = vi.hoisted(() => ({
   redeemCode: vi.fn(),
 }));
 vi.mock("../api/account.api", () => api);
+// L9's passkey section sits in the same component; its own tests are passkeys.test.tsx.
+vi.mock("../api/passkeys.api", () => ({
+  listPasskeys: vi.fn().mockResolvedValue([]),
+  passkeysSupported: () => false,
+  registerPasskey: vi.fn(),
+  removePasskey: vi.fn(),
+}));
 
 const auth = vi.hoisted(() => ({
   hasPassword: true,
@@ -28,6 +36,7 @@ const auth = vi.hoisted(() => ({
   passwordMigrated: false,
   groups: [{ id: 1, slug: "altherren", name: "Altherren", role: "member" as const }],
   refresh: vi.fn(),
+  logout: vi.fn(),
 }));
 vi.mock("../auth/AuthContext", () => ({ useAuth: () => auth }));
 
@@ -41,9 +50,11 @@ const SESSIONS: AuthSession[] = [
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={qc}>
-      <SecuritySection />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>
+        <SecuritySection />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
 }
 

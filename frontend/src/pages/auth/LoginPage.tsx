@@ -1,13 +1,15 @@
-import { ChevronRight, Eye, EyeOff, LogIn } from "lucide-react";
+import { ChevronRight, Fingerprint, LogIn } from "lucide-react";
 import { useState } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { login } from "../../api/auth.api";
 import { ApiError } from "../../api/client";
+import { loginWithPasskey, passkeysSupported } from "../../api/passkeys.api";
 import { useAuth } from "../../auth/AuthContext";
 import Button from "../../ui/primitives/Button";
 import Input from "../../ui/primitives/Input";
 import AuthScreen from "./AuthScreen";
+import PasswordField from "./PasswordField";
 import RetryCountdown from "./RetryCountdown";
 
 /** What the line under the form says for an answer the server gave; a network failure has its own. */
@@ -16,6 +18,13 @@ function loginErrorText(e: unknown): string {
     if (e.status === 401) return e.detail ?? "Wrong username or password";
     return e.detail ?? `Login failed (${e.status})`;
   }
+  return "Could not reach the server — check your connection and try again.";
+}
+
+/** The passkey's own line: the server's one 401 sentence, or what the browser refused. */
+function passkeyErrorText(e: unknown): string {
+  if (e instanceof ApiError) return e.detail ?? `Login failed (${e.status})`;
+  if (e instanceof Error && e.name !== "TypeError") return "This device could not use a passkey here.";
   return "Could not reach the server — check your connection and try again.";
 }
 
@@ -29,7 +38,11 @@ function loginErrorText(e: unknown): string {
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [pw, setPw] = useState("");
-  const [showPw, setShowPw] = useState(false);
+  // Asked once: a browser does not gain WebAuthn while the page is open. False off a
+  // secure context — the phone on the LAN IP over plain http sees no passkey button.
+  const [canPasskey] = useState(() => passkeysSupported());
+  const [pkBusy, setPkBusy] = useState(false);
+  const [pkRetryAfter, setPkRetryAfter] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -66,6 +79,26 @@ export default function LoginPage() {
       setErr(loginErrorText(e));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onPasskey() {
+    setErr(null);
+    setPkBusy(true);
+    try {
+      const res = await loginWithPasskey();
+      // A cancelled sheet is not an error: nothing happened, nothing is said.
+      if (!res) return;
+      auth.setSession(res);
+      nav(from, { replace: true });
+    } catch (e: unknown) {
+      if (e instanceof ApiError && e.status === 429) {
+        setPkRetryAfter(e.retryAfter ?? 60);
+        return;
+      }
+      setErr(passkeyErrorText(e));
+    } finally {
+      setPkBusy(false);
     }
   }
 
@@ -111,39 +144,7 @@ export default function LoginPage() {
           spellCheck={false}
           placeholder="Your player name"
         />
-        {/* Built by hand rather than through `Input`: a `<button>` inside a `<label>` is
-            invalid HTML (a button is itself labelable), so the label points at the field
-            by id and the eye toggle sits beside it as a sibling. */}
-        <div>
-          <label htmlFor="login-password" className="input-label block">
-            Password
-          </label>
-          <div className="relative">
-            <input
-              id="login-password"
-              name="password"
-              type={showPw ? "text" : "password"}
-              value={pw}
-              onChange={(e) => setPw(e.target.value)}
-              autoComplete="current-password"
-              className="input-field pr-11"
-              placeholder="Your password"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              iconOnly
-              className="absolute right-1 top-1/2 -translate-y-1/2"
-              onClick={() => setShowPw((v) => !v)}
-              aria-label={showPw ? "Hide password" : "Show password"}
-              aria-pressed={showPw}
-              title={showPw ? "Hide password" : "Show password"}
-            >
-              {showPw ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
-            </Button>
-          </div>
-        </div>
+        <PasswordField id="login-password" value={pw} onChange={setPw} placeholder="Your password" />
         {/* The page's only action, so it says what it does at every width — the
             compact-mobile idiom (icon below md) would leave it unnamed (A6). */}
         <Button
@@ -161,8 +162,28 @@ export default function LoginPage() {
           </div>
         ) : null}
         <RetryCountdown seconds={retryAfter} onExpire={() => setRetryAfter(null)} />
-        {/* L9: a `divider` and the ghost "Use a passkey" button go here, after the form. */}
       </form>
+      {/* After the form, not before it: a person with a password is not made to hunt for
+          it (L9). Hidden where the browser cannot do WebAuthn at all. */}
+      {canPasskey ? (
+        <div className="mt-3 space-y-3" data-passkey-login>
+          <hr className="divider" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            className="w-full justify-center gap-2"
+            disabled={pkBusy || pkRetryAfter != null}
+            onClick={() => {
+              void onPasskey();
+            }}
+          >
+            <Fingerprint size={14} aria-hidden="true" />
+            <span>{pkBusy ? "Waiting for your passkey…" : "Use a passkey"}</span>
+          </Button>
+          <RetryCountdown seconds={pkRetryAfter} onExpire={() => setPkRetryAfter(null)} />
+        </div>
+      ) : null}
     </AuthScreen>
   );
 }

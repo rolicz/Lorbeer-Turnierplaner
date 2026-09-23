@@ -2748,6 +2748,63 @@ the real thing).
 
 **Deviations.** —
 
+## L16 — The push dispatcher no longer holds the write lock across network calls  ☑
+
+> Not in the original plan. Found by a worker (a `POST /auth/login` answered 500 "database is
+> locked" while pushes were going out); approved by Roli 2026-09-23.
+
+**The gap.** `NotificationDispatcher._deliver` opened **one** `Session`, looped over a fan-out's
+subscriptions `await`ing an HTTPS call to the push service for each, and committed **once at the
+end**. From the second subscription on, that loop's reads (`push_subscription_mode`, then
+`_payload_for`'s language and group-prefix reads) **autoflushed** the previous row's pending
+UPDATE — which takes SQLite's write lock (no WAL here) — and the lock then rode across every
+remaining push (up to the client's 10 s timeout each) until the commit. Any other writer waited
+out pysqlite's 5 s busy timeout and failed. Before this batch a login wrote nothing; since L2
+every login writes an `AuthSession` row, so a login during a finished match or a four-record
+night's fan-out — deploy day, when all six log in fresh — could 500.
+
+**The fix** (`backend/app/services/notifications.py` only). **No transaction is open across an
+`await` on the network.** `_deliver` is now three phases: `_plan_deliveries` reads the rows, each
+row's mode and each payload in one short session and closes it, returning `_PlannedDelivery`
+values (id, the `WebPushSubscriptionData`, the payload); `_deliver_one` sends with no session
+open; then it writes the result to a **fresh read** of the row in its own short transaction,
+through `_record_delivery_result`, which is the old field logic moved verbatim. Unchanged: which
+rows are sent to (the `off`/`finished_only` filter, the personal-event default-mode exception),
+the language per recipient, L3's group prefix, and every field written per outcome (`updated_at`,
+`last_http_status`, `last_success_at`, `last_error`, `failure_count`, `last_failure_at`,
+`disabled_at` on 404/410, the two exception branches). The poke digest
+(`_ingest_poke`/`_flush_poke_digest*`) touches no database — it only enqueues — so there was
+nothing to fix there; no other `async` code in the module opens a session. WAL was **not**
+turned on (it would change what `backup-deploy-data` must copy).
+
+**The proof.** `backend/tests/test_push_dispatcher_lock.py`:
+- `test_a_write_succeeds_while_a_push_fan_out_is_on_the_wire` — three subscriptions, a faked
+  `send_web_push_message` that, from its second call on, performs an ordinary write **while the
+  push is in flight** (`create_session` + commit, on a thread, on its own connection with a
+  0.5 s busy timeout) and asserts it succeeds in under 0.5 s. **Against the unfixed code it fails**
+  with `sqlite3.OperationalError: database is locked` on `INSERT INTO authsession` — the diagnosis,
+  confirmed. With the fix it passes.
+- `test_every_field_written_after_a_send_per_outcome` — one fan-out over six rows (201, 500 with a
+  1000-char body, 404, 410, `WebPushUnavailableError`, a raising transport), each field asserted,
+  including the 400-char truncation and `failure_count` 2 → 3 / → 0.
+- `test_a_subscription_deleted_mid_fan_out_is_not_resurrected` — a row deleted while its push is
+  on the wire is not written back and the next row still is (the old code raised `StaleDataError`
+  on flush here and lost the whole fan-out's bookkeeping).
+The existing push tests (`test_push_notifications.py`, `test_ideas.py`, `test_accounts.py`) pass
+unchanged.
+
+**Deviations.**
+- A payload that cannot be built is recorded as a failed send (generic-exception branch), exactly
+  as before, when it was built inside the send's `try`.
+- **One deliberate behaviour change**: a failure *writing down* a result (e.g. the lock held by
+  someone else past 5 s) is logged and the fan-out continues to the remaining devices; before,
+  it aborted the fan-out. The pushes themselves are unaffected.
+- A result is applied to a fresh read of the row, so `failure_count += 1` counts from the current
+  value and a row deleted mid-fan-out stays deleted — identical to before whenever nothing else
+  wrote the row in between.
+- `ruff format` would reformat `notifications.py`, as it already would at `3928204`; not a gate
+  (`make lint` is `ruff check`), so the file was not reformatted.
+
 ## L14 — Documentation pass A (everything but passkeys; runs before deploy A)  ☐
 
 > **Dropped** (Roli, 2026-09-23: one deploy). Its whole job moves to L15 — see "Roli's answers" at the top of this file.
@@ -2994,7 +3051,7 @@ because of `cryptography<46`").
 - **Gates:** `make lint` clean; `make gen-types` committed as above; `make test`
   **501 passed** in 51:37 on a loaded Pi (load average 12 — `npm run check`, the sabotage runs and Roli's dev servers shared the four cores; the plan's 34 min is the quiet number). That is the baseline **465** at `d699892` plus **30** in `tests/test_passkeys.py` plus **6** from L11's in-flight `tests/test_player_profiles_auth.py` on the shared tree (+6/−0 `def test_`, uncommitted, not L8's); nothing pre-existing moved. L2's gate audit is among the 501 and was also run alone against the two new public paths (14 passed); `cd frontend && npm run check` green — tsc, eslint and vitest **919 tests in 95 files** in 185 s on the *shared* tree (L11's in-flight frontend files and its new test file ride in that count; L8 adds no frontend test, only the one `types.ts` line).
 
-## L9 — Passkeys in the browser; the "secure your account" strip  ☐
+## L9 — Passkeys in the browser; the "secure your account" strip  ☑
 
 **The gap.** The login page has a reserved slot; Settings → Account → Password has no
 passkey rows; nothing tells a migrated account to add one.
@@ -3040,20 +3097,154 @@ grep -n "passkey" -ri frontend/src/pages/settings/SecuritySection.tsx  # → 0
    is out. Kept in the repo so deploy B's rehearsal can re-run it.
 
 **Definition of done.**
-- ☐ `passkeys.test.tsx` (≈8, the API module mocked): the button hidden when unsupported; a
+- ☑ `passkeys.test.tsx` (≈8, the API module mocked): the button hidden when unsupported; a
   cancelled sheet is silent; the notice's three conditions; the last-way-in disable.
-- ☐ The Playwright script passes; a screenshot at 390 in both themes of the login card with the
+- ☑ The Playwright script passes; a screenshot at 390 in both themes of the login card with the
   passkey button and of the Settings section; the notice measured (height, and the tab strip
   offset with one and with two notices).
-- ☐ `npm run check`, `npm run build` (a new dependency: the chunk size written down against
+- ☑ `npm run check`, `npm run build` (a new dependency: the chunk size written down against
   the ≈734 kB baseline).
-- ☐ Deviations filled in.
+- ☑ Deviations filled in.
 
 **Canon.** `DESIGN.md` §7: the passkey rows, the notice, "a cancelled system sheet is not an
 error"; §5b: `passkey`, `synced`, `Use a passkey`, `Add a passkey`. `AGENTS.md` §2 (`push/` is
 not where passkeys live — `api/passkeys.api.ts` is), §10 (the one dependency and why).
 
-**Deviations.** —
+**Deviations.**
+- **npm replaced the `frontend/node_modules` symlink with a real install.** `npm install
+  --save-exact @simplewebauthn/browser@13.3.0` (a `--dry-run` first said "added 1 package") left
+  the worktree's `frontend/node_modules` as its own directory: 242 MB, a full reinstall from the
+  lockfile. **The main checkout's `node_modules` was not touched** (still dated Sep 20, still without
+  the package). Stopped and reported; the coordinator chose to keep it. The worktree is now
+  self-contained, and **L11 and every later task in this worktree use this directory** — which needs
+  no action. It is the same lockfile, so the same versions. Only three folders differ: `@emnapi`,
+  `@fortawesome` and `@oxc-project` exist only in main. They are stale leftovers there; Font Awesome
+  left the project at DS7. `backend/.venv` is still the symlink.
+- **The dependency: `@simplewebauthn/browser` pinned exactly at `13.3.0`** (the latest 13.x; 14.0.0
+  exists, the plan says `^13`, the brief says exact). It is pure JS with no install scripts, and
+  its v13 option shapes are what L8's server emits. Its four entry points bundle to **8.8 kB
+  minified** on their own (esbuild, measured). `index-*.js` at this tree is **774.28 kB**, but
+  L10/L11/L12 are in that number too, so the plan's ≈734 kB is not the baseline to subtract from.
+  It is imported by `api/passkeys.api.ts` **only**.
+- **`label` is sent as `""`, never `null`.** `PasskeyRegisterVerifyBody.label` is a plain `str`, and
+  the first end-to-end run got a **422** for `null`. The unit test with the library mocked could not
+  see it; the wire could.
+- **One password field.** `LoginPage` and `SecuritySection` now render L5's
+  `pages/auth/PasswordField.tsx`. Its two private copies are deleted, and so is
+  `SecuritySection`'s own `MIN_PASSWORD_LENGTH` (it imports `pages/auth/password.ts`). The shared
+  component gained a `placeholder` prop (login keeps "Your password"). The toggle is now **named
+  after its field**: "Show current password" and "Show new password" in Settings, "Show password"
+  where the label is "Password". Otherwise the Settings form had two buttons with one name.
+- **The strip (`ui/shell/SecureAccountNotice.tsx`) is `warn`, as the plan says, and not
+  information.** `DESIGN.md` §2's `warn` is "attention, but nothing failed", which is exactly an
+  account still on the password it was *given*. P5's shell notice is the same family and the same
+  placement: first in `<main>`, above the route, `card mb-3 … border-warn/40 bg-warn/10`. It is a
+  `.card`, not an `.inset` (§3, Q-E), and light keeps the tone (measured `rgba(146,64,14,0.1)`
+  light, `rgba(251,191,36,0.1)` blue). The words are "Secure your account — add a passkey." with a
+  `KeyRound` glyph in `text-warn`. The one action is a **solid small `Link` "Add a passkey"** to
+  `/settings?tab=account`, carrying `NAV_JUMP_STATE` like every Settings link. There is **no
+  dismiss control** (Roli's answer 5); the strip stops when `hasPasskey`.
+  - **Condition:** `status === "authed" && passwordMigrated && !hasPasskey && passkeysSupported()`,
+    the plan's step 5. **Open for Roli:** changing the password (which clears `password_migrated`)
+    also ends the strip, as L7's line "change it, or add a passkey" implies. If he wants it until a
+    passkey *only*, drop `passwordMigrated` from the condition — but then every account, including
+    ones that registered with a fresh password, would see it.
+  - **Two additions to the plan:** the strip renders nothing **on Settings → Account itself**, where
+    it would only point at the page it is on. And L7's local migrated line in the Password block
+    also goes once a passkey exists, since its advice ("…or add a passkey") is done.
+  - **It cannot move the top bar's title (Q13)**: it lives in the page column, not the bar.
+    Measured title centre with and without the strip: **195.0 / 195.0** at 390. It is never on the
+    auth screens, which render outside `AppShell`.
+- **Measured** (`scripts/passkey_e2e.mjs`, four runs):
+  - Strip at **390**: x=16, w=358, h=**66** (the words wrap to two lines beside the button); the
+    tab strip moves **73 → 151, +78** (66 + the page column's 12 px flow margin).
+  - Strip at **1280**: x=264, w=992, h=**58**; tab strip **72 → 142, +70**. Identical in both
+    themes.
+  - **Two notices stacked were not measurable**: headless Chromium reports
+    `Notification.permission === "denied"` whatever is asked (§10), so P5's notice never renders
+    here. It is the same card shape (≈58–66 px + 12), so two notices cost ≈ **+140 to +156 px** —
+    arithmetic, not a measurement.
+- **Settings → Passkeys** sits between Devices and Password:
+  - **Rows:** each passkey is a `ListRow` with the label, `Added <date> · last used <date, time>`
+    (or `· not used yet`), a `pill-default` "synced" when `backed_up`, and a ghost `Trash2` titled
+    "Remove this passkey".
+  - **The last way in** (`!hasPassword && rows === 1`): that button is **disabled**, its title is
+    the server's own 409 sentence, and the same sentence is printed under the list (a tooltip does
+    not exist on a phone).
+  - **Removing:** a `ConfirmDialog` **with the red block** ("This passkey stops working for your
+    account." / "You will have to log in again here and on every other device."), subtitle "Every
+    device will be signed out, including this one.", verb **Remove passkey**. After the `DELETE` the
+    app calls `auth.logout()`: its request meets the dead session, which it already treats as done,
+    so the login screen shows **without** "Your session has ended" (that line is for an ending
+    nobody asked for). Then `/login`.
+  - **Adding:** an optional **Name** field (placeholder "Named after this device if left empty",
+    max 60) and a solid full-width **Add a passkey** (`KeyRound`). Success: "Passkey added. Next
+    time, log in with it — no name, no password." plus `refresh()` (L7's rule — not `setSession`).
+  - **Silent and unsupported cases:** a closed sheet says nothing. `InvalidStateError`
+    (`excludeCredentials`) says "This device already has a passkey for your account." A browser
+    without WebAuthn gets "This browser cannot make passkeys." instead of the form, and the list
+    stays (a passkey can still be removed from there).
+  - **"Remove password"** is a muted full-width ghost button under the toggle, shown only when
+    `hasPassword && hasPasskey`. Its `ConfirmDialog` has **no** red block: it is reversible by
+    "Set a password" right there (§7), and the server ends no session for it. After it, the Password
+    block reads "Password removed. You log in with your passkey now."
+- **Login:** after the form comes a `divider`, then a full-width ghost **Use a passkey**
+  (`Fingerprint`), shown only where `browserSupportsWebAuthn()`. That hides it on the phone over
+  the LAN IP (not a secure context), where it could only fail. A closed sheet says nothing. A refusal
+  is the server's one 401 sentence on the form's existing error line. A 429 has its own
+  `RetryCountdown` under the button, so it never holds up "Log in".
+- **Tests:**
+  - `passkeys.test.tsx` has **13** (the library mocked at `@simplewebauthn/browser`, `apiFetch`
+    stubbed by path): the options go to the library untouched and an empty label posts `""`; a
+    closed sheet is `null` with no verify request; the login button is hidden when unsupported,
+    sits after the form, signs in with nothing typed and goes on; a closed sheet on login is
+    silent, a refusal is the server's line; adding asks `/me` again and a closed sheet is silent;
+    the last-way-in button is disabled with the reason; removal warns, then logs out and lands on
+    `/login`; "Remove password" appears only with a passkey; the unsupported browser gets the
+    sentence and no form; the strip's conditions (shown with no dismiss control, gone with a
+    passkey, gone with a changed password, gone where unsupported, gone on the account tab).
+  - `securitySection.test.tsx` (L7's) needed a `MemoryRouter` and a `passkeys.api` mock, because the
+    section now navigates. No assertion changed.
+  - `npm run check` **932 tests in 96 files** (919/95 at `f14f269` + 13 in 1); `npm run build`
+    green, 774.28 kB (the >500 kB hint as before).
+- **End to end** (`scripts/passkey_e2e.mjs`; Playwright from `PLAYWRIGHT=…`; CDP virtual
+  authenticator ctap2 / internal / resident / UV):
+  - **Stack:** backend **8240**, vite **8260**, browsed as `http://localhost:8260` (a secure
+    context). A `sqlite3 .backup` of the main checkout's `app.db` (opened `mode=ro`) and an empty
+    uploads dir sat under a `mktemp -d` in the session scratchpad. **7 push subscriptions and 7
+    preferences were deleted from the copy before the first boot.** The throwaway secrets named the
+    copy and carried no VAPID key. First boot: `Auth migrated: 3 accounts…`, `Cups imported: 2`.
+  - **Four runs, all green:** 390 blue as Berni (30 checks), 1280 light as Roli (29 — the
+    title-centre check is mobile-only), 390 light as Flo (30), 1280 blue as Berni again (29; Berni's
+    `password_origin` was set back to `migrated` **on the copy** between runs).
+  - **Each run walks:** the login card offers "Use a passkey" after the form, with no overflow and
+    `a a` = 0; the password login shows the strip; the strip's link opens Settings → Account, where
+    it is not shown; **add a passkey** puts one resident credential in the authenticator and makes
+    `/me` report `has_passkey`; **the strip is gone**; **log out** makes `/me` 401; **"Use a
+    passkey" signs in as the same account with nothing typed**; **remove password** makes
+    `has_password` false; **the last passkey's button is disabled** with the server's sentence, and
+    a direct `DELETE` answers **409 with that same sentence**; **set a password**; **remove the
+    passkey**, which warns "Every device will be signed out, including this one.", lands on
+    `/g/altherren/login` with `/me` **401** and no "session ended" line.
+  - **After removal,** the credential still in the authenticator gets "That passkey could not be
+    used to log in", and the new password logs in.
+  - Screenshots of the login card, the strip, the Passkeys section, the last-way-in state and the
+    dialog were taken at 390 and 1280 in both themes and looked at. They stayed in the scratchpad.
+  - The virtual authenticator reports no backup flags, so "synced" never showed there; the unit test
+    covers it. Stack PIDs, vite's esbuild child included, were killed by number and both ports
+    checked free.
+- **What only Roli's iPhone can prove:**
+  - that Safari on `https://lorbeerkranz.xyz` shows "Use a passkey" at all;
+  - that Face ID sets the UV bit the server requires;
+  - that iCloud Keychain syncs the credential and reports it backed up (the "synced" pill);
+  - that a passkey made in Safari signs in from the **installed PWA**, and that the PWA's own cookie
+    jar keeps the session `login/verify` sets;
+  - that a closed Face ID sheet really arrives as `NotAllowedError` (silence) and not as something
+    that prints a line;
+  - and how the strip reads at his own width.
+
+  None of this is reachable from here: the phone reaches dev over the plain-http LAN IP, which is
+  not a secure context, so on that setup the button and the strip are both (correctly) hidden.
 
 ## L15 — Documentation pass B (passkeys; runs before deploy B)  ☐
 

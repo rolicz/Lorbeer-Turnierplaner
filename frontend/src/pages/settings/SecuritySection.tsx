@@ -1,25 +1,34 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Eye, EyeOff, LogOut, UserPlus } from "lucide-react";
+import { ChevronDown, ChevronUp, KeyRound, LogOut, Trash2, UserPlus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-import { changePassword, listMySessions, redeemCode, revokeMyOthers, revokeMySession } from "../../api/account.api";
+import {
+  changePassword,
+  listMySessions,
+  redeemCode,
+  removePassword,
+  revokeMyOthers,
+  revokeMySession,
+} from "../../api/account.api";
 import { ApiError } from "../../api/client";
+import { listPasskeys, passkeysSupported, registerPasskey, removePasskey } from "../../api/passkeys.api";
 import { qk } from "../../api/queryKeys";
-import type { AuthSession } from "../../api/types";
+import type { AuthSession, Passkey } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import Button from "../../ui/primitives/Button";
 import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import InlineLoading from "../../ui/primitives/InlineLoading";
+import Input from "../../ui/primitives/Input";
 import { List, ListRow } from "../../ui/primitives/List";
 import { Pill } from "../../ui/primitives/Pill";
 import { showErrorToast } from "../../ui/primitives/ErrorToast";
 import { fmtCount, fmtDate, fmtDateTime } from "../../utils/format";
 import InviteCodeField from "../auth/InviteCodeField";
+import { MIN_PASSWORD_LENGTH } from "../auth/password";
+import PasswordField from "../auth/PasswordField";
 import RetryCountdown from "../auth/RetryCountdown";
 import SettingsSection from "./SettingsSection";
-
-/** The server's floor (`services/passwords.py::MIN_PASSWORD_LENGTH`); no other rule. */
-const MIN_PASSWORD_LENGTH = 10;
 
 /** A form's error line: the server's own sentence, else what went wrong in plain words. */
 function errorText(e: unknown, fallback: string): string {
@@ -161,63 +170,196 @@ function DevicesSection() {
   );
 }
 
-// ---- Password -------------------------------------------------------------------------
+// ---- Passkeys (L9) ---------------------------------------------------------------------
 
-/**
- * The password field with its eye toggle, built by hand like the login screen's: a
- * `<button>` inside `Input`'s `<label>` would be invalid HTML.
- */
-function PasswordField({
-  id,
-  label,
-  value,
-  onChange,
-  autoComplete,
-  hint,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  autoComplete: "current-password" | "new-password";
-  hint?: React.ReactNode;
-}) {
-  const [show, setShow] = useState(false);
+/** The server's own sentence for the last way in — shown before the tap, not after it. */
+const LAST_WAY_IN = "Set a password before removing your last passkey — an account needs one way in";
+
+/** What went wrong while adding a passkey, in words; a cancelled sheet never gets here. */
+function addPasskeyErrorText(e: unknown): string {
+  if (e instanceof ApiError) return e.detail ?? `Could not add the passkey (${e.status})`;
+  // `excludeCredentials` at work: this authenticator already holds one of mine.
+  if (e instanceof Error && e.name === "InvalidStateError") return "This device already has a passkey for your account.";
+  if (e instanceof Error && e.name !== "TypeError") return "This device could not make a passkey.";
+  return "Could not reach the server — check your connection and try again.";
+}
+
+function PasskeysSection() {
+  const qc = useQueryClient();
+  const nav = useNavigate();
+  const { hasPassword, refresh, logout } = useAuth();
+  const [supported] = useState(() => passkeysSupported());
+  const passkeysQ = useQuery({ queryKey: qk.auth.passkeys(), queryFn: listPasskeys });
+  const [label, setLabel] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addErr, setAddErr] = useState<string | null>(null);
+  const [added, setAdded] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState<Passkey | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  const rows = passkeysQ.data ?? [];
+  // The server refuses this (409); saying so on the button first is kinder than a refusal.
+  const lastWayIn = !hasPassword && rows.length === 1;
+
+  async function onAdd(e: React.FormEvent) {
+    e.preventDefault();
+    setAddErr(null);
+    setAdded(false);
+    setAdding(true);
+    try {
+      const pk = await registerPasskey(label);
+      if (!pk) return; // the sheet was closed: nothing happened, nothing to say
+      setLabel("");
+      setAdded(true);
+      await qc.invalidateQueries({ queryKey: qk.auth.passkeys() });
+      // `has_passkey` moves — and with it the app-wide strip. Same session: `refresh`.
+      await refresh();
+    } catch (err) {
+      setAddErr(addPasskeyErrorText(err));
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function confirmRemove() {
+    if (!pendingRemove) return;
+    setRemoving(true);
+    try {
+      await removePasskey(pendingRemove.id);
+    } catch (err) {
+      setRemoving(false);
+      setPendingRemove(null);
+      if (err instanceof ApiError && err.status === 404) {
+        void qc.invalidateQueries({ queryKey: qk.auth.passkeys() });
+        return;
+      }
+      showErrorToast(errorText(err, "Could not remove the passkey"), "Remove failed");
+      return;
+    }
+    // Removing a passkey ended every session of this account, this one included — the
+    // answer already cleared the cookie. `logout` settles the app's own state (its request
+    // meets a dead session, which it treats as done), then the login screen.
+    try {
+      await logout();
+    } catch {
+      // Unreachable server after a delete that arrived: the next request meets the 401.
+    }
+    nav("/login", { replace: true });
+  }
+
   return (
-    <div>
-      <label htmlFor={id} className="input-label block">
-        {label}
-      </label>
-      <div className="relative">
-        <input
-          id={id}
-          type={show ? "text" : "password"}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          autoComplete={autoComplete}
-          className="input-field pr-11"
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          iconOnly
-          className="absolute right-1 top-1/2 -translate-y-1/2"
-          onClick={() => setShow((v) => !v)}
-          aria-label={show ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
-          aria-pressed={show}
-          title={show ? "Hide password" : "Show password"}
+    <SettingsSection title="Passkeys">
+      {passkeysQ.isLoading ? (
+        <InlineLoading label="Loading…" />
+      ) : passkeysQ.isError ? (
+        <div className="text-xs text-error" role="alert">
+          Could not load your passkeys.
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="text-xs text-text-muted">No passkeys yet.</div>
+      ) : (
+        <List>
+          {rows.map((row) => (
+            <ListRow
+              key={row.id}
+              title={row.label || "Passkey"}
+              subtitle={
+                row.last_used_at
+                  ? `Added ${fmtDate(row.created_at)} · last used ${fmtDateTime(row.last_used_at)}`
+                  : `Added ${fmtDate(row.created_at)} · not used yet`
+              }
+              trailing={
+                <span className="inline-flex items-center gap-1.5">
+                  {row.backed_up ? (
+                    <Pill className="pill-default" title="Synced to your other devices by your password manager">
+                      synced
+                    </Pill>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    disabled={lastWayIn}
+                    onClick={() => setPendingRemove(row)}
+                    aria-label={`Remove ${row.label || "passkey"}`}
+                    title={lastWayIn ? LAST_WAY_IN : "Remove this passkey"}
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                  </Button>
+                </span>
+              }
+            />
+          ))}
+        </List>
+      )}
+      {lastWayIn ? (
+        <div className="mt-2 text-xs text-text-muted" data-passkey-last>
+          {LAST_WAY_IN}.
+        </div>
+      ) : null}
+
+      {supported ? (
+        <form
+          className="mt-3 space-y-2"
+          aria-label="Add a passkey"
+          onSubmit={(e) => {
+            void onAdd(e);
+          }}
         >
-          {show ? <Eye size={16} aria-hidden="true" /> : <EyeOff size={16} aria-hidden="true" />}
-        </Button>
-      </div>
-      {hint}
-    </div>
+          <Input
+            label="Name"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Named after this device if left empty"
+            maxLength={60}
+            disabled={adding}
+          />
+          <Button type="submit" size="md" className="w-full justify-center gap-2" disabled={adding}>
+            <KeyRound size={14} aria-hidden="true" />
+            <span>{adding ? "Waiting for your passkey…" : "Add a passkey"}</span>
+          </Button>
+          {addErr ? (
+            <div className="text-xs text-error" role="alert">
+              {addErr}
+            </div>
+          ) : null}
+          {added ? (
+            <div className="text-xs text-text-muted" role="status">
+              Passkey added. Next time, log in with it — no name, no password.
+            </div>
+          ) : null}
+        </form>
+      ) : (
+        <div className="mt-3 text-xs text-text-muted" data-passkey-unsupported>
+          This browser cannot make passkeys.
+        </div>
+      )}
+
+      {/* A stored credential is deleted, and every session with it: the red block (§7). */}
+      <ConfirmDialog
+        open={!!pendingRemove}
+        title={`Remove ${pendingRemove?.label || "this passkey"}?`}
+        subtitle="Every device will be signed out, including this one."
+        confirmLabel="Remove passkey"
+        busy={removing}
+        busyLabel="Removing…"
+        onCancel={() => setPendingRemove(null)}
+        onConfirm={() => {
+          void confirmRemove();
+        }}
+      >
+        <div>This passkey stops working for your account.</div>
+        <div>You will have to log in again here and on every other device.</div>
+      </ConfirmDialog>
+    </SettingsSection>
   );
 }
 
+// ---- Password -------------------------------------------------------------------------
+
 function PasswordSection() {
-  const { hasPassword, passwordMigrated, refresh } = useAuth();
+  const { hasPassword, hasPasskey, passwordMigrated, refresh } = useAuth();
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -225,6 +367,9 @@ function PasswordSection() {
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removed, setRemoved] = useState(false);
 
   const toggleLabel = hasPassword ? "Change password" : "Set a password";
   const longEnough = next.length >= MIN_PASSWORD_LENGTH;
@@ -262,11 +407,27 @@ function PasswordSection() {
     }
   }
 
+  async function onRemovePassword() {
+    setRemoving(true);
+    try {
+      await removePassword();
+      setRemoved(true);
+      setDone(false);
+      await refresh();
+    } catch (e) {
+      showErrorToast(errorText(e, "Could not remove the password"), "Remove failed");
+    } finally {
+      setRemoving(false);
+      setConfirmRemove(false);
+    }
+  }
+
   const waiting = retryAfter != null;
 
   return (
     <SettingsSection title="Password">
-      {passwordMigrated && hasPassword ? (
+      {/* Its advice is done once a passkey exists — the app-wide strip stops then too. */}
+      {passwordMigrated && hasPassword && !hasPasskey ? (
         <div className="mb-2 text-xs text-warn" data-password-migrated>
           This is the password you were given — change it, or add a passkey.
         </div>
@@ -296,26 +457,9 @@ function PasswordSection() {
           }}
         >
           {hasPassword ? (
-            <PasswordField
-              id="settings-current-password"
-              label="Current password"
-              value={current}
-              onChange={setCurrent}
-              autoComplete="current-password"
-            />
+            <PasswordField id="settings-current-password" label="Current password" value={current} onChange={setCurrent} />
           ) : null}
-          <PasswordField
-            id="settings-new-password"
-            label="New password"
-            value={next}
-            onChange={setNext}
-            autoComplete="new-password"
-            hint={
-              <div className={`input-hint ${longEnough ? "text-text-normal" : "text-text-muted"}`}>
-                At least {MIN_PASSWORD_LENGTH} characters
-              </div>
-            }
-          />
+          <PasswordField id="settings-new-password" label="New password" value={next} onChange={setNext} newPassword />
           <Button
             type="submit"
             size="md"
@@ -332,9 +476,37 @@ function PasswordSection() {
           <RetryCountdown seconds={retryAfter} onExpire={() => setRetryAfter(null)} />
         </form>
       ) : null}
-      {/* L9: the passkey rows go here, and the muted "Remove password" action appears only
-          when `hasPasskey` — `removePassword()` is in `account.api.ts` for it. Until a
-          passkey can exist the server answers 409, so nothing is offered. */}
+      {removed && !hasPassword && !open ? (
+        <div className="mt-2 text-xs text-text-muted" role="status">
+          Password removed. You log in with your passkey now.
+        </div>
+      ) : null}
+      {/* Only with a passkey: the server refuses it otherwise (one way in, always). */}
+      {hasPassword && hasPasskey && !open ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="md"
+          className="mt-2 w-full justify-center text-text-muted"
+          onClick={() => setConfirmRemove(true)}
+          data-remove-password
+        >
+          Remove password
+        </Button>
+      ) : null}
+      {/* Reversible by its own inverse — "Set a password" is right here — so no red block. */}
+      <ConfirmDialog
+        open={confirmRemove}
+        title="Remove your password?"
+        subtitle="You will log in with a passkey only. You can set a password again here."
+        confirmLabel="Remove password"
+        busy={removing}
+        busyLabel="Removing…"
+        onCancel={() => setConfirmRemove(false)}
+        onConfirm={() => {
+          void onRemovePassword();
+        }}
+      />
     </SettingsSection>
   );
 }
@@ -430,14 +602,15 @@ function GroupsSection() {
 }
 
 /**
- * Settings → Account (L7): where I am logged in, my password, and the groups I am in —
- * three settings groups under "Account". Everything is the caller's own; the server
+ * Settings → Account (L7, L9): where I am logged in, my passkeys, my password, and the
+ * groups I am in — four settings groups under "Account". Everything is the caller's own; the server
  * decides ownership, this page only renders what it answers.
  */
 export default function SecuritySection() {
   return (
     <>
       <DevicesSection />
+      <PasskeysSection />
       <PasswordSection />
       <GroupsSection />
     </>
