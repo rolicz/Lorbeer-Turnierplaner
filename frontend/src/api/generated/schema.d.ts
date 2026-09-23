@@ -1189,7 +1189,10 @@ export interface paths {
         /**
          * List Player Avatar Meta
          * @description Lightweight avatar metadata used by the frontend to avoid spamming 404 requests.
-         *     Returns only player_id + updated_at for players who have an avatar.
+         *     Returns only player_id + updated_at for players who have an avatar — and only for the
+         *     caller's roster (L11): the picture itself is refused to anyone outside it
+         *     (`ensure_shared_group`), so a stranger's avatar must never be *announced* either, or the
+         *     browser asks for it, gets a 403 and draws a broken image where the monogram belongs.
          */
         get: operations["list_player_avatar_meta_players_avatars_get"];
         put?: never;
@@ -1207,7 +1210,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Player Header Meta */
+        /**
+         * List Player Header Meta
+         * @description The same for header images, and for the same reason.
+         */
         get: operations["list_player_header_meta_players_headers_get"];
         put?: never;
         post?: never;
@@ -1266,7 +1272,7 @@ export interface paths {
          * Get Guestbook Subject Image
          * @description The pinned copy a guestbook entry is about (K1).
          *
-         *     Public read, like the avatar. Immutable: a snapshot never changes and its URL carries
+         *     Read like the avatar: only by someone who shares a group with its player (L11). Immutable: a snapshot never changes and its URL carries
          *     its id, so the browser may keep it for a year — this is the one picture in the app
          *     that is *guaranteed* not to be replaced under its own URL. A `?w=` derivative of it is
          *     exactly as immutable, which is why it carries the same header (W1).

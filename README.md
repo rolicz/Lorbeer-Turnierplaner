@@ -64,7 +64,7 @@ Production / Docker:
 
 ```
 .
-├── backend/    # FastAPI + SQLModel (SQLite) + JWT auth + WebSocket
+├── backend/    # FastAPI + SQLModel (SQLite) + cookie sessions, passkeys + WebSocket
 ├── frontend/   # React 18 + Vite 7 + Tailwind 3 + TanStack Query (responsive PWA)
 ├── deploy/     # Caddy reverse proxy config (production)
 ├── scripts/    # gen_types.sh (OpenAPI → TS), node-env.sh (nvm loader for the make targets)
@@ -80,11 +80,12 @@ Production / Docker:
 - Tournament creation (1v1 / 2v2 round-robin style for small groups; 1v1 supports 3-6 players, 2v2 supports 4-6)
 - Live match editing (goals, state, clubs per match side) + live updates via WebSocket
 - Second leg (all-or-none), reorder matches, swap sides
-- Player-based auth (case-insensitive username + password), with roles:
-  - Reader: read-only (no login)
-  - Editor: normal write operations
-  - Admin: advanced operations (delete tournaments, rename players, etc.)
-- Player profiles: avatar + 16:9 header image + about text + guestbook (owner-editable, public-readable)
+- **Private by default**: nothing — no page, picture, stat or websocket — is readable without a
+  login (see "Authentication" below). Log in with your display name and a password, or with a
+  passkey (Face ID / Touch ID); new people join with a one-hour invite code; an admin page shows
+  who is logged in from which device
+- Player profiles: avatar + 16:9 header image + about text + guestbook (owner-editable, readable
+  by everyone who shares a group with that player)
 - **Multiple cups** (configurable keys/names + optional start date), each with owner + history
 - Tournament & match **comments** (edit, delete, pin one tournament comment), real-time updates
 - **Unread comments** indicators/actions (stored locally in the browser): jump to latest unread + mark all read
@@ -110,8 +111,9 @@ Production / Docker:
 ## Ports (defaults)
 
 ### Development (local/LAN)
-- Backend: `http://127.0.0.1:8001`
-- Frontend dev server: `http://127.0.0.1:8000`
+- Backend: `http://127.0.0.1:8001` (never opened in a browser — vite proxies to it)
+- Frontend dev server: `http://127.0.0.1:8000` — the **only** URL a browser or phone uses; it
+  proxies `/api/…` (prefix stripped) and `/ws/…` to the backend, exactly like Caddy in production
 
 ### Production (Docker + Caddy)
 - Public: `https://lorbeerkranz.xyz`
@@ -135,7 +137,6 @@ Create `backend/secrets.json`:
     { "name": "Flo", "password": "change-me", "admin": false }
   ],
   "jwt_secret": "dev-change-me",
-  "ws_require_auth": false,
   "log_level": "INFO",
   "push_vapid_public_key": "",
   "push_vapid_private_key_file": "./vapid_private_key.pem",
@@ -145,11 +146,26 @@ Create `backend/secrets.json`:
 ```
 
 Notes:
-- Use a strong `jwt_secret` in production.
 - `db_url` uses `/data/app.db` so it can be persisted via a volume/bind mount in Docker.
-- `player_accounts[].name` must match an existing player name (case-insensitive login).
-- `admin: true` enables admin privileges for that player account.
+- **`player_accounts[]` is migrated on the first boot and never used for logging in again.** Each
+  entry whose `name` matches an existing player (case-insensitively) becomes a real account with
+  its password hashed (argon2id); `admin: true` makes that account the site admin and an owner of
+  the group. An entry that matches no player is skipped and logged, never created. Leave the list
+  in the file until a deploy of this code has been proven on a phone — it is also the login of the
+  previous release, i.e. the rollback's — and delete it afterwards.
+- `jwt_secret` is only kept so that a phone still holding a pre-cookie login token can trade it for
+  a session once (`POST /auth/exchange`); empty means that exchange answers 410. It goes away with
+  `player_accounts[]`.
 - `push_vapid_*` enables browser push delivery for the PWA.
+- New settings, all optional and all with safe defaults (env var or the lower-case key):
+  `APP_ENV` (`production` | `development` | `test`; Docker sets `production`), `TRUSTED_PROXY_HOPS`
+  (Docker sets `1` for Caddy), `AUTH_ORIGIN` / `AUTH_RP_ID` / `AUTH_RP_NAME` (the passkey relying
+  party, default `https://lorbeerkranz.xyz`), `AUTH_DEV_ORIGIN` (development only — the Makefile
+  sets it), `PASSWORD_HASH_PROFILE` (`default` | `test`), `SESSION_TTL_DAYS` (90). **An unknown
+  `APP_ENV` or `PASSWORD_HASH_PROFILE`, a dev origin in production, or a non-https pinned origin
+  makes the backend refuse to boot** and name the setting in its last log line.
+- `ws_require_auth` is gone (a websocket always needs the session); an old file that still has it
+  loads fine.
 
 ### Media storage (avatars + comment images)
 
@@ -164,9 +180,14 @@ Notes:
 
 ### Cups config (multiple cups)
 
-The backend loads cup definitions from:
+Cups live in the database. On the first boot of a database with no cups, the backend **imports**
+them from:
 - `CUPS_CONFIG_PATH` (recommended in Docker), or
 - fallback: `backend/app/cups.json`
+
+After that the file is only a seed: it is still validated on every boot (a malformed file stops
+the backend), but editing it changes nothing — the backend logs a warning that the file and the
+database differ.
 
 Format (`since_date` and `eras` are optional, ISO `YYYY-MM-DD`):
 
@@ -220,28 +241,22 @@ frontend/.env*
 
 ### Frontend env (Vite)
 
-Vite variables are **build-time** (`VITE_*` is baked into the built frontend).
-For local dev, create `frontend/.env.local`:
-
-```env
-VITE_API_BASE_URL=http://127.0.0.1:8001
-VITE_WS_BASE_URL=ws://127.0.0.1:8001
-```
-
-For LAN dev (open UI from other devices), use your machine LAN IP, e.g.:
-
-```env
-VITE_API_BASE_URL=http://192.168.178.78:8001
-VITE_WS_BASE_URL=ws://192.168.178.78:8001
-```
-
-For production behind Caddy, use same-origin routing (recommended), e.g. `frontend/.env.production`:
+Vite variables are **build-time** (`VITE_*` is baked into the built frontend). Dev and production
+are both **same-origin** — the login is a cookie, and a cookie set by the backend's port would be
+invisible to a page served from vite's — so `frontend/.env.local` (dev) holds exactly what the
+committed `frontend/.env.production` holds:
 
 ```env
 VITE_API_BASE_URL=/api
-# WebSocket base is derived automatically in the frontend (wss://<host>/ws)
+# WebSocket base is derived automatically in the frontend (ws(s)://<host>/ws)
 VITE_WS_BASE_URL=
 ```
+
+An older `.env.local` with absolute `http://…:8001` URLs **must be replaced**: with it the app
+logs in and immediately forgets it. In dev, vite's proxy (`frontend/vite.config.ts`) forwards
+`/api/…` and `/ws/…` to `BACKEND_ORIGIN` (default `http://127.0.0.1:8001`; `make frontend
+BACKEND_ORIGIN=…` overrides it), so a phone on the LAN uses the vite URL alone
+(`http://192.168.178.78:8000`).
 
 ⚠️ Do **not** use `0.0.0.0` in browser URLs — it’s only for binding servers.
 
@@ -252,10 +267,15 @@ VITE_WS_BASE_URL=
 From repo root you can use the convenience targets:
 
 ```bash
-make backend        # http://127.0.0.1:8001
-make frontend       # http://127.0.0.1:8000
+make backend        # http://127.0.0.1:8001  (runs with AUTH_DEV_ORIGIN=1 APP_ENV=development)
+make frontend       # http://127.0.0.1:8000  (proxies /api and /ws to the backend)
 make dev            # both on LAN (0.0.0.0)
 ```
+
+**Passkeys in dev** work only in a browser on `http://localhost:8000` (a secure context). A phone
+on `http://192.168.178.78:8000` is plain HTTP off localhost, so its browser hides WebAuthn and the
+app hides "Use a passkey" — passkeys on a phone are production-only (HTTPS). The password login
+works everywhere.
 
 The frontend needs **Node ≥ 20.19 (or ≥ 22.12)** — Vite 7's floor. `.nvmrc` pins 24 and the
 `make frontend`, `make frontend-lan` and `make frontend-install` targets source
@@ -270,7 +290,7 @@ cd backend
 python3 -m venv .venv
 ./.venv/bin/python -m pip install -r requirements.txt
 
-# run locally
+# run locally (the repo-root `make backend` adds the dev auth env for you)
 make run
 
 # run on LAN
@@ -285,7 +305,7 @@ Docs: `http://127.0.0.1:8001/docs`
 cd frontend
 npm install
 
-# local
+# local (vite.config.ts already proxies /api and /ws to BACKEND_ORIGIN)
 npm run dev -- --port 8000
 
 # LAN
@@ -342,6 +362,9 @@ services:
       # Optional cups config in the persisted data dir:
       CUPS_CONFIG_PATH: "/data/cups.json"
       UPLOADS_DIR: "/data/uploads"
+      # Auth: production arms the boot guard; Caddy is the one proxy in front.
+      APP_ENV: "production"
+      TRUSTED_PROXY_HOPS: "1"
 ```
 
 ### 3) Caddyfile
@@ -349,6 +372,10 @@ services:
 The Caddyfile lives at `deploy/Caddyfile` and is exactly:
 
 ```caddyfile
+# Import additional site configs (one file per app). Host dir configurable
+# via CADDY_SITES_DIR in .env; defaults to the in-repo deploy/sites/.
+import /etc/caddy/sites/*.caddy
+
 lorbeerkranz.xyz, www.lorbeerkranz.xyz {
   encode gzip zstd
 
@@ -369,13 +396,23 @@ lorbeerkranz.xyz, www.lorbeerkranz.xyz {
 Note the asymmetry: `handle_path` **strips** the `/api` prefix before proxying, while `handle`
 **keeps** `/ws` — the backend mounts its WebSocket routes at `/ws/...`.
 
+The `import` line lets the same Caddy serve other apps on the server (one `*.caddy` file each in
+`${CADDY_SITES_DIR:-./deploy/sites}`). So **recreating the `caddy` container interrupts every site
+on the box**, and a checkout older than the commit that added the import would take the other
+sites down: deploy with `docker compose up -d --build backend frontend` so Caddy is left alone.
+
 ### 4) Build + run
 
 From repo root:
 
 ```bash
-docker compose up -d --build
+docker compose up -d --build            # first install
+docker compose up -d --build backend frontend   # every later deploy (leaves Caddy alone)
 ```
+
+The deploy that introduces the login (the auth batch) has its own checklist — backup, a dress
+rehearsal against the fresh backup, `manage.py auth-preflight` on the server before `up`, the
+exact first-boot log and an escape hatch: see `AGENTS.md` §7.
 
 ### 5) Logs / debugging
 
@@ -404,23 +441,60 @@ docker compose up -d --build backend
 ### 6) Quick smoke tests
 
 ```bash
-curl -I https://lorbeerkranz.xyz
-curl -i https://lorbeerkranz.xyz/api/tournaments
+curl -I https://lorbeerkranz.xyz                      # 200 — nginx serves the app shell
+curl -s -o /dev/null -w '%{http_code}\n' https://lorbeerkranz.xyz/api/tournaments   # 401 — nothing without a login
+docker compose ps                                     # backend "healthy"
 ```
+
+`/api/health` answers **401 from outside, by design** — only the container's own healthcheck
+(loopback) may call it, so `docker compose ps` is the health check. The API answers **405 to
+HEAD**, so every `/api` check is a GET; anything that reads data needs a session (a browser, or
+`curl -c jar` after a `POST /api/auth/login`).
 
 ---
 
 ## Authentication / roles
 
-- **Reader**: no login; read-only access.
-- **Editor**: normal write operations (enter results, manage clubs, reorder matches, swap sides, second leg when allowed, comments).
-- **Admin**: advanced operations (create/rename players, delete tournaments/friendlies, edit past data, etc.).
+**Nothing is readable without a login.** Every API route, picture and websocket sits behind one
+default-deny gate; the only ways in without a session are logging in, registering with a code,
+using a reset link and signing in with a passkey. There is no read-only "reader" any more.
 
-Login:
-- `POST /auth/login` with `{ "username": "...", "password": "..." }`
-- Username matching is case-insensitive and resolved via `player_accounts` in `backend/secrets.json`.
-- Response contains a JWT token used as:
-  - `Authorization: Bearer <token>`
+Roles (per group; the app has one group today, **Altherren**, and every URL carries it —
+`/g/altherren/…`):
+- **Member** (= the old editor): enter results, clubs, comments, friendlies, ideas — every
+  ordinary write.
+- **Owner**: a member who may also create invite codes and make other members owners.
+- **Site admin** (Roli): everything, in every group — plus the admin-only operations the old
+  "admin" had (delete tournaments/friendlies, rename players, edit past data), reset links and
+  other people's devices.
+- A logged-in account in **no group** sees only "You're not in a group yet" and a field for a code.
+
+Logging in:
+- With your **display name** (case-insensitive — "Flo" displays, "flo" logs in) and a password of
+  at least 10 characters, or with a **passkey** ("Use a passkey" — Face ID / Touch ID, no name
+  typed). Add a passkey under Settings → Account → Passkeys. An account always keeps **one way
+  in**: the last passkey cannot be removed without a password, and the password cannot be removed
+  without a passkey. Removing a passkey signs out every device of that account.
+- A login is a **session**: an `HttpOnly` cookie, 90 days, renewed as the app is used. Settings →
+  Account → Devices lists where you are logged in and signs any of them out; the admin page does
+  the same for everyone.
+- **New people** register with an **invite code** (`ABCD-EFGH`, single use, valid one hour), which
+  an owner or the site admin creates on the admin page (`/g/altherren/admin`) and sends however
+  they like; registering with it also joins the group. An existing account can redeem a code under
+  Settings → Account → Groups.
+- **A forgotten password** is fixed by a **reset link** the site admin creates on the admin page
+  (single use, one hour) — or, on the server, `docker compose exec -T backend python manage.py
+  reset-link --player <name>`. There is no email.
+- The installed iPhone app and Safari have **separate cookie jars**: a link opened from WhatsApp
+  opens Safari, which shows the login screen once even though the home-screen app is logged in.
+  Expected.
+- Login attempts, code redemptions and reset attempts are rate-limited (a countdown, never a
+  lockout).
+
+Accounts are created from `player_accounts[]` on the first boot (see Configuration); after that the
+database is the only source. Server-side escape hatches, if a login ever breaks:
+`manage.py reset-link`, `set-password`, `make-admin`, `invite`, `sessions` (details in `AGENTS.md`
+§7–§8).
 
 ---
 
@@ -497,9 +571,23 @@ python3 backend/manage.py sync-local-from-deploy   # refresh the dev DB from pro
 Full, always-current list: `http://127.0.0.1:8001/docs`.
 
 - Me / notifications:
-  - `GET /me` (role + acting player for the bearer token)
-  - `GET /me/notifications` (bell menu: unread comments, guestbook entries, pokes — each item
-    carries the in-app `path` to open, e.g. `/profiles/3?tab=guestbook&entry=17`)
+  - `GET /me` (who this session is: role, player, groups, `has_password`, `has_passkey`)
+  - `GET /me/notifications` (bell menu: unread comments, guestbook entries, pokes, idea events —
+    each item carries the absolute in-app `path` to open, e.g.
+    `/g/altherren/profiles/3?tab=guestbook&entry=17`)
+- Auth (public: `login`, `exchange`, `register`, `reset`, `passkeys/login/*`; everything else needs
+  a session):
+  - `POST /auth/login`, `POST /auth/logout`, `POST /auth/register`, `POST /auth/redeem`,
+    `POST /auth/reset`, `POST /auth/exchange` (one-time: a pre-cookie token → a session)
+  - `POST /auth/password`, `DELETE /auth/password`
+  - `GET /auth/sessions`, `DELETE /auth/sessions/{id}`, `POST /auth/sessions/revoke-others`
+  - `POST /auth/passkeys/register/options|verify`, `GET /auth/passkeys`,
+    `DELETE /auth/passkeys/{id}`, `POST /auth/passkeys/login/options|verify`
+- Admin (owner+; the four marked are site admin only):
+  - `GET /admin/accounts`, `POST|GET /admin/invites`, `DELETE /admin/invites/{id}`,
+    `PUT /admin/groups/{slug}/members/{pid}/role`
+  - site admin: `GET /admin/accounts/{pid}/sessions`, `DELETE /admin/sessions/{sid}`,
+    `POST /admin/accounts/{pid}/revoke-sessions`, `POST /admin/reset-links`
 - Cups:
   - `GET /cup/defs`
   - `GET /cup?key=<cupKey>`
@@ -517,7 +605,8 @@ Full, always-current list: `http://127.0.0.1:8001/docs`.
   - `GET /players`
   - `POST /players` (admin)
   - `PATCH /players/{id}` (admin)
-  - `GET /players/{id}/profile`
+  - `GET /players/{id}/profile` (someone who shares a group with that player, or the site admin —
+    the same for the guestbook, pokes, avatar and header image below)
   - `PATCH /players/{id}/profile` (owner)
   - `GET /players/avatars` (meta)
   - `GET /players/{id}/avatar`

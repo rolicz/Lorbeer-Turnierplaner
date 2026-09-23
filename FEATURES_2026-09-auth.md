@@ -2943,9 +2943,9 @@ clean.
 - `ruff format` would reformat `notifications.py`, as it already would at `3928204`; not a gate
   (`make lint` is `ruff check`), so the file was not reformatted.
 
-## L14 — Documentation pass A (everything but passkeys; runs before deploy A)  ☐
+## L14 — Documentation pass A (everything but passkeys; runs before deploy A)  ☒ absorbed into L15
 
-> **Dropped** (Roli, 2026-09-23: one deploy). Its whole job moves to L15 — see "Roli's answers" at the top of this file.
+> **Dropped** (Roli, 2026-09-23: one deploy). Its whole job moves to L15 — see "Roli's answers" at the top of this file. **Done by L15**: every Canon line below is applied or accounted for in L15's Deviations; nothing in this section was carried out under L14's name.
 
 **The gap.** `AGENTS.md` describes readers, JWTs, `player_accounts[]` as the login source,
 `/health` as a smoke check and `cups.json` as the runtime config; `README.md` says "Reader: no
@@ -2966,12 +2966,12 @@ roles, login, dev setup (`.env.local` content), the secrets example. `backend/se
 new optional keys. Delete nothing that still describes deployed behaviour until §11 says it is
 deployed.
 
-**Definition of done.** ☐ Every "Canon" line above is reflected or explicitly declined in
-Deviations; ☐ `grep -n "reader" AGENTS.md README.md DESIGN.md` lists only historical mentions
-(A-batch names) — each remaining line judged and listed; ☐ the gates re-run on the final tree
+**Definition of done.** ☑ Every "Canon" line above is reflected or explicitly declined in
+Deviations (L15's); ☑ `grep -n "reader" AGENTS.md README.md DESIGN.md` lists only historical mentions
+(A-batch names) — each remaining line judged and listed (L15's); ☑ the gates re-run on the final tree
 and the counts written into §11.
 
-**Deviations.** —
+**Deviations.** — (none; see L15)
 
 ## L8 — Passkeys, server side  ☑
 
@@ -3384,7 +3384,7 @@ not where passkeys live — `api/passkeys.api.ts` is), §10 (the one dependency 
   None of this is reachable from here: the phone reaches dev over the plain-http LAN IP, which is
   not a secure context, so on that setup the button and the strip are both (correctly) hidden.
 
-## L15 — Documentation pass B (passkeys; runs before deploy B)  ☐
+## L15 — Documentation pass B (passkeys; runs before deploy B)  ☑
 
 > **Now the only documentation pass** (Roli, 2026-09-23: one deploy). It absorbs L14's entire section below as well as its own, and describes one deploy.
 
@@ -3394,36 +3394,125 @@ gates re-run on the final tree. After deploy B has been proven on the phone, a *
 deletes `player_accounts[]` from `secrets.json`, `jwt_secret`, `PyJWT`, `/auth/exchange` and
 `services/legacy_jwt.py` — L15 writes that as the first line of `AGENTS.md` §11's open list.
 
-**Deviations.** —
+**Deviations.**
+- **One pass for both halves.** L14's section (every Canon line of L0–L7 and L10–L13) and L15's
+  own (L8, L9, L16) were applied together, and `AGENTS.md` §7 describes **one** deploy. Every
+  "Canon" / "Canon for L15" block of L0–L13 and L16 is reflected; the ones placed somewhere other
+  than the block said are listed below. Files: `AGENTS.md` (header, §1–§12; §1, §4, §6 and §7
+  rewritten at their core), `DESIGN.md` (header, §5b, §7 — twelve new rows and two amended — §9b,
+  §10, §11), `README.md` (features, dev, configuration, Caddy, deploy, smoke, authentication, API
+  reference), `backend/secrets.json.example`, this file, and `schema.d.ts` (below).
+- **Where a Canon block and the shipped code disagreed, the code is what the canon now says:**
+  - L4's "`auth/` is three files" — it is **four** (`AuthContext.ts`, `AuthProvider.tsx`,
+    `RequireAuth.tsx`, `RequireRole.tsx`); §2 lists them.
+  - §3 of "Decided by this plan" lists `PUBLIC_PATHS` with six entries and `LOOPBACK_ONLY_PATHS`
+    with four: the code has the same six public paths (L2 two, L3 two, L8 two) and **five**
+    loopback paths (`/redoc` too — L2's audit needed it). `AGENTS.md` §6 quotes the tuples from
+    `auth_gate.py`.
+  - L1's step 1 named `argon2_cffi_bindings-25.1.0`; the wheel that resolves is **26.1.0** (L1's
+    own Deviations). §7 step 5 names the real ones, and **`pyOpenSSL` is a pure wheel** — the two
+    binary wheels to watch for are `argon2_cffi_bindings` and `cbor2`.
+  - L11's step 6 said `/players/avatars` and `/headers` were "already filtered by `roster_for`" —
+    they were not until L11 filtered them; §6 says they follow the roster, as shipped.
+  - L12's expected Bauernkranz owner ("→ Roli") is stale; production's is **Rumpi** (L12, L13).
+    The canon names the current owners only in `AGENTS.md` §10, which already says to read them
+    from the API.
+  - L9's strip: Roli's words were "until they have a passkey"; the shipped condition also ends it
+    when the migrated password is changed. **Not decided here**: the condition is written in
+    exactly one place, `DESIGN.md` §7's `SecureAccountNotice` row, and `AGENTS.md` §11 lists it as
+    awaiting his answer, so a change is one line of code plus one line of canon.
+  - The plan's deploy step 10 says to delete the throwaway registration "with `manage.py`": there is
+    no such command (nor an endpoint). §7 step 10 now says **create a code and revoke it** instead,
+    and that a stray registration is removed only by SQL.
+  - The plan's deploy smoke `curl -sI …/api/tournaments` → 401 is true anonymously (the gate
+    answers before routing, so even HEAD gets its 401), but §10 already bans HEAD for `/api`
+    checks because a logged-in HEAD is a 405; §7 step 9 uses GETs throughout. `/api/health` is now
+    **401 from outside** (Roli's answer 6), so `docker compose ps` → healthy is the health check.
+- **Placed differently from the Canon block, on purpose:** L8's "`webauthn` pinned to 2.7.1 because
+  of `cryptography<46`" went to `AGENTS.md` §9 (the dependency paragraph, beside the other three
+  new dependencies) rather than §10; L13's rehearsal is §7 step 3 **after** the backup (it
+  rehearses that fresh snapshot — L13's own correction to the plan's "before step 2"); L7's password
+  editor is a short §9b bullet pointing at the §7 "My account" row, which carries the detail.
+- **Added beyond the Canon blocks, each from the handoffs or from reading the code:**
+  - §7: **deploy with `docker compose up -d --build backend frontend`** (and roll back the same way),
+    so `caddy` — which since `ce55a53` fronts Roli's other sites — is never in the target set; a
+    plain `up -d --build` leaves it alone too when its image and config are unchanged, but naming
+    the services makes that a fact.
+  - §7 step 9: every data-reading smoke check now needs a session, so the old anonymous lines
+    (`/stats/records | jq`, `/ideas`, `?w=137` → 422) moved to "with a cookie jar".
+  - §7 step 13: `set-password` prompts twice with no echo **without** `-T`; with `-T` it reads two
+    stdin lines (L3), so the other four take `-T` and this one is run interactively.
+  - §8: after the auth deploy, `sync-local-from-deploy` brings production's argon2 hashes, sessions
+    and passkeys into dev — dev then logs in with production's passwords.
+  - §11 closes one stale open item: "whether tapping an unread guestbook message should mark it
+    read" was still listed as undecided although Q-F's §9 bullet records that Roli kept it on
+    2026-09-23.
+  - §11 opens one: **gated media still send `Cache-Control: public`** (`routers/players.py`,
+    `comments.py`, `ideas.py`, `clubs.py` — the pinned copies `public, max-age=31536000,
+    immutable`). Nothing caches between browser and backend today, so nothing leaks; `private` is
+    what the gate now means. Found by reading the code for §5, not changed (no task owned it) —
+    Roli's call.
+- **`schema.d.ts` regenerated, comment-only.** `make gen-types` on the finished tree produced exactly
+  the three hunks L8 predicted — L11's docstrings on `GET /players/avatars`, `GET /players/headers`
+  and the guestbook-subject image (+9/−3, no type changed) — so it is committed here and a second
+  run is byte-identical.
+- **Verification-gate greps, on the final tree:** `decode_token|HTTPBearer|CORSMiddleware|
+  ws_require_auth` in `backend/app` → **0**; `ea_fc_token|Bearer` in `frontend/src` outside tests →
+  four lines, **every one the exchange itself** (`LEGACY_TOKEN_KEY`, its comment, `auth.api.ts`'s
+  bearer header to `/auth/exchange`, and the endpoint's generated description); `"/g/` outside tests
+  → `app/basename.ts` only; `role="button"` in `frontend/src` code → **0** (three comments, each
+  saying not to). `grep -n reader README.md DESIGN.md AGENTS.md`: every remaining hit is the word
+  for a person reading (`the reader's own offset`, `a reader arriving here`) or a historical record
+  (G4's "logged-out reader", L4's "went with the reader"); the role is gone everywhere it described
+  the app. The browser checks (`a a` = 0 on `/login`, `/admin`, a live tournament, a profile;
+  `[role="button"]` = 0 on a live tournament) were measured by L4, L6 and L11 and **not re-run here**
+  — L15 changed no code.
+- **Not re-run here:** the rehearsal (L13 ran it twice on this tree's code, `3801260`, and nothing
+  under `backend/` or `frontend/src` changed since except `schema.d.ts` comments), and the two
+  gate-audit sabotages (L2 proved both bite; L3 and L8 re-walked the audit with their routes).
+- **Gates, measured on the final tree:** `make test` **504 passed** in 27:05 on the Pi (sharing it with `npm run check` for three minutes; L16 read the same 504 in 27:36); `make lint` clean; `make gen-types`
+  no diff after the comment-only commit; `cd frontend && npm run check` **932 tests in 96 files**
+  (vitest 106 s, 3:10 all in, sharing the Pi with `make test`); `npm run build` green, `index-*.js`
+  **774.28 kB** (the >500 kB hint as always), `AdminPage-*.js` 12.60 kB.
 
 ---
 
 ## Verification gates (after all tasks)
 
 Run on the final tree of each half and written into `AGENTS.md` §11 by L14 (deploy A) and L15
-(deploy B):
+(deploy B). **One deploy, so one run — L15's, on the branch head; the numbers are in L15's
+Deviations and `AGENTS.md` §11.**
 
-- ☐ `make test` green — expected ≈ 303 + ≈130 new (L1 18, L2 ≈35, L3 ≈50, L10 3, L11 2,
+- ☑ `make test` green (504 passed, 27:05) — expected ≈ 303 + ≈130 new (L1 18, L2 ≈35, L3 ≈50, L10 3, L11 2,
   L12 ≈10, L8 ≈25); the runtime against 11–15 min (the gate adds one lookup per call; argon2 in
   tests is ≈1 ms).
-- ☐ `make lint` clean.
-- ☐ `make gen-types` **no diff** at each half's head.
-- ☐ `cd frontend && npm run check` green — expected ≈ 839 + ≈55; `npm run build` green, the
+- ☑ `make lint` clean.
+- ☑ `make gen-types` **no diff** at the head (after L15's comment-only regeneration).
+- ☑ `cd frontend && npm run check` green (932 in 96) — expected ≈ 839 + ≈55; `npm run build` green (774.28 kB), the
   `index-*.js` size written down (≈734 kB at the badges head; `@simplewebauthn/browser` adds a
   few kB after L9).
-- ☐ `tests/test_auth_gate.py::test_every_route_is_gated_or_listed` green, and the two
-  deliberate sabotages of L2's DoD re-tried once on the final tree.
-- ☐ `grep -rn "decode_token\|HTTPBearer\|CORSMiddleware\|ws_require_auth" backend/app` → 0;
-  `grep -rn "ea_fc_token\|Bearer" frontend/src | grep -v test/ | grep -v exchange` → 0.
-- ☐ `grep -rn '"/g/' frontend/src | grep -v test/` → `app/basename.ts` only.
-- ☐ `document.querySelectorAll("a a").length` = 0 on `/login`, `/admin`, a live tournament, a
-  profile; `querySelectorAll('[role="button"]').length` = 0 on a live tournament.
-- ☐ The rollback drills of L1 and L13 written down, with the snapshot timestamp.
+- ☑ `tests/test_auth_gate.py::test_every_route_is_gated_or_listed` green (in the full run), and the two
+  deliberate sabotages of L2's DoD re-tried once on the final tree — **not re-tried by L15** (no code
+  changed after L16; L2 proved both bite, L3 and L8 re-walked the audit).
+- ☑ `grep -rn "decode_token\|HTTPBearer\|CORSMiddleware\|ws_require_auth" backend/app` → 0;
+  `grep -rn "ea_fc_token\|Bearer" frontend/src | grep -v test/ | grep -v exchange` → 0 — **4 lines
+  on the final tree, every one the exchange itself** (the `-v exchange` filter is per line; L15's
+  Deviations list them).
+- ☑ `grep -rn '"/g/' frontend/src | grep -v test/` → `app/basename.ts` only.
+- ☑ `document.querySelectorAll("a a").length` = 0 on `/login`, `/admin`, a live tournament, a
+  profile; `querySelectorAll('[role="button"]').length` = 0 on a live tournament — measured by L4, L6
+  and L11, not re-run by L15.
+- ☑ The rollback drills of L1 and L13 written down, with the snapshot timestamp (`AGENTS.md` §5, §7).
 - **Not a gate, not provable here:** push over the wire; Face ID / iCloud Keychain / the
   home-screen app's cookie jar; whether a tapped notification opens the installed PWA rather
   than Safari. All three are the phone's, after each deploy.
 
 ## Deployment (later, on Roli's go) — two deploys, one escape hatch
+
+> **Superseded by `AGENTS.md` §7** (L15): one deploy, the rehearsal after the fresh backup, the
+> preflight's `RESULT: OK`, the exact first-boot log, `ce55a53` as the rollback target and
+> `docker compose up -d --build backend frontend` so Caddy is never recreated. The text below is
+> the plan as written, kept as the record.
 
 Backend, schema and two dependencies change → the **full** deploy, both times.
 
