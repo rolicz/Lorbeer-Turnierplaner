@@ -26,6 +26,11 @@ import { useConnectionTrouble, type ConnectionTrouble } from "./useConnectionTro
  *
  * The desktop sidebar keeps the labelled chip (`ConnectionIndicator`): it has
  * room for the words and no centred title to protect.
+ *
+ * The bell's "this device is blocked from push" mark (Q-E) lives *inside* the bell,
+ * for the same reason the chip had to go: nothing may stand beside it here. While the
+ * connection marker owns the slot the mark is not visible — one control at a time, and
+ * a socket that is down is the more urgent of the two. It comes back with the bell.
  */
 export default function TopBarStatus() {
   const trouble = useConnectionTrouble();

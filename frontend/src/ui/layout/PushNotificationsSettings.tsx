@@ -3,6 +3,7 @@ import { Bell, RotateCw } from "lucide-react";
 import Button from "../primitives/Button";
 import FormLabel from "../primitives/FormLabel";
 import { usePushNotifications } from "../../push/usePushNotifications";
+import { PUSH_BLOCKED_HINT, PUSH_BLOCKED_TITLE } from "../../push/pushSetup";
 
 function statusLabel(opts: {
   supported: boolean;
@@ -39,10 +40,13 @@ export default function PushNotificationsSettings({ token }: { token: string | n
     [push.configured, push.deviceEnabled, push.permission, push.serverEnabled, push.supported, token],
   );
 
+  // `warn`, not `error`: nothing failed and nothing is about to be destroyed — the reader
+  // denied the permission (DESIGN.md §2). One token for this state app-wide, so the bell's
+  // `BellOff` and this line are the same colour and mean the same thing (Q-E).
   const statusTone = push.deviceEnabled
     ? "text-accent"
     : push.permission === "denied"
-      ? "text-error"
+      ? "text-warn"
       : "text-text-muted";
 
   if (!token) {
@@ -121,6 +125,18 @@ export default function PushNotificationsSettings({ token }: { token: string | n
         <div>This device: <span className="text-text-normal">{push.deviceEnabled ? "linked" : "not linked"}</span></div>
       </div>
 
+      {/* The blocked device: the same sentence the bell shows, from the same module.
+          "Enable on this device" below cannot help — the browser will not prompt again —
+          so the hint names where the reader actually has to go (Q-E). */}
+      {push.permission === "denied" ? (
+        /* Not `.inset`: the light theme repaints `.inset`'s background at a higher
+           specificity than a `bg-warn/10` utility, so the tone would show in `blue` and
+           vanish in `light`. This is the shape the error box below already uses. */
+        <div className="rounded-xl border border-warn/40 bg-warn/10 p-3 text-xs">
+          <div className="text-text-normal">{PUSH_BLOCKED_TITLE}</div>
+          <div className="mt-0.5 text-text-muted">{PUSH_BLOCKED_HINT}</div>
+        </div>
+      ) : null}
       {push.platform === "ios" && !push.standalone ? (
         <div className="inset text-xs text-text-muted">
           On iPhone/iPad, install the app to the Home Screen first — web push only works from the installed PWA.
@@ -154,7 +170,10 @@ export default function PushNotificationsSettings({ token }: { token: string | n
         ) : (
           <Button
             onClick={() => void push.enable()}
-            disabled={!push.supported || !push.serverEnabled || push.syncing || push.testing}
+            /* A denied permission is never prompted again, so this button could only fail —
+               the hint above is the way out, and it comes back by itself the moment the
+               reader allows notifications elsewhere (permission is re-read on focus). */
+            disabled={!push.supported || !push.serverEnabled || push.permission === "denied" || push.syncing || push.testing}
           >
             {push.syncing ? "Enabling…" : "Enable on this device"}
           </Button>

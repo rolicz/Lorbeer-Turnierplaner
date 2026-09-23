@@ -17,8 +17,14 @@ import { readStored, removeStored, writeStored } from "../utils/safeStorage";
  *   so the app does it silently instead of asking.
  * - `"needs-setup"` — nobody has ever decided on this install and there is no
  *   subscription: this is the device that receives nothing and does not know it.
+ * - `"blocked"` — the permission is denied. P5 folded this into `"none"` ("a decision,
+ *   and it is respected"); **Roli overruled that on 2026-09-23** after testing push on
+ *   his phone: the app said nothing, for ever, to a device that receives nothing. It is
+ *   its own state because it is the one the app **cannot** act on — `requestPermission()`
+ *   resolves `denied` without showing anything, so nothing here may offer a button. All
+ *   it can do is say so and name where the reader has to go (`PUSH_BLOCKED_*` below).
  */
-export type PushSetupState = "needs-setup" | "resubscribe" | "ok" | "none";
+export type PushSetupState = "needs-setup" | "resubscribe" | "blocked" | "ok" | "none";
 
 export function pushSetupState(i: {
   token: string | null;
@@ -29,7 +35,9 @@ export function pushSetupState(i: {
   userDisabled: boolean;
 }): PushSetupState {
   if (!i.token || !i.supported || !i.serverEnabled) return "none";
-  if (i.permission === "denied") return "none"; // a decision, and it is respected
+  // Denied, unless this device also said no in Settings — that reader turned push off
+  // here on purpose and is never told about it twice (P5's rule, kept).
+  if (i.permission === "denied") return i.userDisabled ? "none" : "blocked";
   if (i.browserEndpoint) return "ok";
   if (i.permission === "granted") return i.userDisabled ? "none" : "resubscribe";
   if (i.permission === "default") return "needs-setup";
@@ -43,6 +51,18 @@ export function pushSetupState(i: {
  * never reads this — only whether to keep quiet about it.
  */
 export const PUSH_SETUP_DISMISSED_KEY = "push_setup_notice_dismissed";
+
+/**
+ * The one sentence the app says about a blocked device, and the one place it is written.
+ * The bell's popover and the Settings panel both read these, so the two cannot drift.
+ *
+ * The hint names *where*, because the app has nowhere to send the reader inside itself:
+ * once a permission is denied the browser will not prompt again, so a "Turn on" button
+ * here would do nothing at all — and a button that silently does nothing is worse than
+ * no button.
+ */
+export const PUSH_BLOCKED_TITLE = "Notifications are blocked on this device.";
+export const PUSH_BLOCKED_HINT = "The app cannot ask again — allow them in your browser or device settings.";
 
 /** Set by the Settings panel's "Disable on this device": a deliberate no, not a loss. */
 export const PUSH_USER_DISABLED_KEY = "push_disabled_by_user";

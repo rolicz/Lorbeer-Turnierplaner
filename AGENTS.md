@@ -5,7 +5,10 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: 2026-09-20 (branch `main`; code at `f8ff0a4`, this pass on top).
+> Last full review: 2026-09-20 (branch `main`; code at `f8ff0a4`). Touched since by **Q-E**
+> (2026-09-23, branch `fix/2026-09-bell-denied`): §10 gained the denied-permission bullet and lost
+> P5's "a decision, and it is respected", and §11 closed the two push unknowns Roli's phone
+> answered.
 > **There is no deploy queue any more: `main` is what is running on the server.** Roli deployed
 > twice on 2026-09-20 — first `87586f8` (design + Ideas + badges + guestbook, the four batches
 > this file spent a week describing as merged-and-undeployed), then `bb831c1`/`f8ff0a4` (media +
@@ -1136,14 +1139,54 @@ every past match simply keeps counting today's rating.
   `ui/shell/PushSetupNotice.tsx`) and no longer only in Settings. **A device that receives nothing
   now says so, unprompted**: one `warn` line under the top bar on whatever page the reader is on,
   shown only while nobody has decided on this install (`permission === "default"`) and no
-  subscription exists — once per install, dismissible. `denied` is a decision and is respected;
+  subscription exists — once per install, dismissible. `denied` **used to be** "a decision, and it
+  is respected", i.e. silence for ever; **Roli overruled that on 2026-09-23** and it is now its own
+  state, shown in the bell (next bullet);
   `granted` with no subscription is the browser having dropped it and is re-subscribed **silently**
   (no prompt is possible or needed) unless the person turned push off here on purpose. The
   dismissal lives in `localStorage` on purpose: a reinstall wipes it along with the subscription,
-  which is exactly the case that must ask again. **The iOS half is unverified and only Roli's phone
-  can close it** — that iOS resets `Notification.permission` to `default` on a reinstall is WebKit's
-  documented behaviour, not something measured here; if it comes back `granted` instead, the device
-  takes the silent re-subscribe path and the notice correctly stays away.
+  which is exactly the case that must ask again. **The iOS half is confirmed** (Roli, 2026-09-23):
+  on his phone the notice appeared after a reinstall, exactly as designed — so iOS does reset
+  `Notification.permission` to `default` there, the notice is not theoretical, and the whole P5
+  path is closed. Push itself now works over the wire on iOS, **umlauts included** (§11).
+- **A denied permission is said in the bell, and nowhere else** (Q-E, 2026-09-23). Roli, after
+  confirming push on his phone: *"if someone denies notifications, indicate that still in the bell
+  on top right."* `pushSetupState` gained a fifth answer, `"blocked"`, and it is the one state the
+  app **cannot act on** — once a permission is denied `Notification.requestPermission()` resolves
+  `denied` without showing anything, so nothing may offer a button that would silently do nothing.
+  All the app can do is say so and name where to go, which is why `pushSetup.ts` also owns the two
+  sentences (`PUSH_BLOCKED_TITLE` / `PUSH_BLOCKED_HINT`) that the bell's popover and the Settings
+  panel both read.
+  - **It is a glyph swap inside the existing button, not a second control.** `Bell` becomes
+    `BellOff` in `warn` inside the same 36px box, because the mobile top bar's right box holds one
+    control and its fixed width is what keeps the title centred on the screen (Q13). Measured on
+    all nine top-bar routes at 320 / 390 / 430px, with back and without: the title centre is
+    **160.0 / 195.0 / 215.0** with the mark and **160.0 / 195.0 / 215.0** without it — identical to
+    the tenth of a pixel, and the bell box is 36×36 in both states.
+  - **It cannot be read as the unread count**, which is an accent pill in the opposite corner of
+    the same button: `BellOff` + "3" is the ordinary state and says exactly the right two things,
+    because the bell's items come from the server and keep arriving whether or not this device may
+    be pushed to.
+  - **`warn`, not `error`** (`DESIGN.md` §2): nothing failed and nothing is about to be destroyed —
+    the reader chose this. The Settings panel's "Blocked" line moved from `text-error` to `text-warn`
+    in the same change, so one state has one colour, and that panel gained the same two sentences
+    plus one thing the bell has no equivalent of: **"Enable on this device" is disabled while the
+    permission is denied**, because pressing it could only fail. It re-enables by itself — permission
+    is re-read on focus and on `visibilitychange`, so coming back from iOS Settings is enough.
+  - **A box that carries a tone is not an `.inset`** — `[data-theme="light"] .inset` repaints the
+    background at a higher specificity than `bg-warn/10`, so the tone showed in `blue` and vanished
+    in `light`. Found here, written down in `DESIGN.md` §3.
+  - **Not dismissible, and deliberately not a banner.** `PushSetupNotice` nags once per install
+    about the device that can still be fixed from inside the app; this one cannot be, so a
+    dismissal that came back would be nagging and one that never came back would hide a permanent
+    fact. A mark on a control that is already there costs no space and interrupts nothing.
+  - P5's other rules survive untouched: `granted` with no subscription is still re-subscribed
+    silently, and a device that turned push off in Settings on purpose (`PUSH_USER_DISABLED_KEY`)
+    is told nothing at all — even when the browser permission is denied as well.
+  - The mark is invisible while the connection marker owns the top bar's slot (`TopBarStatus`,
+    Q13). One control at a time; a socket that is down is the more urgent of the two, and the mark
+    comes back with the bell. The desktop sidebar renders the same component and needs no
+    second treatment.
 - **Headless Chromium cannot tell you what a permission prompt would do** (P5, two hours). It
   reports `Notification.permission === "denied"` no matter what, CDP `Browser.setPermission:
   "prompt"` included, so the "nobody has decided" case exists only in a **headed** browser under
@@ -1536,9 +1579,21 @@ every past match simply keeps counting today's rating.
   (`"db_url": "sqlite:////abs/path/backend/data/verify-<task>.db"`) so a forgotten flag cannot
   reach the real data at all.
 
-## 11. Current state (2026-09-20)
+## 11. Current state (2026-09-23)
 
-- **Everything is deployed. There is no queue, and `main` (`f8ff0a4`) is what is running.**
+- **`fix/2026-09-bell-denied` (Q-E) is the one open branch** — branched from `418c3a1`, one
+  commit, frontend-only, **no backend, no schema, no manual step**, so it is the short deploy
+  (`git pull && docker compose up -d --build frontend`, no data backup needed). It is what came out
+  of Roli testing push on his phone on 2026-09-23: a device whose notification permission is
+  **denied** now says so in the bell, for as long as it stays denied (§10). Checks at its head:
+  `npm run check` **833 tests in 87 files** (baseline 826 in 86 at `418c3a1`; +5 for the bell's own
+  test file, +2 in `pushSetup.test.ts`, and one existing assertion inverted), `npm run build` green
+  (`index-*.js` 737.84 kB, the pre-existing >500 kB hint). The backend is untouched, so `make test`
+  was not re-run. Smoke on the phone:
+  the bell in the top right wears a struck-through amber bell and, tapped, says *"Notifications are
+  blocked on this device."* with where to fix it — and on a device that receives push normally it
+  looks exactly as it always did.
+- **Everything else is deployed. There is no queue, and `main` (`f8ff0a4`) is what is running.**
   For the four days before this, `f425961` (2026-09-16) was the only thing that had ever run on
   the server and five batches piled up behind it; on **2026-09-20 Roli deployed twice** and
   emptied the queue. Both deploys were the **full** one (`git pull && docker compose up -d --build`, §7
@@ -1876,25 +1931,23 @@ every past match simply keeps counting today's rating.
   Chromium reports `document.activeElement === textarea` in all four verification runs, and the
   armed chip is visible either way, so the worst case is one extra tap. It is the same family as
   Q2 below and should be re-tested in the same session.
-- **Whether iOS renders a non-ASCII push body is unverified — and, since 2026-09-20, finally
-  testable.** The catalogue carries its umlauts (§9, M2) and the code that sends them is now
-  **deployed**, so the next real notification is the experiment; before the deploy there was
-  nothing to test. Nothing on this machine can check it, because push has never gone over the wire
-  from here at all (no VAPID, no `cryptography` — every push assertion in every batch stops at the
-  queued message), so it stays open until a notification arrives on the phone. If a real notification shows mojibake, the place to look is the device, not the
-  catalogue. The record push also wants his eye on the words themselves: the Styrian lines M2 wrote
-  are listed one by one in that task's Deviations. Two of them he has since corrected himself —
-  `gräßte` → `greßte` and `Siegsserie` → `Siegesserie` — and the six **lead** lines are newer than
-  that reading, so they have not had his eye at all; `Grod hot'n kana.` (and its lead twin `Grod is
-  kana vorn.`) is still the one to read aloud.
-- **The PWA reinstall path is unverified and only Roli's phone can close it** (P5). On the phone:
-  delete the PWA, re-add it, log in — the "This device gets no notifications." notice should be on
-  the first screen, **Turn on** should lead to the iOS permission prompt, and Settings →
-  Notifications should then say Enabled with **Send test** arriving. Everything else about P5 was
-  measured (40/40 browser checks, the server's 410 live and in tests); what cannot be measured here
-  is iOS resetting `Notification.permission` to `default` on a reinstall, and push delivery at all.
-  If it comes back `granted` with no subscription instead, the device re-subscribes silently and
-  the notice correctly never appears.
+- **Closed 2026-09-23: push works over the wire on iOS, umlauts and all.** Roli's words, after
+  testing on his phone: *"push umlauts work."* That closes the oldest open question in this file —
+  M2 wrote the catalogue's real `ä ö ü ß` (§9) and nothing on this machine could ever check them,
+  because push has never gone over the wire from here at all (no VAPID, no `cryptography`; every
+  push assertion in every batch stops at the queued message). There is no mojibake. **Do not
+  re-impose "ASCII-safe" on German**, and do not reopen this. What is *still* his to read is the
+  **wording**: the Styrian lines M2 wrote are listed one by one in that task's Deviations, he has
+  already corrected two himself (`gräßte` → `greßte`, `Siegsserie` → `Siegesserie`), and the six
+  **lead** lines are newer than that reading, so they have not had his eye at all; `Grod hot'n
+  kana.` (and its lead twin `Grod is kana vorn.`) is still the one to read aloud.
+- **Closed 2026-09-23: the PWA reinstall path works** (P5). Roli, in the same session: *"'device
+  gets no notifications' is also shown"* — so a reinstalled PWA does come back with
+  `Notification.permission === "default"`, the shell notice does appear unprompted on whatever page
+  he was on, and the one half of P5 that no amount of measuring here could reach is confirmed on
+  the device. Everything else about P5 was already measured (40/40 browser checks, the server's 410
+  live and in tests). **What his testing also produced is Q-E**: a *denied* device said nothing at
+  all, for ever, and now says so in the bell (§10).
 - **The push and bell copy for the four idea events is Roli's to correct** — three languages × four
   events (`backend/app/notification_texts.json`, `frontend/src/ui/shell/notificationText.ts`): his
   Styrian drafts transcribed as written, the German **spelled with its umlauts** (M2 repaired the
