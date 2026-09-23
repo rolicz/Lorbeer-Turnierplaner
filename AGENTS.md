@@ -982,7 +982,46 @@ every past match simply keeps counting today's rating.
   `ui/primitives/PlayerLink`, and a summary opens the detail it summarises (stats matchup, cup
   page, player stats). A row that already has an action keeps it — the identity link hugs its text
   and sits above a stretched link/button overlay (`ListRow` pattern). **Never nest an `<a>` in an
-  `<a>`**; `document.querySelectorAll("a a").length` must stay 0.
+  `<a>`**; `document.querySelectorAll("a a").length` must stay 0 (measured across 30 routes × 2
+  viewports × 2 themes at Q-F).
+  - **An author's byline is an identity, and all four feeds now agree** (Q-F, 2026-09-23). The
+    Ideas board linked its idea and comment authors from the start; `pages/profile/
+    GuestbookEntryCard.tsx` and `pages/live/TournamentCommentParts.tsx` (the tournament comments
+    feed *and* the match page's, one component) did not, and `pages/stats/CupDetail.tsx` linked a
+    reign's holder while spelling the same two people as plain text one line lower ("took it from
+    Berni", "ended by Flo"). All of them are `PlayerLink` now. The avatar beside a linked name is
+    `decorative`, so one name reaches the accessibility tree and not two, and its wrapper carries
+    **`inline-flex`**: an `<a>` around an inline-level `AvatarCircle` otherwise opens a line box
+    and charges the row the font's descender space, and both feeds are measured to the pixel.
+    Verified unchanged at 390 and 1280 in both themes — a guestbook entry is **124px**, a comment
+    card **128 / 148px**, a cup reign row **60 / 77px**, before and after.
+  - **An unattributed author is not a name.** A "General" comment has no profile to open, so it
+    stays a quiet `<div>` — which is also what keeps the bylines that *are* names reading as names.
+  - **Where a tap already means something more specific, it wins and nothing was linked** (Roli's
+    own question on Q-F): a match row opens that match, a duo/rivalry row and a profile's rival
+    card open the matchup, a bell row opens the thing that happened, a picker avatar *selects*
+    (`AvatarButton`, `SelectClubsPanel`, `PlayerPicker`, the friendly form's slots, the new
+    tournament form) and the Settings "View as" list switches who you are acting as. None of those
+    became links. Names inside a `ScoreLine` are the large case: `leftNames`/`rightNames` are
+    plain `ReactNode` and every caller throws the player id away, so linking them is a shared-
+    primitive change across ~8 files whose rows all already have an action — deliberately not done.
+    The What-if tab is the one identity block left unlinked on purpose: its projected table sits
+    beside a `PlayerPicker` where an avatar already means "focus this player", and its scenario is
+    unsaved component state that a stray tap would throw away.
+  - **The guestbook row has two meanings, and `PlayerLink` is what keeps them apart.** Tapping an
+    unread message marks it read (a pointer shortcut over the labelled `Mail` button; Roli kept it
+    on 2026-09-23 when it was raised as an invisible target). `PlayerLink` stops click and Enter
+    from reaching that handler, so tapping the **name or avatar opens the profile and leaves the
+    message unread** — you navigated, you did not read it — while every other pixel of the row
+    still marks it read. Neither half is visible on screen, so both are asserted in
+    `src/test/authorIdentityLinks.test.tsx`.
+  - **Three surfaces reach a profile without being a link**, and are the known exceptions:
+    `pages/live/StandingsTable.tsx` (a `div` with `role="button"` and a hand-rolled keydown
+    handler — which `DESIGN.md` §7 forbids outright), `pages/stats/PlayerProfile.tsx`'s identity
+    card and `pages/PlayersAdminPage.tsx`'s `ListRow`, all three navigating from an `onClick`. They
+    work, but they have no `href`: no middle-click, no "open in new tab", and — the reason to care
+    later — no single place the coming "may I open this profile?" rule could be applied. Routing
+    them through `PlayerLink`/a stretched `<Link>` is the follow-up.
 - **A conversation lives in one place, and an item never hosts its own thread** (K1–K3,
   2026-09-19). The profile's three items — the header image, the About text, the avatar — get a way
   to *start* a comment and a count of the ones about what is there now, and nothing else: the

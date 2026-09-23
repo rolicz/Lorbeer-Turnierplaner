@@ -4,6 +4,7 @@ import Button from "../../ui/primitives/Button";
 import FormLabel from "../../ui/primitives/FormLabel";
 import Textarea from "../../ui/primitives/Textarea";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import VoteButton from "../../ui/primitives/VoteButton";
 import type { Player } from "../../api/types";
 import { commentImageUrl } from "../../api/comments.api";
@@ -172,20 +173,41 @@ export function CommentCard({
         <div className="min-w-0">
           {/* Row 1: poster */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Identity is a link (N4, Q-F): a named author's avatar and byline open that
+                profile, exactly as the Ideas board's comments do. The avatar is
+                `decorative` — the same door as the name, so only one of the two is a name
+                in the accessibility tree — and its wrapper is `inline-flex` so the `<a>`
+                does not open a line box and hand the row the font's descender space.
+                An unattributed author is a real category here, but it is **not a name**:
+                it has no profile to open, so it stays a quiet `<div>`, which is also what
+                keeps the bylines that *are* names reading as names. */}
             {c.author.kind === "player" ? (
-              <AvatarCircle
+              <PlayerLink
                 playerId={c.author.playerId}
                 name={authorLabel(c.author)}
-                updatedAt={avatarUpdatedAt}
-                sizeClass="h-7 w-7"
-                fallbackClassName="text-xs font-semibold text-text-muted"
-              />
+                decorative
+                className="inline-flex shrink-0 rounded-full"
+              >
+                <AvatarCircle
+                  playerId={c.author.playerId}
+                  name={authorLabel(c.author)}
+                  updatedAt={avatarUpdatedAt}
+                  sizeClass="h-7 w-7"
+                  fallbackClassName="text-xs font-semibold text-text-muted"
+                />
+              </PlayerLink>
             ) : null}
-            {/* An unattributed author is a real category here, but it is not a name:
-                it stays quiet so the bylines that *are* names still read as names. */}
-            <div className={"text-xs " + (c.author.kind === "player" ? "font-semibold text-text-normal" : "text-text-muted")}>
-              {authorLabel(c.author)}
-            </div>
+            {c.author.kind === "player" ? (
+              <PlayerLink
+                playerId={c.author.playerId}
+                name={authorLabel(c.author)}
+                className="text-xs font-semibold text-text-normal"
+              >
+                {authorLabel(c.author)}
+              </PlayerLink>
+            ) : (
+              <div className="text-xs text-text-muted">{authorLabel(c.author)}</div>
+            )}
             {isPinned ? <span className="chip">pinned</span> : null}
             {isEditing ? <span className="chip">editing</span> : null}
           </div>
