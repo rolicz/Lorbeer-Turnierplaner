@@ -305,7 +305,7 @@ def compute_stats_records(s: Session, *, mode: str = "overall", scope: str = "to
     match_rows = _match_rows(s, mode=mode_norm, scope=scope_norm)
     # What each club was worth *on the day the match was played* (R4) — loaded once,
     # and the record rows carry the same answer `/stats/player-matches` carries.
-    stars = StarRatingResolver.load(s)
+    stars = StarRatingResolver.for_current_group(s)
     elo_by_id = {int(r["player"]["id"]): float(r["rating"]) for r in ratings_rows(mode_norm)}
 
     titles_leaders, titles_top = _titles(s, mode=mode_norm, scope=scope_norm)

@@ -229,12 +229,13 @@ def test_the_four_group_ids_are_backfilled_and_only_where_null(db):
         s.commit()
 
     report = migrate_from_settings(get_engine(), _settings(db, ACCOUNTS))
-    assert report.backfilled == {"tournament": 2, "friendlymatch": 1, "featurerequest": 1, "clubstarrating": 1}
+    assert report.backfilled == {"tournament": 2, "friendlymatch": 1, "featurerequest": 1}
     gid = _all(Group)[0].id
     assert sorted(t.group_id for t in _all(Tournament)) == sorted([gid, gid, 99])
     assert [f.group_id for f in _all(FriendlyMatch)] == [gid]
     assert [f.group_id for f in _all(FeatureRequest)] == [gid]
-    assert [r.group_id for r in _all(ClubStarRating)] == [gid]
+    # A NULL star rating is the global one (L12), never backfilled into a group.
+    assert [r.group_id for r in _all(ClubStarRating)] == [None]
 
 
 def test_a_player_old_code_wrote_later_is_picked_up_by_the_next_boot(db):
@@ -249,7 +250,7 @@ def test_a_player_old_code_wrote_later_is_picked_up_by_the_next_boot(db):
 
     report = migrate_from_settings(get_engine(), _settings(db, ACCOUNTS))
     assert (report.groups_created, report.memberships_created, report.accounts_created) == (0, 1, 1)
-    assert report.backfilled == {"tournament": 1, "friendlymatch": 0, "featurerequest": 0, "clubstarrating": 0}
+    assert report.backfilled == {"tournament": 1, "friendlymatch": 0, "featurerequest": 0}
     atzi = next(a for a in _all(Account) if a.player_id == ids["Atzi"])
     assert (atzi.name_key, atzi.password_origin) == ("atzi", "none")
 

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from .auth_gate import AuthGate
-from .cup_defs import load_cup_defs
+from .cup_defs import read_cups_file
 from .db import configure_db, get_engine, init_db
 from .logging_config import setup_logging
 from .routers.admin import router as admin_router
@@ -39,8 +39,9 @@ def create_app(settings: Settings) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         # Fail fast on a malformed cups config (eras etc.) instead of 500ing
-        # every tournament/stats request at runtime.
-        load_cup_defs()
+        # every tournament/stats request at runtime. The file is the seed since L12
+        # (`init_db` imports it once), and a malformed seed still refuses to boot.
+        read_cups_file()
         log.info("Cup defs validated")
 
         init_db(settings)

@@ -46,8 +46,11 @@ log = logging.getLogger(__name__)
 DEFAULT_GROUP_SLUG = "altherren"
 DEFAULT_GROUP_NAME = "Altherren"
 
-#: The tables whose `group_id` the migration backfills (the four `_RUNTIME_COLUMNS` rows).
-GROUP_SCOPED_TABLES: tuple[str, ...] = ("tournament", "friendlymatch", "featurerequest", "clubstarrating")
+#: The tables whose `group_id` the migration backfills. Three of the four `_RUNTIME_COLUMNS`
+#: rows: on `clubstarrating` a NULL `group_id` is not "not yet assigned" but **the global
+#: rating** (L12), so backfilling it would turn every global row — the whole recovered
+#: history, a promotion — into one group's on the next boot.
+GROUP_SCOPED_TABLES: tuple[str, ...] = ("tournament", "friendlymatch", "featurerequest")
 
 
 class AuthMigrationError(RuntimeError):

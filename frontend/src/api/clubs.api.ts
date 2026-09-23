@@ -28,6 +28,12 @@ export function getClubStarHistory(id: number): Promise<ClubStarHistory> {
   return apiFetch(`/clubs/${id}/star-history`);
 }
 
+/** Site admin (L12): the rating the current group counts today becomes the global one,
+ * from today on. Answers the club's new history. */
+export function promoteClubStars(id: number): Promise<ClubStarHistory> {
+  return apiFetch(`/clubs/${id}/stars/promote`, { method: "POST" });
+}
+
 export function deleteClub(id: number): Promise<void> {
   return apiFetch(`/clubs/${id}`, { method: "DELETE" });
 }

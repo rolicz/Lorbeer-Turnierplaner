@@ -319,7 +319,7 @@ def compute_all_cup_tournament_stakes_by_tournament(
     from ..cup_defs import load_cup_defs
 
     out: dict[int, list[dict[str, int | str]]] = {}
-    for cup_def in load_cup_defs():
+    for cup_def in load_cup_defs(session):
         for stake in compute_cup_tournament_stakes(
             session,
             cup_key=cup_def.key,

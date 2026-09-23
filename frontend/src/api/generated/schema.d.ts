@@ -837,14 +837,39 @@ export interface paths {
         };
         /**
          * Get Club Star History
-         * @description Every recorded rating of one club, oldest first — a public read like `GET /clubs`.
+         * @description Every recorded rating of one club the current group sees — the global rows and the
+         *     group's own, each saying which (`scope`, L12) — oldest first.
          *
          *     `current_stars` is `Club.star_rating`, so a caller never has to guess whether the
-         *     last row is still in force.
+         *     last row is still in force; `current_is_global` says whether what this group counts
+         *     today is the global rating, i.e. whether promoting it would change anything.
          */
         get: operations["get_club_star_history_clubs__club_id__star_history_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clubs/{club_id}/stars/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Promote Club Stars
+         * @description Site admin only (L12): the rating the current group counts today becomes the global
+         *     rating, **from today on**. Forward-only — no past row is rewritten, so no finished
+         *     match of any group resolves differently. 409 when the global rating already has that
+         *     value, or when another group set this club's rating today. Answers the new history.
+         */
+        post: operations["promote_club_stars_clubs__club_id__stars_promote_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2166,6 +2191,12 @@ export interface components {
             changed_at: string;
             /** Source */
             source: string;
+            /**
+             * Scope
+             * @default global
+             * @enum {string}
+             */
+            scope: "group" | "global";
         };
         /** ClubStarHistoryOut */
         ClubStarHistoryOut: {
@@ -2175,6 +2206,11 @@ export interface components {
             current_stars: number;
             /** Entries */
             entries: components["schemas"]["ClubStarHistoryEntryOut"][];
+            /**
+             * Current Is Global
+             * @default true
+             */
+            current_is_global: boolean;
         };
         /** CommentCreateBody */
         CommentCreateBody: {
@@ -5846,6 +5882,37 @@ export interface operations {
         };
     };
     get_club_star_history_clubs__club_id__star_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubStarHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    promote_club_stars_clubs__club_id__stars_promote_post: {
         parameters: {
             query?: never;
             header?: never;

@@ -7,6 +7,7 @@ as response_model= documents the contract without changing the payloads.
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -303,12 +304,17 @@ class ClubStarHistoryEntryOut(BaseModel):
     # "live" (a star edit), "seed" (the club's opening row) or "recovered"
     # (reconstructed from a backup snapshot — the day is an upper bound, not exact).
     source: str
+    # "global" (every group counts it) or "group" (the current group's own rating, L12).
+    scope: Literal["group", "global"] = "global"
 
 
 class ClubStarHistoryOut(BaseModel):
     club_id: int
     current_stars: float
     entries: list[ClubStarHistoryEntryOut]
+    # Is the rating the current group counts today the global one? False = promoting it
+    # (`POST /clubs/{id}/stars/promote`, admin) would change what other groups count.
+    current_is_global: bool = True
 
 
 class ClubCrestMetaOut(BaseModel):

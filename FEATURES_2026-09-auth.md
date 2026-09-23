@@ -2418,7 +2418,7 @@ the basename rule, the legacy redirect, why the manifest is untouched, the SW's 
   (above). The rotation PUT now carries `replaces_endpoint`, so a device that rotates after a 410
   keeps its language and mode.
 
-## L12 — Cups in the database; the per-group star overlay; promote forward-only  ☐
+## L12 — Cups in the database; the per-group star overlay; promote forward-only  ☑
 
 **The gap.** `cup_defs.load_cup_defs` reads `cups.json`; `ClubStarRating` has a `group_id`
 column (L1) that nothing writes or reads; no endpoint promotes a rating.
@@ -2463,18 +2463,87 @@ grep -n "group_id" backend/app/services/club_stars.py                 # → 0
    endpoint and its 403 for an owner.
 
 **Definition of done.**
-- ☐ `make test`, `make lint`, `make gen-types` committed (the one-field history diff), `npm run
+- ☑ `make test`, `make lint`, `make gen-types` committed (the one-field history diff), `npm run
   check` (the one control).
-- ☐ On the dev-DB copy: boot → `Cups imported: 2`; `/cup/defs` byte-identical to before the
+- ☑ On the dev-DB copy: boot → `Cups imported: 2`; `/cup/defs` byte-identical to before the
   import (assert with a saved response); the dashboard's cup owners unchanged (Lorbeerkranz →
   Berni, Bauernkranz → Roli, `AGENTS.md` §10's expectation).
-- ☐ Deviations filled in.
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §4: `cups.json` is the seed; §5: the overlay rule in `as_of`, the
 promote rule; §7 step 3 (editing `/data/cups.json` by hand) becomes "seed only — after the first
 boot, cups live in the DB".
 
-**Deviations.** —
+**Deviations.**
+- **One file outside the row, because L1's backfill contradicted the overlay:**
+  `services/auth_migration.py::GROUP_SCOPED_TABLES` no longer contains `clubstarrating` (and
+  `tests/test_auth_migration.py` expects that). On that table NULL is not "not yet assigned" but
+  *the global rating*; L1's every-boot `UPDATE … SET group_id = :g WHERE group_id IS NULL` would
+  have turned the whole recovered history into `altherren`'s rows and turned every promotion back
+  into a group row on the next restart. Production and Roli's `backend/app.db` never ran L1, so
+  their 657 rows stay NULL = global; only throwaway `verify-l*.db` copies ever got the backfill.
+- **R4's `UNIQUE(club_id, valid_from)` stays, so a day holds one row per club across scopes.**
+  Widening it needs a table rebuild (§5 rule 2). Consequences, each a 409 with a "tomorrow"
+  message (`club_stars.StarDayTaken`): a group edit on a day that already has a *global* row (i.e.
+  right after a same-day promotion), and a promotion on a day another group holds the row.
+  Promotion itself handles the common case without a second row: when today's row is the
+  group's own, it **becomes** the global row (same value, same day — nothing the group counts
+  moves; every other group counts it from today); when today's row is global it takes the value;
+  otherwise a new global row. `Club.star_rating` follows.
+- **`as_of(club_id, on, group_id=<the loaded group>, *, strict=False)`** — `load(s, group_id=…,
+  club_id=…)` binds the group, so the three stats callers (`player_matches`, `h2h_matches`,
+  `records`) changed one line each to `StarRatingResolver.for_current_group(s)`. `strict` (no
+  "oldest"/"current" fallback) is what `record_star_rating`'s "already in force" check and
+  promotion's "already global" check use, so both go through the one rule instead of re-walking
+  rows. `odds` never used the resolver (it reads `Club.star_rating`, "today"), so it is untouched.
+  The recovery tool's `StarRatingResolver(history, current)` constructor still works (global rows).
+- **The response change is two fields, not one:** `ClubStarHistoryEntryOut.scope` and
+  `ClubStarHistoryOut.current_is_global` ("is what this group counts today the global rating") —
+  the second so the control renders from a server answer instead of re-deriving the overlay rule
+  in the browser (the A10 shape). `gen-types` diff: those two fields + the promote operation.
+- **Promote answers the new history** (`ClubStarHistoryOut`), so the UI sets the cache entry from
+  the response. `404` for an unknown club, `403` for owner and editor (tested).
+- **The control is not in `ClubList.tsx`**: Q15's editor is rendered by `pages/ClubsPage.tsx`'s
+  `renderEditor`, so the control is a new `pages/clubs/PromoteClubStars.tsx` rendered there under
+  `ClubStarHistory`, plus `promoteClubStars` in `api/clubs.api.ts`. It renders nothing unless
+  role is `admin` **and** `current_is_global` is false. `ClubList.tsx` untouched.
+- **Cups:** `read_cups_file()` (public — `main.py`'s lifespan validates the seed with it at every
+  boot, so a malformed file still refuses to boot, tested before *and* after the import);
+  `load_cup_defs(s=None)` / `get_cup_def(key, s=None)` read the rows (the synthesized `default`
+  cup is added at read time, never stored); `import_cup_defs` / `replace_cup_defs` are the one
+  writer; `seed_cups_from_file` runs in `init_db()` after the migration and before the record
+  holders, imports only into an empty `cup` table, and **warns** once per boot when the file and
+  the rows differ ("the file is only a seed now") — for whoever hand-edits `/data/cups.json`
+  expecting it to apply. Without a group (a bare `init_db()` in a test helper) the import is
+  skipped and `load_cup_defs` answers the default cup alone. Callers that had a session pass it
+  (`routers/cup.py`, `services/cup.py`, `stats/players.py`). `test_tournament_cup_stakes.py`
+  pinned its cups through `CUPS_CONFIG_PATH` after boot; it now writes them with
+  `replace_cup_defs`. `test_cup_eras.py`'s file-validation test now calls `read_cups_file`.
+- **Proof on copies of real data** (outside the repo, push rows deleted first; the dev
+  `backend/app.db` and the latest deploy snapshot `20260920-151542`, whose `cups.json` is
+  byte-identical to the bundled one): each booted once on `2109e1b` and once on L12's tree, and
+  everything read through the real API. First L12 boot: `Cups imported: 2`; a second boot: no
+  line. Identical before/after on both copies: `/cup/defs` **byte for byte**; `/cup?key=default`
+  and `?key=bauernkranz` in full — owner, streak and the whole reign history (Lorbeerkranz →
+  **Berni**, 4 reigns; Bauernkranz → **Rumpi**, 5 reigns — the §10 note is right that Roli is no
+  longer the Bauernkranz owner, so the plan's "→ Roli" expectation is stale); every
+  tournament's `cup_stakes`; `/stats/records` for all 9 mode × scope pairs; and the `club_stars`
+  of **all 234 finished match sides** (224 with a club; 3 of them resolve to a rating other than
+  today's, so the history is in play) from `/stats/player-matches?scope=both` for every player.
+  Then on the dev copy: a group edit and a promotion of a club with finished matches — all 234
+  sides still identical after each; promote when already global 409; group edit the same day
+  after the promotion 409.
+- **Browser** (backend 8243 / vite 8263, dev copy, `blue` and `light`, 390 and 1280): the ghost
+  button is 198×32 with the muted line beside it at 1280 and under it at 390, no horizontal
+  overflow; clicking it removes the control (the history now says global). Stack killed by PID.
+- **Gates:** `make test` **465 passed** (34:08), `make lint` clean, `make gen-types` committed,
+  `npm run check` **907 tests in 94 files** (includes the parallel workers' in-flight tests),
+  `npm run build` green.
+- **Canon for L15:** §4 — `cups.json` / `CUPS_CONFIG_PATH` is the seed, validated every boot,
+  imported once, then the DB wins (a drift warning in the log); §5 — the overlay rule and the
+  one-row-per-day consequence; the promote rule (admin, forward-only, own-row-today flips to
+  global); NULL `group_id` on `clubstarrating` is global and never backfilled; §7 step 3 — editing
+  `/data/cups.json` by hand only matters before the first boot of this code.
 
 ## L11 — `PlayerLink` decides who may open a profile; three surfaces route through it; the server enforces it  ☐
 

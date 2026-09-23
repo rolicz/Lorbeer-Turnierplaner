@@ -19,6 +19,7 @@ import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useTabParam } from "../ui/shell/useTabParam";
 import { List, Plus } from "lucide-react";
 import ClubList, { type ClubGroup } from "./clubs/ClubList";
+import PromoteClubStars from "./clubs/PromoteClubStars";
 
 import { atLeast, useAuth } from "../auth/AuthContext";
 import { createClub, deleteClub, listClubs, listLeagues, patchClub } from "../api/clubs.api";
@@ -512,6 +513,7 @@ export default function ClubsPage() {
               {/* A star change appends to the record; the record is
                   right here so that is visible (R4). */}
               <ClubStarHistory clubId={c.id} />
+              <PromoteClubStars clubId={c.id} isAdmin={isAdmin} />
 
               {/* Delete is here and nowhere else: the row carries no controls, so the
                   one place that can destroy a club is the editor that row opens (Q15). */}

@@ -363,3 +363,99 @@ def test_odds_keep_reading_the_current_rating(client, editor_headers, admin_head
 
     # Today's upgrade is priced in at once; the history is never consulted here.
     assert float(after["home"]) < float(level["home"])
+
+
+# ---- the per-group overlay (L12) -------------------------------------------
+
+G = 1  # the group the overlay resolver is loaded for
+OTHER = 2
+
+
+def _overlay() -> StarRatingResolver:
+    # Global: 3.0 from 2026-03-28, 3.5 from 2026-08-01. The group: 2.0 from 2026-05-01,
+    # 4.0 on 2026-08-01 (the same day as a global row — only possible in memory, the
+    # table holds one row per club per day). Another group: 5.0 from 2026-04-01.
+    return StarRatingResolver(
+        {7: [(dt.date(2026, 3, 28), 3.0), (dt.date(2026, 8, 1), 3.5)]},
+        {7: 3.5, 9: 1.0},
+        group_history={
+            7: [(dt.date(2026, 5, 1), G, 2.0), (dt.date(2026, 8, 1), G, 4.0), (dt.date(2026, 4, 1), OTHER, 5.0)],
+            9: [(dt.date(2026, 6, 1), G, 1.5)],
+        },
+        group_id=G,
+    )
+
+
+def test_a_groups_row_beats_the_global_one_from_its_date_and_on_the_same_day():
+    r = _overlay()
+    assert r.as_of(7, dt.date(2026, 4, 1)) == 3.0  # before the group's own row: global
+    assert r.as_of(7, dt.date(2026, 5, 1)) == 2.0  # the group's row, from its day
+    assert r.as_of(7, dt.date(2026, 7, 31)) == 2.0
+    assert r.as_of(7, dt.date(2026, 8, 1)) == 4.0  # same day as a global row: the group's
+    # Another group's row is invisible here, and the global view sees global rows only.
+    assert r.as_of(7, dt.date(2026, 4, 15)) == 3.0
+    assert r.as_of(7, dt.date(2026, 5, 15), None) == 3.0
+    assert r.as_of(7, dt.date(2026, 8, 1), None) == 3.5
+    assert r.as_of(7, dt.date(2026, 4, 15), OTHER) == 5.0
+
+
+def test_a_later_global_row_applies_to_the_group_forward_only():
+    r = StarRatingResolver(
+        {7: [(dt.date(2026, 3, 28), 3.0), (dt.date(2026, 9, 1), 4.5)]},  # a promotion on 1 Sep
+        {7: 4.5},
+        group_history={7: [(dt.date(2026, 6, 1), G, 2.0)]},
+        group_id=G,
+    )
+    assert r.as_of(7, dt.date(2026, 8, 31)) == 2.0  # the group's own, up to the promotion
+    assert r.as_of(7, dt.date(2026, 9, 1)) == 4.5  # the global row, from its day on
+    assert r.as_of(7, dt.date(2026, 5, 1), OTHER) == 3.0  # a group with no rows: global
+
+
+def test_a_match_before_every_row_counts_the_oldest_the_groups_first():
+    r = _overlay()
+    assert r.as_of(7, dt.date(2025, 10, 18)) == 3.0  # oldest across both scopes: global's
+    assert r.as_of(9, dt.date(2026, 1, 1)) == 1.5  # only the group has rows: its oldest
+    assert r.as_of(9, dt.date(2026, 1, 1), OTHER) == 1.0  # nothing it sees: the current rating
+    tie = StarRatingResolver(
+        {7: [(dt.date(2026, 3, 1), 3.0)]}, {7: 3.0}, group_history={7: [(dt.date(2026, 3, 1), G, 2.5)]}, group_id=G
+    )
+    assert tie.as_of(7, dt.date(2026, 1, 1)) == 2.5
+
+
+def _second_group() -> int:
+    from app.models import Group
+
+    with Session(get_engine()) as s:
+        g = Group(slug="zweite", name="Zweite")
+        s.add(g)
+        s.commit()
+        return int(g.id)
+
+
+def test_a_live_edit_is_the_groups_row_and_other_groups_keep_counting_global(client, editor_headers, admin_headers):
+    from app.services.club_stars import current_group_id
+
+    league_id = create_league(client, admin_headers, "Overlay League")
+    cid = create_club(client, editor_headers, "Overlay FC", "EA FC 26", 3.0, league_id)
+    with Session(get_engine()) as s:
+        gid = current_group_id(s)
+        (row,) = s.exec(select(ClubStarRating).where(ClubStarRating.club_id == cid)).all()
+        assert row.group_id == gid  # POST /clubs writes the group's own row
+        row.group_id = None  # …make it the global opening row for this test
+        s.add(row)
+        s.commit()
+    backdate_star_rows(cid, 30)
+
+    r = client.patch(f"/clubs/{cid}", json={"star_rating": 4.5}, headers=editor_headers)
+    assert r.status_code == 200, r.text
+    out = history(client, cid)
+    assert [(e["stars"], e["scope"]) for e in out["entries"]] == [(3.0, "global"), (4.5, "group")]
+    assert out["current_is_global"] is False
+
+    other = _second_group()
+    with Session(get_engine()) as s:
+        today = dt.datetime.utcnow().date()
+        assert StarRatingResolver.load(s, group_id=gid).as_of(cid, today) == 4.5
+        assert StarRatingResolver.load(s, group_id=other).as_of(cid, today) == 3.0
+        # The same value as what the group already counts writes nothing.
+        assert record_star_rating(s, cid, 4.5, group_id=gid) is None

@@ -68,6 +68,15 @@ def init_db(settings: Settings | None = None) -> None:
 
         migrate_from_settings(_engine, settings)
 
+    # Cups live in the database since L12; the file is the seed, imported once into an
+    # empty table. After the migration (it needs the group), before the record holders
+    # (the cup fold is part of what they compute).
+    from .cup_defs import seed_cups_from_file
+
+    imported = seed_cups_from_file(_engine)
+    if imported > 0:
+        log.info("Cups imported: %s", imported)
+
     # Who holds which record, as of now (M2). Lazily imported for the same reason as
     # above, and *silent by design*: a key that has never been computed is stored
     # without announcing anything, so neither the first boot nor a later deploy that

@@ -214,7 +214,7 @@ def compute_stats_h2h_matches(
     )
 
     cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s) if include_tournaments(scope_norm) else {}
-    stars = StarRatingResolver.load(s)
+    stars = StarRatingResolver.for_current_group(s)
     grouped: dict[int, dict[str, Any]] = {}
     for m in filtered:
         t = getattr(m, "tournament", None)

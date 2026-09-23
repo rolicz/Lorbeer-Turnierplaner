@@ -1,5 +1,10 @@
 import json
 
+from sqlmodel import Session
+
+from app.cup_defs import read_cups_file, replace_cup_defs
+from app.db import get_engine
+from app.services.groups import current_group
 from tests.conftest import create_player, create_tournament, generate
 
 
@@ -29,12 +34,17 @@ def test_tournament_list_marks_cups_at_stake(client, editor_headers, admin_heade
     # This test exercises the cup-at-stake plumbing with 1v1 tournaments dated today.
     # Pin an eras-free config so the dev rollout (default cup scoped to 2v2 from
     # 2026-07-12) doesn't exclude them — era scoping itself is covered in test_cup_eras.py.
+    # Cups live in the database since L12 (the file is only the seed), so the pinned
+    # config goes into the rows.
     cfg = tmp_path / "cups.json"
     cfg.write_text(json.dumps({"cups": [
         {"key": "default", "name": "Lorbeerkranz", "since_date": None},
         {"key": "bauernkranz", "name": "Bauernkranz", "since_date": "2026-01-05"},
     ]}))
     monkeypatch.setenv("CUPS_CONFIG_PATH", str(cfg))
+    with Session(get_engine()) as s:
+        replace_cup_defs(s, int(current_group(s).id), read_cups_file())
+        s.commit()
 
     owner = create_player(client, admin_headers, "CupOwner")
     p2 = create_player(client, admin_headers, "CupOpponentA")
