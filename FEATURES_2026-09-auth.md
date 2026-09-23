@@ -2792,6 +2792,8 @@ turned on (it would change what `backup-deploy-data` must copy).
   on flush here and lost the whole fan-out's bookkeeping).
 The existing push tests (`test_push_notifications.py`, `test_ideas.py`, `test_accounts.py`) pass
 unchanged.
+Gates: `make test` **504 passed** in 27:36 (baseline 501 at `3928204`, +3 here), `make lint`
+clean.
 
 **Deviations.**
 - A payload that cannot be built is recorded as a failed send (generic-exception branch), exactly

@@ -1077,18 +1077,67 @@ class NotificationDispatcher:
                 log.exception("Push delivery worker failed for %s", item.message.event_type)
 
     async def _deliver(self, item: _QueuedPushMessage) -> None:
+        """Send one message to every subscription it is for — **with no database transaction
+        open across a network call** (L16).
+
+        SQLite has one write lock per file and this app runs it without WAL, so a transaction
+        that has written anything blocks every other writer until it ends. This used to keep
+        one `Session` over the whole fan-out and commit at the end: the second row's reads
+        autoflushed the first row's result, took the lock, and held it across every remaining
+        push (up to the client's 10 s timeout each) — and a login, which writes a session row,
+        waited out the 5 s busy timeout and answered 500 "database is locked". Now it is three
+        phases: read everything needed in one short session and close it; send with no session
+        open; write each result in its own short transaction."""
         if not self.enabled or self._client is None:
             return
+        for delivery in self._plan_deliveries(item):
+            await self._deliver_one(delivery)
+
+    def _plan_deliveries(self, item: _QueuedPushMessage) -> list["_PlannedDelivery"]:
+        """Phase 1: the rows to send to, each with its payload, read in one short session
+        that is closed before anything goes on the wire. The mode filter lives here."""
+        message = item.message
+        planned: list[_PlannedDelivery] = []
         with Session(self._engine) as s:
             stmt = select(PushSubscription).where(PushSubscription.disabled_at.is_(None))
             if item.player_id is not None:
                 stmt = stmt.where(PushSubscription.player_id == item.player_id)
-            rows = list(s.exec(stmt).all())
-            if not rows:
-                return
-            for row in rows:
-                await self._deliver_one(s, row, item)
-            s.commit()
+            for row in s.exec(stmt).all():
+                mode = push_subscription_mode(s, row.id)
+                if mode == "off":
+                    continue
+                if (
+                    mode == "finished_only"
+                    and message.event_type not in FINISHED_ONLY_EVENT_TYPES
+                    and not (
+                        message.event_type in PERSONAL_DEFAULT_EVENT_TYPES
+                        and item.default_mode_player_id is not None
+                        and int(row.player_id) == int(item.default_mode_player_id)
+                    )
+                ):
+                    continue
+                # A payload that cannot be built is recorded as a failed send, exactly as it
+                # was when it was built inside the send's `try`.
+                payload: dict[str, Any] | None = None
+                payload_error: Exception | None = None
+                try:
+                    payload = self._payload_for(s, row, message)
+                except Exception as exc:
+                    payload_error = exc
+                planned.append(
+                    _PlannedDelivery(
+                        subscription_id=int(row.id),
+                        subscription=WebPushSubscriptionData(
+                            endpoint=row.endpoint,
+                            p256dh=row.p256dh,
+                            auth=row.auth,
+                            content_encoding=row.content_encoding,
+                        ),
+                        payload=payload,
+                        payload_error=payload_error,
+                    )
+                )
+        return planned
 
     @staticmethod
     def _payload_for(s: Session, row: PushSubscription, message: PushMessage) -> dict[str, Any]:
@@ -1101,55 +1150,68 @@ class NotificationDispatcher:
             payload["title"] = f"{prefix}{payload['title']}"
         return payload
 
-    async def _deliver_one(self, s: Session, row: PushSubscription, item: _QueuedPushMessage) -> None:
-        message = item.message
+    async def _deliver_one(self, delivery: "_PlannedDelivery") -> None:
+        """Phase 2 and 3 for one subscription: send with no session open, then write the
+        result in its own short transaction."""
         now = datetime.utcnow()
-        mode = push_subscription_mode(s, row.id)
-        if mode == "off":
-            return
-        if (
-            mode == "finished_only"
-            and message.event_type not in FINISHED_ONLY_EVENT_TYPES
-            and not (
-                message.event_type in PERSONAL_DEFAULT_EVENT_TYPES
-                and item.default_mode_player_id is not None
-                and int(row.player_id) == int(item.default_mode_player_id)
-            )
-        ):
-            return
+        response = None
+        error: Exception | None = delivery.payload_error
+        if error is None:
+            try:
+                response = await send_web_push_message(
+                    self._client,
+                    self._config,
+                    delivery.subscription,
+                    delivery.payload or {},
+                )
+            except Exception as exc:
+                error = exc
         try:
-            response = await send_web_push_message(
-                self._client,
-                self._config,
-                WebPushSubscriptionData(
-                    endpoint=row.endpoint,
-                    p256dh=row.p256dh,
-                    auth=row.auth,
-                    content_encoding=row.content_encoding,
-                ),
-                self._payload_for(s, row, message),
-            )
-            row.updated_at = now
-            row.last_http_status = response.status_code
-            if 200 <= response.status_code < 300:
-                row.last_success_at = now
-                row.last_error = ""
-                row.failure_count = 0
+            with Session(self._engine) as s:
+                row = s.get(PushSubscription, delivery.subscription_id)
+                if row is None:
+                    # Unsubscribed while the push was on the wire: nothing left to record.
+                    return
+                _record_delivery_result(row, now, response, error)
                 s.add(row)
-                return
+                s.commit()
+        except Exception:
+            # The push itself went out; failing to write down how it went must not cost the
+            # remaining devices their push.
+            log.exception("Recording the push result failed for subscription %s", delivery.subscription_id)
 
-            row.last_failure_at = now
-            row.last_error = f"{response.status_code} {response.text[:400]}"
-            row.failure_count += 1
-            if response.status_code in (404, 410):
-                row.disabled_at = now
-        except (WebPushUnavailableError, WebPushConfigError) as exc:
-            row.last_failure_at = now
-            row.last_error = str(exc)[:400]
-            row.failure_count += 1
-        except Exception as exc:
-            row.last_failure_at = now
-            row.last_error = f"{type(exc).__name__}: {exc}"[:400]
-            row.failure_count += 1
+
+@dataclass(frozen=True)
+class _PlannedDelivery:
+    """Everything a send needs, copied out of the database so no session stays open (L16)."""
+
+    subscription_id: int
+    subscription: WebPushSubscriptionData
+    payload: dict[str, Any] | None
+    payload_error: Exception | None = None
+
+
+def _record_delivery_result(row: PushSubscription, now: datetime, response: Any, error: Exception | None) -> None:
+    """The fields a send writes back, per outcome — unchanged by L16."""
+    if error is None and response is not None:
         row.updated_at = now
-        s.add(row)
+        row.last_http_status = response.status_code
+        if 200 <= response.status_code < 300:
+            row.last_success_at = now
+            row.last_error = ""
+            row.failure_count = 0
+            return
+        row.last_failure_at = now
+        row.last_error = f"{response.status_code} {response.text[:400]}"
+        row.failure_count += 1
+        if response.status_code in (404, 410):
+            row.disabled_at = now
+    elif isinstance(error, (WebPushUnavailableError, WebPushConfigError)):
+        row.last_failure_at = now
+        row.last_error = str(error)[:400]
+        row.failure_count += 1
+    else:
+        row.last_failure_at = now
+        row.last_error = f"{type(error).__name__}: {error}"[:400]
+        row.failure_count += 1
+    row.updated_at = now
