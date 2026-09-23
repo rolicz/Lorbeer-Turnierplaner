@@ -9,14 +9,9 @@ import type {
   VoteVotersResponse,
 } from "./types";
 
-export function listTournamentComments(
-  tournamentId: number,
-  token?: string | null
-): Promise<TournamentCommentsResponse> {
-  return apiFetch(`/tournaments/${tournamentId}/comments`, {
-    method: "GET",
-    token: token ?? undefined,
-  });
+/** The session decides the per-caller flags each comment carries (`can_edit`, `my_vote`). */
+export function listTournamentComments(tournamentId: number): Promise<TournamentCommentsResponse> {
+  return apiFetch(`/tournaments/${tournamentId}/comments`, { method: "GET" });
 }
 
 export function listTournamentCommentsSummary(): Promise<TournamentCommentsSummary[]> {
@@ -24,22 +19,21 @@ export function listTournamentCommentsSummary(): Promise<TournamentCommentsSumma
   return apiFetch(`/tournaments/comments-summary`, { method: "GET" });
 }
 
-export function listTournamentCommentReadIds(token: string, tournamentId: number): Promise<TournamentCommentReadIds> {
-  return apiFetch(`/tournaments/${tournamentId}/comments/read`, { method: "GET", token });
+export function listTournamentCommentReadIds(tournamentId: number): Promise<TournamentCommentReadIds> {
+  return apiFetch(`/tournaments/${tournamentId}/comments/read`, { method: "GET" });
 }
 
-export function listTournamentCommentReadMap(token: string): Promise<TournamentCommentReadMapRow[]> {
-  return apiFetch(`/comments/read-map`, { method: "GET", token });
+export function listTournamentCommentReadMap(): Promise<TournamentCommentReadMapRow[]> {
+  return apiFetch(`/comments/read-map`, { method: "GET" });
 }
 
-export function markCommentRead(token: string, commentId: number): Promise<{ ok: boolean }> {
-  return apiFetch(`/comments/${commentId}/read`, { method: "PUT", token });
+export function markCommentRead(commentId: number): Promise<{ ok: boolean }> {
+  return apiFetch(`/comments/${commentId}/read`, { method: "PUT" });
 }
 
-export function voteComment(token: string, commentId: number, value: -1 | 0 | 1): Promise<{ ok: boolean; value: number }> {
+export function voteComment(commentId: number, value: -1 | 0 | 1): Promise<{ ok: boolean; value: number }> {
   return apiFetch(`/comments/${commentId}/vote`, {
     method: "PUT",
-    token,
     body: JSON.stringify({ value }),
   });
 }
@@ -48,15 +42,11 @@ export function listCommentVoters(commentId: number): Promise<VoteVotersResponse
   return apiFetch(`/comments/${commentId}/voters`, { method: "GET" });
 }
 
-export function markAllTournamentCommentsRead(
-  token: string,
-  tournamentId: number
-): Promise<{ ok: boolean; marked: number }> {
-  return apiFetch(`/tournaments/${tournamentId}/comments/read-all`, { method: "PUT", token });
+export function markAllTournamentCommentsRead(tournamentId: number): Promise<{ ok: boolean; marked: number }> {
+  return apiFetch(`/tournaments/${tournamentId}/comments/read-all`, { method: "PUT" });
 }
 
 export function createTournamentComment(
-  token: string,
   tournamentId: number,
   body: {
     match_id?: number | null;
@@ -74,25 +64,22 @@ export function createTournamentComment(
 ): Promise<Comment> {
   return apiFetch(`/tournaments/${tournamentId}/comments`, {
     method: "POST",
-    token,
     body: JSON.stringify(body),
   });
 }
 
 export function patchComment(
-  token: string,
   commentId: number,
   body: { author_player_id?: number | null; body?: string }
 ): Promise<Comment> {
   return apiFetch(`/comments/${commentId}`, {
     method: "PATCH",
-    token,
     body: JSON.stringify(body),
   });
 }
 
-export function deleteComment(token: string, commentId: number) {
-  return apiFetch(`/comments/${commentId}`, { method: "DELETE", token });
+export function deleteComment(commentId: number) {
+  return apiFetch(`/comments/${commentId}`, { method: "DELETE" });
 }
 
 /** `width` is the rung the feed draws the picture at (W3); omit it for the original. */
@@ -100,25 +87,19 @@ export function commentImageUrl(commentId: number, updatedAt?: string | null, wi
   return mediaUrl(`/comments/${commentId}/image`, updatedAt, width);
 }
 
-export async function putCommentImage(
-  token: string,
-  commentId: number,
-  blob: Blob,
-  filename = "comment.webp"
-): Promise<Comment> {
+export async function putCommentImage(commentId: number, blob: Blob, filename = "comment.webp"): Promise<Comment> {
   const fd = new FormData();
   fd.append("file", blob, filename);
-  return apiUpload(`/comments/${commentId}/image`, { token, body: fd });
+  return apiUpload(`/comments/${commentId}/image`, { body: fd });
 }
 
-export function deleteCommentImage(token: string, commentId: number) {
-  return apiFetch<{ ok: boolean }>(`/comments/${commentId}/image`, { method: "DELETE", token });
+export function deleteCommentImage(commentId: number) {
+  return apiFetch<{ ok: boolean }>(`/comments/${commentId}/image`, { method: "DELETE" });
 }
 
-export function setPinnedTournamentComment(token: string, tournamentId: number, commentId: number | null) {
+export function setPinnedTournamentComment(tournamentId: number, commentId: number | null) {
   return apiFetch<{ pinned_comment_id: number | null }>(`/tournaments/${tournamentId}/comments/pin`, {
     method: "PUT",
-    token,
     body: JSON.stringify({ comment_id: commentId }),
   });
 }

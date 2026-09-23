@@ -24,7 +24,7 @@ import { qk } from "../../api/queryKeys";
 import type { Match } from "../../api/types";
 import { sideBy } from "../../helpers";
 import { teamName } from "../../utils/matchDisplay";
-import { useAuth } from "../../auth/AuthContext";
+import { atLeast, useAuth } from "../../auth/AuthContext";
 import { useRouteEntryLoading } from "../../ui/layout/useRouteEntryLoading";
 import { NAV_JUMP_STATE } from "../../ui/shell/backNavigation";
 import { useTournamentWS } from "../../hooks/useTournamentWS";
@@ -91,8 +91,8 @@ export default function MatchDetailPage() {
   const location = useLocation();
   const qc = useQueryClient();
   const pageEntered = useRouteEntryLoading();
-  const { role, token } = useAuth();
-  const canEdit = role === "admin" || role === "editor";
+  const { role } = useAuth();
+  const canEdit = atLeast(role, "editor");
   const isAdmin = role === "admin";
 
   // Where "back" returns to: the tab we came from (default Matches), at this match.
@@ -104,7 +104,7 @@ export default function MatchDetailPage() {
 
   const tQ = useQuery({
     queryKey: qk.tournament(tid!),
-    queryFn: () => getTournament(tid!, token),
+    queryFn: () => getTournament(tid!),
     enabled: !!tid,
   });
 
@@ -198,14 +198,14 @@ export default function MatchDetailPage() {
 
   const saveMut = useMutation({
     mutationFn: async () => {
-      if (!token || !matchId || !tid) throw new Error("Not logged in");
+      if (!matchId || !tid) throw new Error("Not logged in");
 
       // The socket can be dead (backgrounded phone, flaky wifi), so read the
       // match once more right before writing: a save must never land on a
       // server state this editor was never shown.
       const fresh = await qc.fetchQuery({
         queryKey: qk.tournament(tid),
-        queryFn: () => getTournament(tid, token),
+        queryFn: () => getTournament(tid),
         staleTime: 0,
       });
       const freshMatch = fresh.matches.find((m) => Number(m.id) === matchId) ?? null;
@@ -222,7 +222,7 @@ export default function MatchDetailPage() {
       // other editor put there instead of being reverted to our snapshot.
       const body = patchBodyForEdits(activeEdits);
       if (!body) return { outcome: "unchanged" as const };
-      await patchMatch(token, matchId, body);
+      await patchMatch(matchId, body);
       return { outcome: "saved" as const };
     },
     onSuccess: async (res) => {
@@ -251,8 +251,8 @@ export default function MatchDetailPage() {
 
   const swapMut = useMutation({
     mutationFn: async () => {
-      if (!token || !matchId) throw new Error("Not logged in");
-      return swapMatchSides(token, matchId);
+      if (!matchId) throw new Error("Not logged in");
+      return swapMatchSides(matchId);
     },
     onSuccess: async () => {
       // The sides traded places, so pending per-side edits now mean the

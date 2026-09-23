@@ -31,7 +31,7 @@ import { listClubs } from "../../api/clubs.api";
 import type { DeciderType, Match, Club, PatchMatchBody } from "../../api/types";
 
 import { useTournamentWS } from "../../hooks/useTournamentWS";
-import { useAuth } from "../../auth/AuthContext";
+import { atLeast, useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 
 import AdminPanel from "./AdminPanel";
@@ -75,10 +75,10 @@ export default function LiveTournamentPage() {
   } | null) ?? null;
   const [searchParams, setSearchParams] = useSearchParams();
   const nav = useNavigate();
-  const { role, token } = useAuth();
+  const { role, playerId: viewerId } = useAuth();
 
   const isAdmin = role === "admin";
-  const isEditorOrAdmin = role === "editor" || role === "admin";
+  const isEditorOrAdmin = atLeast(role, "editor");
 
   const TAB_KEYS: LiveTab[] = ["overview", "current", "standings", "matches", "comments", "whatif", "controls"];
   const initialTab = ((): LiveTab | null => {
@@ -109,7 +109,7 @@ export default function LiveTournamentPage() {
 
   const tQ = useQuery({
     queryKey: qk.tournament(tid!),
-    queryFn: () => getTournament(tid!, token),
+    queryFn: () => getTournament(tid!),
     enabled: !!tid,
   });
 
@@ -126,35 +126,33 @@ export default function LiveTournamentPage() {
 
   const { ids: seenCommentIds, loaded: seenCommentIdsLoaded } = useSeenSet(tid ?? 0);
   const commentsQ = useQuery({
-    queryKey: qk.commentsTournamentFull(tid!, token),
-    queryFn: () => listTournamentComments(tid!, token),
+    queryKey: qk.commentsTournamentFull(tid!, viewerId),
+    queryFn: () => listTournamentComments(tid!),
     enabled: !!tid,
   });
   const unreadCommentsCount = useMemo(() => {
-    if (!token) return 0;
     const cs = commentsQ.data?.comments ?? [];
     let n = 0;
     for (const c of cs) {
       if (!seenCommentIds.has(c.id)) n++;
     }
     return n;
-  }, [commentsQ.data?.comments, seenCommentIds, token]);
+  }, [commentsQ.data?.comments, seenCommentIds]);
   const unreadCommentIds = useMemo(() => {
-    if (!token) return [];
     const cs = commentsQ.data?.comments ?? [];
     return cs
       .map((c) => Number(c.id))
       .filter((id) => Number.isFinite(id) && id > 0 && !seenCommentIds.has(id))
       .map((id) => Math.trunc(id));
-  }, [commentsQ.data?.comments, seenCommentIds, token]);
+  }, [commentsQ.data?.comments, seenCommentIds]);
   const markAllReadMut = useMutation({
     mutationFn: async () => {
-      if (!token || !tid) throw new Error("Not logged in");
-      return markAllTournamentCommentsRead(token, tid);
+      if (!tid) throw new Error("Not logged in");
+      return markAllTournamentCommentsRead(tid);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tid!, token) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tid!, viewerId) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(viewerId) });
     },
   });
   const parseApiTs = (raw?: string | null): number => {
@@ -164,7 +162,6 @@ export default function LiveTournamentPage() {
     return Number.isFinite(ts) ? ts : 0;
   };
   const latestUnreadCommentId = useMemo(() => {
-    if (!token) return null;
     const cs = commentsQ.data?.comments ?? [];
     let bestId: number | null = null;
     let bestTs = -1;
@@ -177,7 +174,7 @@ export default function LiveTournamentPage() {
       }
     }
     return bestId;
-  }, [commentsQ.data?.comments, seenCommentIds, token]);
+  }, [commentsQ.data?.comments, seenCommentIds]);
   const [focusCommentRequest, setFocusCommentRequest] = useState<{ id: number; nonce: number } | null>(null);
 
   // A tournament that no longer exists must not trap the Tournaments tab (U6).
@@ -318,9 +315,8 @@ export default function LiveTournamentPage() {
   // --- mutations ---
   const enableLegMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!tid) throw new Error("No tournament id");
-      return enableSecondLegAll(token, tid);
+      return enableSecondLegAll(tid);
     },
     onSuccess: async () => {
       if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
@@ -329,9 +325,8 @@ export default function LiveTournamentPage() {
 
   const disableLegMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!tid) throw new Error("No tournament id");
-      return disableSecondLegAll(token, tid);
+      return disableSecondLegAll(tid);
     },
     onSuccess: async () => {
       if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
@@ -340,9 +335,8 @@ export default function LiveTournamentPage() {
 
   const reorderMut = useMutation({
     mutationFn: async (newOrderIds: number[]) => {
-      if (!token) throw new Error("Not logged in");
       if (!tid) throw new Error("No tournament id");
-      return reorderTournamentMatches(token, tid, newOrderIds);
+      return reorderTournamentMatches(tid, newOrderIds);
     },
     onSuccess: async () => {
       if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
@@ -355,7 +349,7 @@ export default function LiveTournamentPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const listForStakesQ = useQuery({
     queryKey: qk.tournaments(),
-    queryFn: () => listTournaments(token),
+    queryFn: () => listTournaments(),
     enabled: confirmDelete,
   });
   const cupStakes = useMemo(() => {
@@ -365,9 +359,8 @@ export default function LiveTournamentPage() {
 
   const deleteMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!tid) throw new Error("No tournament id");
-      return deleteTournament(token, tid);
+      return deleteTournament(tid);
     },
     onSuccess: async () => {
       setConfirmDelete(false);
@@ -390,8 +383,8 @@ export default function LiveTournamentPage() {
   const [confirmReassign, setConfirmReassign] = useState(false);
   const reassignPreviewQ = useQuery({
     queryKey: qk.tournamentReassignPreview(tid ?? 0),
-    queryFn: () => getReassignPreview(token!, tid!),
-    enabled: confirmReassign && !!tid && !!token,
+    queryFn: () => getReassignPreview(tid!),
+    enabled: confirmReassign && !!tid,
     staleTime: 0,
   });
   const reassignPreview = reassignPreviewQ.data ?? null;
@@ -427,9 +420,8 @@ export default function LiveTournamentPage() {
 
   const reassignMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!tid) throw new Error("No tournament id");
-      return reassign2v2Schedule(token, tid, true);
+      return reassign2v2Schedule(tid, true);
     },
     onSuccess: async () => {
       setConfirmReassign(false);
@@ -443,8 +435,7 @@ export default function LiveTournamentPage() {
 
   const swapSidesMut = useMutation({
     mutationFn: async (matchId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return swapMatchSides(token, matchId);
+      return swapMatchSides(matchId);
     },
     onSuccess: async () => {
       if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
@@ -460,9 +451,8 @@ export default function LiveTournamentPage() {
 
   const dateMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!tid) throw new Error("No tournament id");
-      return patchTournamentDate(token, tid, editDate);
+      return patchTournamentDate(tid, editDate);
     },
     onSuccess: async () => {
       if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
@@ -479,9 +469,8 @@ export default function LiveTournamentPage() {
 
   const nameMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!tid) throw new Error("No tournament id");
-      return patchTournamentName(token, tid, editName.trim());
+      return patchTournamentName(tid, editName.trim());
     },
     onSuccess: async () => {
       if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
@@ -498,9 +487,8 @@ export default function LiveTournamentPage() {
       winner_goals: number | null;
       loser_goals: number | null;
     }) => {
-      if (!token) throw new Error("Not logged in");
       if (!tid) throw new Error("No tournament id");
-      return patchTournamentDecider(token, tid, body);
+      return patchTournamentDecider(tid, body);
     },
     onSuccess: async () => {
       if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
@@ -529,8 +517,7 @@ export default function LiveTournamentPage() {
 
   const currentGameMut = useMutation({
     mutationFn: async (payload: { matchId: number; body: PatchMatchBody }) => {
-      if (!token) throw new Error("Not logged in");
-      return patchMatch(token, payload.matchId, payload.body);
+      return patchMatch(payload.matchId, payload.body);
     },
     onSuccess: async () => {
       if (tid) await qc.invalidateQueries({ queryKey: qk.tournament(tid) });
@@ -557,13 +544,12 @@ export default function LiveTournamentPage() {
 
   const reopenLastMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!matchesSorted.length) throw new Error("No matches");
       const last = matchesSorted[matchesSorted.length - 1];
       if (last.state === "playing") return { ok: true, note: "Already playing" };
       const a = sideBy(last, "A");
       const b = sideBy(last, "B");
-      return patchMatch(token, last.id, {
+      return patchMatch(last.id, {
         state: "playing",
         sideA: { club_id: a?.club_id ?? null, goals: Number(a?.goals ?? 0) },
         sideB: { club_id: b?.club_id ?? null, goals: Number(b?.goals ?? 0) },
@@ -622,10 +608,10 @@ export default function LiveTournamentPage() {
         type="button"
         title="Mark all unread comments as read"
         onClick={() => {
-          if (!token || !tid || unreadCommentIds.length === 0 || markAllReadMut.isPending) return;
+          if (!tid || unreadCommentIds.length === 0 || markAllReadMut.isPending) return;
           setMarkAllReadAsked(true);
         }}
-        disabled={!token || markAllReadMut.isPending}
+        disabled={markAllReadMut.isPending}
       >
         <MailOpen size={15} />
       </Button>
@@ -908,7 +894,7 @@ export default function LiveTournamentPage() {
         onCancel={() => setMarkAllReadAsked(false)}
         onConfirm={() => {
           setMarkAllReadAsked(false);
-          if (!token || !tid || unreadCommentIds.length === 0) return;
+          if (!tid || unreadCommentIds.length === 0) return;
           markAllReadMut.mutate();
         }}
       />

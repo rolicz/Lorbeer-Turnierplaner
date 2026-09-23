@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Club } from "../api/types";
 import { patchClub } from "../api/clubs.api";
 import { qk } from "../api/queryKeys";
-import { useAuth } from "../auth/AuthContext";
+import { atLeast, useAuth } from "../auth/AuthContext";
 import { cn } from "./cn";
 import { STAR_OPTIONS, starsLabel, toHalfStep } from "./clubControls";
 import { ErrorToastOnError } from "./primitives/ErrorToast";
@@ -26,10 +26,10 @@ export default function ClubStarsEditor({
   className?: string;
   compact?: boolean;
 }) {
-  const { role, token } = useAuth();
+  const { role } = useAuth();
   const qc = useQueryClient();
 
-  const canEdit = (role === "editor" || role === "admin") && !!token;
+  const canEdit = atLeast(role, "editor");
   const club = useMemo(() => (clubId ? clubs.find((c) => c.id === clubId) ?? null : null), [clubs, clubId]);
   const serverValue = club ? toHalfStep(club.star_rating) : null;
 
@@ -48,9 +48,8 @@ export default function ClubStarsEditor({
 
   const patchMut = useMutation({
     mutationFn: async (v: number) => {
-      if (!token) throw new Error("No token");
       if (!clubId) throw new Error("No club selected");
-      return patchClub(token, clubId, { star_rating: v });
+      return patchClub(clubId, { star_rating: v });
     },
     onSuccess: async () => {
       setLocalByClub({ clubId, value: null });

@@ -6,6 +6,6 @@ import type { MyNotificationsResponse } from "./types";
  * other generated shape — `/me/notifications` has a response model since P1, so
  * nothing here is hand-written any more.
  */
-export function listMyNotifications(token: string): Promise<MyNotificationsResponse> {
-  return apiFetch("/me/notifications", { method: "GET", token });
+export function listMyNotifications(): Promise<MyNotificationsResponse> {
+  return apiFetch("/me/notifications", { method: "GET" });
 }

@@ -35,7 +35,7 @@ type PlayersTab = "players" | "add";
 const PLAYERS_TAB_KEYS = ["players", "add"] as const satisfies readonly PlayersTab[];
 
 export default function PlayersAdminPage() {
-  const { token, role } = useAuth();
+  const { role } = useAuth();
   const pageEntered = useRouteEntryLoading();
   const isAdmin = role === "admin";
   const navigate = useNavigate();
@@ -66,9 +66,8 @@ export default function PlayersAdminPage() {
   const [newName, setNewName] = useState("");
   const createMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("No token");
       if (!isAdmin) throw new Error("Admin only");
-      return createPlayer(token, newName.trim());
+      return createPlayer(newName.trim());
     },
     onSuccess: async () => {
       setNewName("");
@@ -82,12 +81,11 @@ export default function PlayersAdminPage() {
   const [editName, setEditName] = useState("");
   const patchMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("No token");
       if (!isAdmin) throw new Error("Admin only");
       if (!editId) throw new Error("No player selected");
       const n = editName.trim();
       if (!n) throw new Error("Name cannot be empty");
-      return patchPlayer(token, editId, n);
+      return patchPlayer(editId, n);
     },
     onSuccess: async () => {
       setEditId(null);
@@ -187,7 +185,7 @@ export default function PlayersAdminPage() {
             const seen = seenGuestbookByPid.get(p.id) ?? new Set<number>();
             const entryIds = guestbookSummaryByPid.get(p.id)?.entry_ids ?? [];
             const unseenCount = entryIds.filter((eid) => !seen.has(eid)).length;
-            const hasUnseen = !!token && unseenCount > 0;
+            const hasUnseen = unseenCount > 0;
             const unseenPokes = Number(pokeSummaryByPid.get(p.id)?.unread_by_profile_owner_count ?? 0);
             const hasUnreadPokes = unseenPokes > 0;
             const heldCups = cupsHeldByPlayerId.get(p.id) ?? [];

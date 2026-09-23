@@ -1425,7 +1425,7 @@ refusal rule, the roster rule; §8: the five commands.
 
 **Deviations.** —
 
-## L4 — The frontend switch: cookie session, no token anywhere, the login screen, `RequireAuth`, the offline rule  ☐
+## L4 — The frontend switch: cookie session, no token anywhere, the login screen, `RequireAuth`, the offline rule  ☑
 
 **The gap.** `AuthProvider` stores a JWT and threads it into 150 API signatures and ≈619 call
 sites; `apiFetch` sets a bearer header; `connection.ts` puts `?token=` on the websocket URL;
@@ -1517,27 +1517,155 @@ grep -rn '"reader"' frontend/src --include='*.ts' --include='*.tsx' | grep -v te
     signatures; a `loginPage.test.tsx` for the 429 countdown and the error line.
 
 **Definition of done.**
-- ☐ `npm run check` green, `npm run build` green (structural).
-- ☐ Browser, 390 and 1280, `blue` and `light`: `/login` renders with the logo, the card and no
+- ☑ `npm run check` green, `npm run build` green (structural).
+- ☑ Browser, 390 and 1280, `blue` and `light`: `/login` renders with the logo, the card and no
   shell chrome (no top bar, no tab bar — `document.querySelector("#app-top-nav")` is null);
   wrong password → the red line, not a toast; the 11th wrong attempt → the countdown; right
   password → dashboard with the shell; reload → still in (cookie); revoke the session with
   `manage.py sessions --revoke-all` → the next request lands on `/login` with the toast; stop the
   backend → the app keeps showing cached pages with the `Reconnecting` marker and **does not**
   show the login screen; start it → live again.
-- ☐ The exchange: set `ea_fc_token` in `localStorage` to a JWT minted by the old code (L1's
+- ☑ The exchange: set `ea_fc_token` in `localStorage` to a JWT minted by the old code (L1's
   rollback tree can mint one via `POST /auth/login` on the same DB copy), reload → logged in,
   `ea_fc_token` gone, `ea_fc_me` present.
-- ☐ `mediaUrl` output unchanged: the existing `mediaUrl` tests pass untouched.
-- ☐ `document.querySelectorAll("a a").length === 0` on `/login`.
-- ☐ Deviations filled in.
+- ☑ `mediaUrl` output unchanged: the existing `mediaUrl` tests pass untouched.
+- ☑ `document.querySelectorAll("a a").length === 0` on `/login`.
+- ☑ Deviations filled in.
 
 **Canon.** `DESIGN.md` §7: `AuthScreen` (the bare auth layout), `RetryCountdown`, the login
 page's error line (a form's own error is a line under it, never a toast); §5b: `Log in`,
 `Log out`, `Register with a code`. `AGENTS.md` §2: `auth/` is three files; §6: the cache-policy
 rows `auth`/`admin`; §10: the offline rule and the exchange.
 
-**Deviations.** —
+**Deviations.**
+- **When the app is logged out, as built.** `AuthStatus` is `unknown | authed | anonymous`
+  and **only a 401 moves it to `anonymous`** — `isSessionRejection` is `status === 401` and
+  nothing else: a 403 is the gate's "not a member" and never ends a session (tested), a 5xx, an
+  abort or a `TypeError` keep whatever is on screen. With nothing cached and no answer the app
+  is `unknown`: `RequireAuth` renders a bare boot screen (`data-auth-boot`, a `PageLoadingScreen`
+  plus one line in the connection marker's own idioms — `WifiOff` muted "Offline" from
+  `navigator.onLine`, `RefreshCw` in `warn` "Cannot reach the server — retrying" from the
+  provider's `serverUnreachable`) and the provider **asks again** on `online`, on
+  `visibilitychange` and every 15 s, because a loading screen that never re-asks is a login
+  screen with extra steps. **Measured on the stack**: backend killed by PID → an in-app
+  navigation to the cached dashboard still draws it, the marker reads `reconnecting`, the only
+  API traffic is `/api/tournaments/live → 500` (vite's proxy answers **500**, not 502, on
+  `ECONNREFUSED`) and there is no 401; a full **reload** with the server down still mounts the
+  shell from `ea_fc_me` (`/me → 500` is no verdict); backend restarted → the marker clears by
+  itself and 27 requests answer 200 with no 401.
+- **"Session expired" is a line on the login screen, not a toast.** The toast viewport lives in
+  `ShellInner`, which unmounts the moment `RequireAuth` navigates, so `showErrorToast` still
+  fires (unchanged, deduped) but has no viewport. The provider therefore records
+  `signedOutReason: "expired"` — set only when a 401 ends a session that was `authed`, never on
+  a cold boot or a chosen logout — and `LoginPage` prints *"Your session has ended — log in
+  again."* in `text-warn` above the form. Measured with `DELETE FROM authsession` on the copy
+  (L3's `manage.py sessions` was a stub while this ran) → reload → `/me` 401 → `/login` with the
+  line and `ea_fc_me` gone.
+- **A late 401 must not erase the reason** — found on the desktop run, not the phone one: the
+  sidebar's prefetches 401 before the boot's own `/me` does, the first one set "expired", and
+  the boot's catch then called `clearAuth(null)` because the state was already anonymous. One
+  `endSession()` now decides from the *first* 401 and ignores the rest (the `api:unauthorized`
+  handler, the boot and `refresh()` all go through it).
+- **One request per boot under StrictMode.** Dev mounts the boot effect twice; the exchange is
+  a module-level in-flight singleton because a second POST would present the cookie the first
+  one just set and L2 revokes a session that logs in over itself, and `/me` shares the same
+  trick so "logged out → exactly one `GET /me → 401`" holds in dev too (measured: two before,
+  one after).
+- **A legacy token beside a cached session boots `unknown`.** The harness re-planted
+  `ea_fc_token` on reload (an `addInitScript` runs on every navigation) and exposed it: the
+  shell painted from `ea_fc_me`, fired its requests on the old cookie, the exchange revoked that
+  cookie, and their 401s ended the session the exchange had just minted. In the app the two
+  keys cannot coexist (the first exchange removes the legacy keys), but the provider now starts
+  `unknown` whenever `ea_fc_token` is present, so the shell cannot fire before the exchange has
+  settled — tested in `authSession.test.tsx`, and the harness plants the storage once per tab.
+  The exchange keeps the token on a **network error** (retried next boot) and drops it on
+  **401 / 403 / 410**, then falls through to `/me`. Measured: one `POST /auth/exchange → 200`,
+  no `/me` on that boot, all four `ea_fc_*` keys gone, `ea_fc_me` present; the reload after it is
+  a plain cookie boot (`/me → 200`, no second exchange).
+- **`logout()` needs the server.** It is `POST /auth/logout {push_endpoint}` (the endpoint from
+  `getBrowserPushSubscription()`, raced against 1.5 s so a stuck service worker cannot hold the
+  button), then `anonymous`; an `ApiError` answer clears anyway (the row is gone either way),
+  a request that never arrived **rejects and changes nothing** — clearing locally would log out
+  a device whose cookie the next boot finds alive. `SettingsPage` awaits it, then
+  `navigate("/login", {replace: true})`, and shows an error toast on a network failure
+  ("Could not reach the server — you are still logged in."). The wording is §5b's: "Log out" on
+  the button and the dialog, "Login" is gone with the reader.
+- **The previous identity's cache is cleared on login, not on logout.** `setSession` (login,
+  register, reset, exchange) calls `qc.clear()` through `useContext(QueryClientContext)` —
+  optional, so the tests' bare `<AuthProvider>` still mounts — before the shell can render:
+  `["tournaments"]` carries `can_edit` flags under a key that names no viewer. Clearing on the
+  way *out* would race the shell's still-mounted observers; on the way in nothing is mounted.
+- **`usePushNotifications()` takes no argument** (the plan said `(enabled: boolean)`): it is
+  only ever mounted inside the shell and reads `status`/`playerId` from `useAuth()` itself, so
+  `qk.push.subscriptions(viewerId)` names the viewer without a prop threaded through three
+  components. The "previous token → delete subscription" effect is deleted (logout carries the
+  endpoint); `PushSetupNotice`, `NotificationBell` and `PushNotificationsSettings` lost their
+  `token` prop, and the settings panel its "Login required" state.
+- **An owner is at least an editor.** Twelve sites spelled `role === "editor" || role === "admin"`
+  and would have refused an `owner` everything; they now read `atLeast(role, "editor")`, with
+  `ROLE_RANK` and `atLeast` in `auth/AuthContext.ts` (the one ranking `navConfig`,
+  `RequireRole` and the "view as" cycle read). Every nav destination is `min: "editor"`,
+  `visibleDests("none")` is empty, and `navConfig.tsx` no longer re-exports `ROLE_RANK` — a
+  capitalised value re-export trips `react-refresh/only-export-components`.
+- **Pre-declared for group C** (never touch `queryKeys.ts` / `types.ts` / `cachePolicy.ts`):
+  `qk.auth.all()`, `qk.auth.sessions()`, `qk.auth.passkeys()`, `qk.admin.all()`,
+  `qk.admin.accounts()`, `qk.admin.sessions(pid)`, `qk.admin.invites()`; cache-policy rows
+  `["auth"]` and `["admin"]` (none, 5 s); aliases `Role` (`"none" | "editor" | "owner" | "admin"`),
+  `GroupRole`, `MeGroup`, `MeResponse` (`role` and `groups[].role` narrowed), `AuthSession`
+  (`SessionOut`), `RevokedCount` (`RevokedOut`), `PasswordOrigin`, `AdminAccount`
+  (`AdminAccountOut` with `role: Role`, `password_origin: PasswordOrigin`), `InviteCreated`,
+  `Invite`, `ResetLink`. `LoginResponse` is deleted. **`PasskeyOut` cannot be aliased before L8's
+  schema exists** — L8, which regenerates `schema.d.ts`, adds the one line
+  `export type Passkey = S["PasskeyOut"]` to `types.ts` with it, and L9 imports that.
+- **The plan's `token` grep leaves 49 lines, every one a different word:** `FilterPill`'s
+  `token: "text" | "icon"` prop (`FilterPill.tsx`, `StatsFilterPill.tsx`,
+  `FriendlyMatchesListCard.tsx`), `MatchSides`' `stars="token"` (`FriendlyList.tsx`),
+  `blankNotice.ts`'s `token()` CSS-variable helper, design-token prose in `cupColors`,
+  `keyboardOpen`, `RecordLine`, `Stars`, `ConnectionIndicator`, `CommentComposer`,
+  `GuestbookSection`, `RecordBadges`, `StarsView`, `MatchList`, `MatchOverviewPanel`,
+  `ConfirmDialog`, `PushNotificationsSettings`, `format.ts`, and the exchange's own name
+  (`exchangeLegacyToken`, `LEGACY_TOKEN_KEY = "ea_fc_token"`). `ea_fc_token` → 2 (the constant
+  and one comment), `Bearer` in `client.ts` → 0, `"reader"` → 0.
+- **What else moved in the sweep, beyond signatures:** `api/*.api.ts` lost 60 `token`
+  parameters across 12 modules; `ApiError` gained `retryAfter` (a 429's `detail.retry_after`,
+  falling back to `Retry-After`) and a `detail` getter (the server's own sentence, for a form's
+  line); `useSeenItems`' config functions take no token; `TournamentCommentParts`'
+  `CommentCardContextValue.token`, `IdeaCardHandlers.token`, `IdeaComments`' and
+  `ProfileHeader`'s `token` props are gone; the Ideas board always renders its composer and
+  vote button (the "Log in as a player to post" footer and the read-only vote chip went with
+  the reader); `usePlayerProfileWS(playerId)` reads the viewer itself; `AdminPanel`'s `role`
+  prop is `Role`. `mediaUrl` is byte-identical and `mediaSizes.test.ts` passed untouched.
+- **The login screen** (`pages/auth/LoginPage.tsx`, inside `AuthScreen`): the 96 px
+  `rounded-2xl` logo, "Lorbeerkranz" `text-xl font-semibold`, one `card` at `max-w-sm`, a
+  `Name` field (`autoComplete="username"`, `autoCapitalize="none"`) — "Name", because the
+  login identifier *is* the display name — a hand-built password field (a `<button>` inside
+  `Input`'s `<label>` is invalid HTML) with the `Eye`/`EyeOff` `size="sm" iconOnly` toggle, one
+  full-width solid "Log in", the error as `text-xs text-error` `role="alert"`, `RetryCountdown`
+  in `text-warn`, and under the card "New here? Register with a code ›" as §6's muted text +
+  chevron. An already-authed visitor to `/login` is sent on to `from`. **Measured** at
+  390/1280 × blue/light: logo 96×96 and card (358 / 384 px wide) both centred to the pixel
+  (cx 195 / 640), card at y=200, no `#app-top-nav`, no tab bar, `a a` = 0; wrong password →
+  "Wrong username or password" in `rgb(248,113,113)` / the light red, no toast element; ten
+  401s then a 429 → "Too many attempts — try again in 594s" in amber with the button disabled
+  (Flo's bucket, so Roli's stayed clean). **`RetryCountdown`'s first cut fired `onExpire` on
+  the very render that received `seconds`** (its `remaining` state lagged one render) and the
+  countdown never showed — caught only in the browser, so `loginPage.test.tsx` now drives the
+  429 path on fake timers and would have caught it.
+- **Tests: 855 in 89 files** (baseline 839 in 88; `authSession.test.tsx` rewritten to 15 for
+  the three boot outcomes, the retry, the 403, the late 401, logout and the exchange's four
+  cases; `loginPage.test.tsx` new, 7; `guestbookIdentity.test.tsx` 5, driven by viewer ids
+  with a stubbed server that answers by "whose cookie"; `queryKeys.test.ts` +1 for the
+  pre-declared keys; `navConfig.test.ts` for the four roles; `bottomTabBar`/`navJump` seed a
+  cached session through the new `src/test/authFixtures.ts`, because the shell renders for a
+  member only). `npm run build` green: `index-*.js` **742.55 kB** (737.84 kB at Q-E; the
+  pre-existing >500 kB hint).
+- **Not done here, and why:** the backend was not touched, so no `make test`; L3's
+  `manage.py sessions --revoke-all` was a stub during verification (the revoke was one SQL
+  statement on the copy); `RegisterPage`/`ResetPage` render "Coming in L5" inside `AuthScreen`,
+  `RequireAuth` renders an `EmptyState` placeholder for a no-group account (L5 replaces one
+  element), `App.tsx` carries the `/admin` comment for L6 and `LoginPage` the slot comment for
+  L9. The main checkout was not touched; the stack ran on 8235/8255 against copies under the
+  scratchpad, and every PID was killed by number.
 
 ## L5 — Register, reset and "not in a group yet"  ☐
 

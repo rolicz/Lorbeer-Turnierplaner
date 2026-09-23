@@ -112,7 +112,6 @@ function comment(over: Partial<TournamentComment> = {}): TournamentComment {
 
 function commentContext(): CommentCardContextValue {
   return {
-    token: null,
     seen: { has: () => true },
     canWrite: false,
     canDelete: false,

@@ -40,7 +40,6 @@ const COMMENT_IMAGE_SIZES = "(min-width: 1024px) 1040px, (min-width: 640px) calc
  */
 export type CommentCardContextValue = {
   // --- viewer / permissions ---
-  token: string | null;
   seen: { has: (id: number) => boolean };
   canWrite: boolean;
   canDelete: boolean;

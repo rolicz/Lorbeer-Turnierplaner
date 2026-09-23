@@ -188,6 +188,22 @@ export const CACHE_POLICY: readonly CachePolicyRow[] = [
     staleTime: MEDIUM,
     why: "This device's own subscriptions — nothing but this device changes them.",
   },
+  {
+    key: ["auth"],
+    coverage: "none",
+    staleTime: SHORT,
+    why:
+      "My sessions and my passkeys (L7/L9). Another device logging in, or being revoked " +
+      "from the admin page, announces nothing; the list is right only when it is re-asked.",
+  },
+  {
+    key: ["admin"],
+    coverage: "none",
+    staleTime: SHORT,
+    why:
+      "Accounts, their sessions and the live invite codes (L6). A login, a logout or a " +
+      "redeemed code on any device is found only by refetching — nothing broadcasts them.",
+  },
 ];
 
 /**

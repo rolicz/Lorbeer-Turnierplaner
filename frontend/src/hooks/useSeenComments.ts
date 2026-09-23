@@ -3,12 +3,12 @@ import { qk } from "../api/queryKeys";
 import { createSeenItemsHooks } from "./useSeenItems";
 
 const { useSeenIdsByContainerId: useSeenIdsByTournamentId, useSeenSet } = createSeenItemsHooks({
-  readMapQueryKey: (token) => qk.commentsReadMap(token),
-  readMapFn: (token) => listTournamentCommentReadMap(token),
+  readMapQueryKey: (viewerId) => qk.commentsReadMap(viewerId),
+  readMapFn: listTournamentCommentReadMap,
   containerKey: "tournament_id" as const,
   idsKey: "comment_ids" as const,
-  singleQueryKey: (tid, token) => qk.commentsReadIds(tid, token),
-  singleFn: (token, tid) => listTournamentCommentReadIds(token, tid),
+  singleQueryKey: (tid, viewerId) => qk.commentsReadIds(tid, viewerId),
+  singleFn: (tid) => listTournamentCommentReadIds(tid),
 });
 
 export { useSeenIdsByTournamentId, useSeenSet };

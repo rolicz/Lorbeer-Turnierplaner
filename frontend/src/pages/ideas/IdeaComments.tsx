@@ -23,7 +23,6 @@ import type { Idea, IdeaComment } from "../../api/types";
 
 export default function IdeaComments({
   idea,
-  token,
   open,
   onToggle,
   avatarUpdatedAtByPlayerId,
@@ -31,7 +30,6 @@ export default function IdeaComments({
   onRequestDelete,
 }: {
   idea: Idea;
-  token: string | null;
   open: boolean;
   onToggle: () => void;
   avatarUpdatedAtByPlayerId: Map<number, string>;
@@ -44,10 +42,6 @@ export default function IdeaComments({
   const [draft, setDraft] = useState("");
   const [posting, setPosting] = useState(false);
   const [focusNonce, setFocusNonce] = useState(0);
-
-  // Nothing to open and nothing to do about it: a control that does nothing
-  // is never shown (§9b).
-  if (count === 0 && !token) return null;
 
   async function handlePost() {
     const body = draft.trim();
@@ -120,19 +114,17 @@ export default function IdeaComments({
             </div>
           ))}
 
-          {token ? (
-            <CommentSendRow
-              value={draft}
-              onChange={setDraft}
-              onSubmit={() => void handlePost()}
-              canSubmit={!!draft.trim()}
-              submitting={posting}
-              placeholder="Write a comment…"
-              ariaLabel="Comment on this idea"
-              sendLabel="Post comment"
-              focusNonce={focusNonce}
-            />
-          ) : null}
+          <CommentSendRow
+            value={draft}
+            onChange={setDraft}
+            onSubmit={() => void handlePost()}
+            canSubmit={!!draft.trim()}
+            submitting={posting}
+            placeholder="Write a comment…"
+            ariaLabel="Comment on this idea"
+            sendLabel="Post comment"
+            focusNonce={focusNonce}
+          />
         </div>
       ) : null}
     </div>

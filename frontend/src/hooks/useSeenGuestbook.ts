@@ -4,12 +4,12 @@ import { createSeenItemsHooks } from "./useSeenItems";
 
 const { useSeenIdsByContainerId: useSeenGuestbookIdsByProfileId, useSeenSet: useSeenGuestbookSet } =
   createSeenItemsHooks({
-    readMapQueryKey: (token) => qk.playerGuestbookReadMap(token),
-    readMapFn: (token) => listPlayerGuestbookReadMap(token),
+    readMapQueryKey: (viewerId) => qk.playerGuestbookReadMap(viewerId),
+    readMapFn: listPlayerGuestbookReadMap,
     containerKey: "profile_player_id" as const,
     idsKey: "entry_ids" as const,
-    singleQueryKey: (pid, token) => qk.playerGuestbookReadIds(pid, token),
-    singleFn: (token, pid) => listPlayerGuestbookReadIds(token, pid),
+    singleQueryKey: (pid, viewerId) => qk.playerGuestbookReadIds(pid, viewerId),
+    singleFn: (pid) => listPlayerGuestbookReadIds(pid),
   });
 
 export { useSeenGuestbookIdsByProfileId, useSeenGuestbookSet };

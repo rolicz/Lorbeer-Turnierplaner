@@ -26,30 +26,23 @@ function httpBaseToWsUrl(httpBase: string, path: string) {
   return u.toString();
 }
 
-function addTokenToWsUrl(url: string, token?: string | null) {
-  if (!token) return url;
-  try {
-    const u = new URL(url);
-    u.searchParams.set("token", token);
-    return u.toString();
-  } catch {
-    const sep = url.includes("?") ? "&" : "?";
-    return `${url}${sep}token=${encodeURIComponent(token)}`;
-  }
-}
-
-export function buildWsUrlForPath(path: string, token?: string | null) {
+/**
+ * The socket URL for a channel path. Nothing is appended: the handshake is a same-origin
+ * request and the browser attaches the `lk_session` cookie to it (L4) — the gate reads
+ * the cookie and refuses an anonymous upgrade with 1008 before any accept.
+ */
+export function buildWsUrlForPath(path: string) {
   const envValue = import.meta.env.VITE_WS_BASE_URL;
   const raw = typeof envValue === "string" ? envValue.trim() : "";
   const p = path.startsWith("/") ? path : `/${path}`;
 
   if (raw) {
-    if (raw.startsWith("ws://") || raw.startsWith("wss://")) return addTokenToWsUrl(`${raw}${p}`, token);
-    if (raw.startsWith("http://") || raw.startsWith("https://")) return addTokenToWsUrl(httpBaseToWsUrl(raw, p), token);
+    if (raw.startsWith("ws://") || raw.startsWith("wss://")) return `${raw}${p}`;
+    if (raw.startsWith("http://") || raw.startsWith("https://")) return httpBaseToWsUrl(raw, p);
     throw new Error(`Invalid VITE_WS_BASE_URL: ${raw}`);
   }
   const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  return addTokenToWsUrl(`${proto}://${window.location.host}${p}`, token);
+  return `${proto}://${window.location.host}${p}`;
 }
 
 export type RealtimeMessage = { event: string | null; payload: unknown; seq: number | null };

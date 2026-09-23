@@ -10,10 +10,10 @@ describe("queryKeys factory", () => {
     expect(qk.tournamentsLive()).toEqual(["tournaments", "live"]);
   });
 
-  it("comment keys include token", () => {
-    expect(qk.commentsReadMap("tok")).toEqual(["comments", "read-map", "tok"]);
-    expect(qk.commentsReadMap(null)).toEqual(["comments", "read-map", "none"]);
-    expect(qk.commentsReadIds(5, "tok")).toEqual(["comments", "read", 5, "tok"]);
+  it("comment keys include the viewer", () => {
+    expect(qk.commentsReadMap(7)).toEqual(["comments", "read-map", 7]);
+    expect(qk.commentsReadMap(null)).toEqual(["comments", "read-map", "anon"]);
+    expect(qk.commentsReadIds(5, 7)).toEqual(["comments", "read", 5, 7]);
   });
 
   it("player keys are structured correctly", () => {
@@ -27,13 +27,13 @@ describe("queryKeys factory", () => {
   // viewer is part of the key — while the bare prefix must still reach every one of them,
   // because that is what every mutation and `resyncPlayer` invalidate.
   it("guestbook list key includes the viewer, and the prefix still matches it", async () => {
-    expect(qk.playerGuestbookFull(3, "tok")).toEqual(["players", "guestbook", 3, "tok"]);
-    expect(qk.playerGuestbookFull(3, null)).toEqual(["players", "guestbook", 3, "none"]);
+    expect(qk.playerGuestbookFull(3, 7)).toEqual(["players", "guestbook", 3, 7]);
+    expect(qk.playerGuestbookFull(3, null)).toEqual(["players", "guestbook", 3, "anon"]);
 
     const qc = new QueryClient();
-    qc.setQueryData(qk.playerGuestbookFull(3, "tok"), []);
+    qc.setQueryData(qk.playerGuestbookFull(3, 7), []);
     await qc.invalidateQueries({ queryKey: qk.playerGuestbook(3) });
-    expect(qc.getQueryState(qk.playerGuestbookFull(3, "tok"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(qk.playerGuestbookFull(3, 7))?.isInvalidated).toBe(true);
   });
 
   it("stats keys include parameters", () => {
@@ -52,13 +52,22 @@ describe("queryKeys factory", () => {
   // A10: the friendlies rows carry per-caller capability flags, so the viewer is part of
   // the key — while the bare prefix must still reach every one of them.
   it("friendlies list key includes the viewer, and the prefix still matches it", async () => {
-    expect(qk.friendliesList("all", "tok")).toEqual(["friendlies", "all", "tok"]);
-    expect(qk.friendliesList("1v1", null)).toEqual(["friendlies", "1v1", "none"]);
+    expect(qk.friendliesList("all", 7)).toEqual(["friendlies", "all", 7]);
+    expect(qk.friendliesList("1v1", null)).toEqual(["friendlies", "1v1", "anon"]);
 
     const qc = new QueryClient();
-    qc.setQueryData(qk.friendliesList("all", "tok"), []);
+    qc.setQueryData(qk.friendliesList("all", 7), []);
     await qc.invalidateQueries({ queryKey: qk.friendlies() });
-    expect(qc.getQueryState(qk.friendliesList("all", "tok"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(qk.friendliesList("all", 7))?.isInvalidated).toBe(true);
+  });
+
+  // L4 pre-declares the keys L6, L7 and L9 read, so those tasks never touch the factory.
+  it("auth and admin keys sit under their own prefixes", () => {
+    expect(qk.auth.sessions()).toEqual(["auth", "sessions"]);
+    expect(qk.auth.passkeys()).toEqual(["auth", "passkeys"]);
+    expect(qk.admin.accounts()).toEqual(["admin", "accounts"]);
+    expect(qk.admin.sessions(4)).toEqual(["admin", "sessions", 4]);
+    expect(qk.admin.invites()).toEqual(["admin", "invites"]);
   });
 
   it("clubs key is optional-game", () => {

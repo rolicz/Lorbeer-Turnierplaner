@@ -21,7 +21,7 @@ import { createFriendlyMatch } from "../../api/friendlies.api";
 import { getStatsOdds, type StatsOddsRequest } from "../../api/stats.api";
 import type { Match } from "../../api/types";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
-import { useAuth } from "../../auth/AuthContext";
+import { atLeast, useAuth } from "../../auth/AuthContext";
 import { APP_LOCALE_NUMERIC } from "../../utils/format";
 import { joinNames } from "../../utils/matchDisplay";
 
@@ -162,8 +162,8 @@ function AvatarPlayerSelect({
 
 export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?: () => void }) {
   const qc = useQueryClient();
-  const { role, token } = useAuth();
-  const canStore = role === "editor" || role === "admin";
+  const { role } = useAuth();
+  const canStore = atLeast(role, "editor");
   const [initialState] = useState<FriendlyMatchPersistedState>(() => loadFriendlyState());
 
   const [clubGame, setClubGame] = useState(initialState.clubGame);
@@ -286,8 +286,7 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
 
   const saveMut = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error("Missing token");
-      return createFriendlyMatch(token, {
+      return createFriendlyMatch({
         mode,
         teamA_player_ids: aTeamIds,
         teamB_player_ids: bTeamIds,
@@ -399,8 +398,8 @@ export default function FriendlyMatchCard({ onInitialReady }: { onInitialReady?:
             variant="solid"
             onClick={() => saveMut.mutate()}
             type="button"
-            disabled={!canStore || !token || !canSave || saveMut.isPending}
-            title={canStore && token ? "Save friendly match" : "Login as editor/admin to save"}
+            disabled={!canStore || !canSave || saveMut.isPending}
+            title={canStore ? "Save friendly match" : "Editors and admins can save"}
             className="h-10 w-10 p-0 inline-flex items-center justify-center md:w-auto md:px-4 md:py-2"
           >
             <Save size={16} className="md:hidden" aria-hidden="true" />

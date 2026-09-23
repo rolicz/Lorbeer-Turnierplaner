@@ -26,7 +26,7 @@ import type { Club, Match, MatchSide } from "../../api/types";
 import FriendlyList, { groupFriendliesByDate, normalizeFriendlyState } from "./FriendlyList";
 import MatchH2HPanel from "../live/MatchH2HPanel";
 import { teamName } from "../../utils/matchDisplay";
-import { useAuth } from "../../auth/AuthContext";
+import { atLeast, useAuth } from "../../auth/AuthContext";
 import { readStored, writeStored } from "../../utils/safeStorage";
 
 type ModeFilter = "all" | "1v1" | "2v2";
@@ -89,7 +89,6 @@ function FriendlyEditor({
   onCancel: () => void;
 }) {
   const qc = useQueryClient();
-  const { token } = useAuth();
 
   const aSide = match.sides.find((s) => s.side === "A");
   const bSide = match.sides.find((s) => s.side === "B");
@@ -128,8 +127,7 @@ function FriendlyEditor({
 
   const saveMut = useMutation({
     mutationFn: () => {
-      if (!token) throw new Error("Missing token");
-      return patchFriendlyMatch(token, friendlyId, {
+      return patchFriendlyMatch(friendlyId, {
         state: "finished",
         sideA: { club_id: aClub, goals: aGoalsNum },
         sideB: { club_id: bClub, goals: bGoalsNum },
@@ -245,11 +243,11 @@ function FriendlyEditor({
 
 export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialReady?: () => void }) {
   const qc = useQueryClient();
-  const { role, token } = useAuth();
+  const { role, playerId: viewerId } = useAuth();
   // Coarse gate only. Whether *this* friendly may be edited or deleted is the server's
   // answer, carried per row as `can_edit` / `can_delete` (A10) — an editor keeps their own
   // entry for an hour, an admin always.
-  const isEditorOrAdmin = (role === "editor" || role === "admin") && !!token;
+  const isEditorOrAdmin = atLeast(role, "editor");
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
   const [mode, setMode] = useState<ModeFilter>("all");
   const [view, setView] = useState<ViewFilter>(() => (readStored(VIEW_KEY) === "details" ? "details" : "compact"));
@@ -269,8 +267,8 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
 
   const friendliesQ = useQuery({
     // The rows carry per-caller flags, so the viewer is part of the key.
-    queryKey: qk.friendliesList(mode, token),
-    queryFn: () => listFriendlies({ mode: mode === "all" ? undefined : mode, limit: 500, token }),
+    queryKey: qk.friendliesList(mode, viewerId),
+    queryFn: () => listFriendlies({ mode: mode === "all" ? undefined : mode, limit: 500 }),
     staleTime: 10_000,
     // The mode tabs filter one list; they do not change the subject. Keep the rows on
     // screen across the switch, the way the stats filters do (Q9).
@@ -287,8 +285,7 @@ export default function FriendlyMatchesListCard({ onInitialReady }: { onInitialR
 
   const deleteMut = useMutation({
     mutationFn: (friendlyId: number) => {
-      if (!token) throw new Error("Missing token");
-      return deleteFriendlyMatch(token, friendlyId);
+      return deleteFriendlyMatch(friendlyId);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.friendlies() });

@@ -16,23 +16,24 @@ type ReadMapRow<ContainerKey extends string, IdsKey extends string> = {
 };
 
 interface SeenItemsConfig<ContainerKey extends string, IdsKey extends string> {
-  readMapQueryKey: (token: string | null) => readonly unknown[];
-  readMapFn: (token: string) => Promise<ReadMapRow<ContainerKey, IdsKey>[]>;
+  /** Read state is per caller, so the key names the viewer (the session's player). */
+  readMapQueryKey: (viewerId: number | null) => readonly unknown[];
+  readMapFn: () => Promise<ReadMapRow<ContainerKey, IdsKey>[]>;
   containerKey: ContainerKey;
   idsKey: IdsKey;
-  singleQueryKey: (containerId: number, token: string | null) => readonly unknown[];
-  singleFn: (token: string, containerId: number) => Promise<{ [K in IdsKey]: number[] }>;
+  singleQueryKey: (containerId: number, viewerId: number | null) => readonly unknown[];
+  singleFn: (containerId: number) => Promise<{ [K in IdsKey]: number[] }>;
 }
 
 export function createSeenItemsHooks<ContainerKey extends string, IdsKey extends string>(
   config: SeenItemsConfig<ContainerKey, IdsKey>
 ) {
   function useSeenIdsByContainerId(containerIds: number[]) {
-    const { token } = useAuth();
+    const { status, playerId: viewerId } = useAuth();
     const q = useQuery({
-      queryKey: config.readMapQueryKey(token),
-      queryFn: () => config.readMapFn(token as string),
-      enabled: !!token,
+      queryKey: config.readMapQueryKey(viewerId),
+      queryFn: () => config.readMapFn(),
+      enabled: status === "authed",
     });
     return useMemo(() => {
       const source = new Map<number, Set<number>>();
@@ -54,16 +55,16 @@ export function createSeenItemsHooks<ContainerKey extends string, IdsKey extends
    * `loaded` is not cosmetic: until the read ids arrive the set is empty and
    * *every* item looks unread. A caller that acts on "the newest unread item"
    * (the `?unread=1` deep link) must wait for it, or it jumps to whatever is
-   * newest — read or not. A query that never runs (no token: a reader has no
-   * read state) counts as loaded; so does a failed one, whose empty set is the
+   * newest — read or not. A query that never runs (no session: nobody has read
+   * state) counts as loaded; so does a failed one, whose empty set is the
    * honest answer we have.
    */
   function useSeenSet(containerId: number): { ids: Set<number>; loaded: boolean } {
-    const { token } = useAuth();
-    const enabled = !!token && Number.isFinite(containerId) && containerId > 0;
+    const { status, playerId: viewerId } = useAuth();
+    const enabled = status === "authed" && Number.isFinite(containerId) && containerId > 0;
     const q = useQuery({
-      queryKey: config.singleQueryKey(containerId, token),
-      queryFn: () => config.singleFn(token as string, containerId),
+      queryKey: config.singleQueryKey(containerId, viewerId),
+      queryFn: () => config.singleFn(containerId),
       enabled,
     });
     const ids = useMemo(

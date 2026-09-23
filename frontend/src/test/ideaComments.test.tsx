@@ -61,7 +61,6 @@ describe("IdeaComments", () => {
     renderComments(
       <IdeaComments
         idea={i}
-        token="t"
         open={false}
         onToggle={onToggle}
         avatarUpdatedAtByPlayerId={AVATARS}
@@ -88,7 +87,6 @@ describe("IdeaComments", () => {
     renderComments(
       <IdeaComments
         idea={i}
-        token="t"
         open={true}
         onToggle={vi.fn()}
         avatarUpdatedAtByPlayerId={AVATARS}
@@ -108,13 +106,12 @@ describe("IdeaComments", () => {
     expect(onPost).toHaveBeenCalledWith(i, "a new one");
   });
 
-  it("shows 'Comment' for a token and nothing for a reader when there are none yet", () => {
+  it("shows 'Comment' when there are none yet — everyone in the shell may write one (L4)", () => {
     const i = idea({ comments: [] });
 
-    const withToken = renderComments(
+    const view = renderComments(
       <IdeaComments
         idea={i}
-        token="t"
         open={false}
         onToggle={vi.fn()}
         avatarUpdatedAtByPlayerId={AVATARS}
@@ -122,23 +119,10 @@ describe("IdeaComments", () => {
         onRequestDelete={vi.fn()}
       />,
     );
-    expect(withToken.getByText("Comment")).toBeInTheDocument();
-
-    const { container } = renderComments(
-      <IdeaComments
-        idea={i}
-        token={null}
-        open={false}
-        onToggle={vi.fn()}
-        avatarUpdatedAtByPlayerId={AVATARS}
-        onPost={vi.fn()}
-        onRequestDelete={vi.fn()}
-      />,
-    );
-    expect(container.querySelector("button")).toBeNull();
+    expect(view.getByText("Comment")).toBeInTheDocument();
   });
 
-  it("hides the trash unless can_delete says so, and never shows a composer to a reader", () => {
+  it("hides the trash unless can_delete says so, and always offers the composer", () => {
     const mine = comment({ id: 1, can_delete: true, author_display_name: "Roli" });
     const theirs = comment({ id: 2, can_delete: false, author_display_name: "Berni" });
     const i = idea({ comments: [mine, theirs] });
@@ -146,7 +130,6 @@ describe("IdeaComments", () => {
     renderComments(
       <IdeaComments
         idea={i}
-        token={null}
         open={true}
         onToggle={vi.fn()}
         avatarUpdatedAtByPlayerId={AVATARS}
@@ -156,7 +139,7 @@ describe("IdeaComments", () => {
     );
 
     expect(screen.getAllByTitle("Delete comment")).toHaveLength(1);
-    expect(screen.queryByLabelText("Comment on this idea")).toBeNull();
+    expect(screen.getByLabelText("Comment on this idea")).toBeInTheDocument();
   });
 
   it("uses fmtCount's singular for exactly one comment", () => {
@@ -165,7 +148,6 @@ describe("IdeaComments", () => {
     renderComments(
       <IdeaComments
         idea={i}
-        token="t"
         open={false}
         onToggle={vi.fn()}
         avatarUpdatedAtByPlayerId={AVATARS}

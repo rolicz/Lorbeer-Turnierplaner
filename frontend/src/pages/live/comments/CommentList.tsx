@@ -86,7 +86,6 @@ export default function CommentList(props: CommentListProps) {
     ctx,
   } = props;
   const {
-    token,
     seen,
     canWrite,
     pinnedTournamentCommentId,
@@ -117,7 +116,7 @@ export default function CommentList(props: CommentListProps) {
         c={c}
         isEditing={editingId === c.id}
         isPinned={pinnedTournamentCommentId === c.id}
-        isUnseen={!!token && !seen.has(c.id)}
+        isUnseen={!seen.has(c.id)}
         onMarkSeen={() => onMarkSeen(c.id)}
         flash={flashId === c.id}
         surfaceClassName={surface}
@@ -171,8 +170,7 @@ export default function CommentList(props: CommentListProps) {
     const arr = (blocks.find((b) => b.matchId === matchId)?.comments ?? []);
     const blockKey = `m-${matchId}`;
     const isCollapsed = showMatchHeader && collapsedBlocks.has(blockKey);
-    const unseenHere =
-      !!token && comments.some((c) => rootScopeKey.get(c.id) === blockKey && !seen.has(c.id));
+    const unseenHere = comments.some((c) => rootScopeKey.get(c.id) === blockKey && !seen.has(c.id));
     // The score is a `ScoreLine` like every other score in the app (DESIGN.md §8):
     // no colon, no box, and the club/stars rows hug the centre gap under it the
     // way `MatchSides` does elsewhere.

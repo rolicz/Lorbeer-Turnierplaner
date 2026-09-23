@@ -59,13 +59,13 @@ const TABS: SectionTab<IdeaTab>[] = [
 ];
 
 export default function IdeasPage() {
-  const { token } = useAuth();
+  const { playerId: viewerId } = useAuth();
   const [tab, setTab] = useTabParam<IdeaTab>(IDEA_TAB_KEYS, "open");
   const [searchParams, setSearchParams] = useSearchParams();
   const [sort, setSort] = useState<IdeaSort>("top");
   const [area, setArea] = useState<string | null>(null);
 
-  const ideasQ = useQuery({ queryKey: qk.ideas(token), queryFn: () => listIdeas(token) });
+  const ideasQ = useQuery({ queryKey: qk.ideas(viewerId), queryFn: () => listIdeas() });
   const areasQ = useQuery({ queryKey: qk.ideaAreas(), queryFn: listIdeaAreas, staleTime: 60 * 60 * 1000 });
 
   const ideas = useMemo(() => ideasQ.data?.ideas ?? [], [ideasQ.data]);
@@ -120,7 +120,7 @@ export default function IdeasPage() {
     setTab("all");
     setArea(null);
     setFlashId(deepLinkId);
-    if (token) markReadMut.mutate(deepLinkId);
+    markReadMut.mutate(deepLinkId);
     const next = new URLSearchParams(searchParams);
     next.delete("idea");
     setSearchParams(next, { replace: true });
@@ -129,7 +129,7 @@ export default function IdeasPage() {
     }, 0);
     const t = window.setTimeout(() => setFlashId(null), 2400);
     return () => window.clearTimeout(t);
-  }, [deepLinkId, ideas, searchParams, setSearchParams, setTab, token, markReadMut]);
+  }, [deepLinkId, ideas, searchParams, setSearchParams, setTab, markReadMut]);
 
   const availableAreas = useMemo(() => usedAreaKeys(ideas, areaCatalog), [ideas, areaCatalog]);
   // An area filter whose ideas all moved to another tab would silently show nothing.
@@ -198,7 +198,6 @@ export default function IdeasPage() {
   }
 
   const handlers: IdeaCardHandlers = {
-    token,
     areaCatalog,
     avatarUpdatedAtByPlayerId: avatarUpdatedAtById,
     savingId,
@@ -227,7 +226,7 @@ export default function IdeasPage() {
     onReplaceImage: (idea) => setCropperTarget(idea.id),
     onRemoveImage: (idea) => setPendingRemoveImage(idea),
     onOpenComments: (idea) => {
-      if (token) markReadMut.mutate(idea.id);
+      markReadMut.mutate(idea.id);
     },
     onPostComment: async (idea, body) => {
       await commentMut.mutateAsync({ ideaId: idea.id, body });
@@ -300,11 +299,7 @@ export default function IdeasPage() {
             className="px-3 py-6"
             title={ideas.length === 0 ? "No ideas yet." : "Nothing here with these filters."}
             hint={
-              ideas.length === 0
-                ? token
-                  ? "Write the first one below."
-                  : "Log in as a player to write the first one."
-                : "Try another tab or area."
+              ideas.length === 0 ? "Write the first one below." : "Try another tab or area."
             }
           />
         ) : null}
@@ -317,8 +312,7 @@ export default function IdeasPage() {
           </div>
         ) : null}
 
-        {token ? (
-          <IdeaComposer
+        <IdeaComposer
             open={composerOpen}
             onOpen={() => setComposerOpen(true)}
             onClose={() => {
@@ -340,12 +334,7 @@ export default function IdeasPage() {
             onSubmit={() => void postIdea()}
             submitting={createMut.isPending || putImageMut.isPending}
             focusNonce={composerFocusNonce}
-          />
-        ) : (
-          <div className="border-t border-border-card-outer/55 px-3 py-2.5 text-sm text-text-muted">
-            Log in as a player to post an idea, vote for one or comment.
-          </div>
-        )}
+        />
       </section>
 
       <CommentImageCropper

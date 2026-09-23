@@ -11,7 +11,7 @@
  * Below the actions row sits the flat comment thread (`IdeaComments.tsx`, P4):
  * a comment cannot be edited, so its own flag is `can_delete` alone.
  */
-import { Check, ImageIcon, Pencil, Save, ThumbsUp, Trash2, Users, X } from "lucide-react";
+import { Check, ImageIcon, Pencil, Save, Trash2, Users, X } from "lucide-react";
 import { useState } from "react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
@@ -36,7 +36,6 @@ import { IdeaAreasField, IdeaBodyField, IdeaKindField, IdeaTitleInput } from "./
 import IdeaComments from "./IdeaComments";
 
 export type IdeaCardHandlers = {
-  token: string | null;
   areaCatalog: IdeaArea[];
   avatarUpdatedAtByPlayerId: Map<number, string>;
   onVote: (idea: Idea, value: 0 | 1) => void;
@@ -64,7 +63,6 @@ export default function IdeaCard({
   handlers: IdeaCardHandlers;
 }) {
   const {
-    token,
     areaCatalog,
     avatarUpdatedAtByPlayerId,
     onVote,
@@ -295,20 +293,13 @@ export default function IdeaCard({
           ) : null}
 
           <div className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
-            {token ? (
-              <VoteButton
-                direction="up"
-                active={idea.my_vote === 1}
-                count={idea.votes}
-                onVote={() => onVote(idea, idea.my_vote === 1 ? 0 : 1)}
-                title={idea.my_vote === 1 ? "Take your vote back" : "I want this too"}
-              />
-            ) : (
-              <span className="chip inline-flex items-center gap-1" title="Login to vote">
-                <ThumbsUp size={12} aria-hidden="true" />
-                <span className="tabular-nums">{idea.votes}</span>
-              </span>
-            )}
+            <VoteButton
+              direction="up"
+              active={idea.my_vote === 1}
+              count={idea.votes}
+              onVote={() => onVote(idea, idea.my_vote === 1 ? 0 : 1)}
+              title={idea.my_vote === 1 ? "Take your vote back" : "I want this too"}
+            />
             {idea.votes > 0 ? (
               <Button
                 type="button"
@@ -352,7 +343,6 @@ export default function IdeaCard({
 
           <IdeaComments
             idea={idea}
-            token={token}
             open={commentsOpen}
             onToggle={toggleComments}
             avatarUpdatedAtByPlayerId={avatarUpdatedAtByPlayerId}

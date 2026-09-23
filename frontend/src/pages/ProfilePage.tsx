@@ -6,7 +6,7 @@ import VoteVotersModal from "../ui/primitives/VoteVotersModal";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
-import { useAuth } from "../auth/AuthContext";
+import { atLeast, useAuth } from "../auth/AuthContext";
 import {
   getPlayerProfile,
   listPlayerGuestbookEntryVoters,
@@ -53,7 +53,7 @@ const PROFILE_TAB_KEYS = ["overview", "stats", "matches", "guestbook"] as const 
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { token, role, playerId: currentPlayerId, actorPlayerId } = useAuth();
+  const { role, playerId: currentPlayerId, actorPlayerId } = useAuth();
   const pageEntered = useRouteEntryLoading();
   const qc = useQueryClient();
 
@@ -166,7 +166,8 @@ export default function ProfilePage() {
   usePageTitle(player?.display_name ?? profileQ.data?.display_name ?? "Profile");
 
   const isOwnProfile = isOwnProfileView;
-  const canEdit = !!token && role !== "reader" && isOwnProfile;
+  // A member may edit their own profile; the server enforces it (`ensure_owner_or_admin`).
+  const canEdit = atLeast(role, "editor") && isOwnProfile;
   const displayName = player?.display_name ?? profileQ.data?.display_name ?? null;
   const avatarUpdatedAt = targetPlayerId ? avatarUpdatedAtById.get(targetPlayerId) ?? null : null;
 
@@ -213,10 +214,9 @@ export default function ProfilePage() {
     return out;
   }, [playerStatsRow?.positions_by_tournament, statsPlayersQ.data?.tournaments]);
 
-  const pokes = useProfilePokes({ targetPlayerId, token, role, actorPlayerId });
+  const pokes = useProfilePokes({ targetPlayerId, role, actorPlayerId });
   const guestbook = useProfileGuestbook({
     targetPlayerId,
-    token,
     role,
     actorPlayerId,
     currentPlayerId,
@@ -224,7 +224,7 @@ export default function ProfilePage() {
     avatarUpdatedAtByPlayerId: avatarUpdatedAtById,
   });
 
-  usePlayerProfileWS(targetPlayerId, token);
+  usePlayerProfileWS(targetPlayerId);
 
   /**
    * "Comment on this" from an item (K3). An item never hosts its own thread: it switches to
@@ -240,9 +240,8 @@ export default function ProfilePage() {
 
   const saveProfileMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
-      return patchPlayerProfile(token, targetPlayerId, { bio: bioDraft });
+      return patchPlayerProfile(targetPlayerId, { bio: bioDraft });
     },
     onSuccess: async (saved) => {
       if (targetPlayerId) {
@@ -313,7 +312,6 @@ export default function ProfilePage() {
 
         <ProfileHeader
           targetPlayerId={targetPlayerId}
-          token={token}
           canEdit={canEdit}
           isOwnProfile={isOwnProfile}
           displayName={displayName}

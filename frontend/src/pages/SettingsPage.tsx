@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Eye, LogIn, LogOut, UserCog } from "lucide-react";
+import { Check, Eye, LogOut, UserCog } from "lucide-react";
 
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../ui/layout/ThemeContext";
@@ -19,6 +19,7 @@ import { useTabParam } from "../ui/shell/useTabParam";
 import PageLayout from "../ui/layout/PageLayout";
 import Button, { buttonClass } from "../ui/primitives/Button";
 import ConfirmDialog from "../ui/primitives/ConfirmDialog";
+import { showErrorToast } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 
 const THEME_SWATCHES: Record<string, string[]> = {
@@ -47,9 +48,9 @@ function SettingsSection({ title, children }: { title: string; children: React.R
 
 export default function SettingsPage() {
   const pageEntered = useRouteEntryLoading();
+  const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
   const {
-    token,
     role,
     accountRole,
     playerId,
@@ -66,7 +67,7 @@ export default function SettingsPage() {
   const playersQ = useQuery({
     queryKey: qk.players(),
     queryFn: listPlayers,
-    enabled: !!token && accountRole === "admin",
+    enabled: accountRole === "admin",
     staleTime: 30_000,
   });
 
@@ -84,6 +85,7 @@ export default function SettingsPage() {
   usePageTitle("Settings");
 
   const [pendingLogout, setPendingLogout] = useState<true | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const [tab, setTab] = useTabParam<SettingsTab>(SETTINGS_TAB_KEYS, "account");
   const settingsTabs: SectionTab<SettingsTab>[] = [
@@ -92,6 +94,23 @@ export default function SettingsPage() {
     { key: "notifications", label: "Notifications", icon: <Bell size={14} /> },
     { key: "diagnostics", label: "Diagnostics", icon: <Bug size={14} /> },
   ];
+
+  // Logging out needs the server (the cookie is its to end, L4): the row is deleted and
+  // this device's push subscription disabled in one request, then the app forgets the
+  // session and lands on the login screen. A request that never arrived changes nothing
+  // — say so, and leave the reader logged in rather than half out.
+  async function confirmLogout() {
+    setPendingLogout(null);
+    setLoggingOut(true);
+    try {
+      await logout();
+      navigate("/login", { replace: true });
+    } catch {
+      showErrorToast("Could not reach the server — you are still logged in.", "Log out failed");
+    } finally {
+      setLoggingOut(false);
+    }
+  }
 
   if (!pageEntered) {
     return <PageLayout><PageLoadingScreen sectionCount={3} /></PageLayout>;
@@ -108,7 +127,7 @@ export default function SettingsPage() {
         <SettingsSection title="Account">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <div className="truncate font-medium text-text-normal">{playerName || "Guest"}</div>
+              <div className="truncate font-medium text-text-normal">{playerName || "—"}</div>
               <div className="text-xs text-text-muted">
                 {role}
                 {accountRole === "admin" && role !== "admin" ? " · ui override" : ""}
@@ -129,33 +148,27 @@ export default function SettingsPage() {
               </Button>
             ) : null}
           </div>
+          {/* Logged in is the only state this page has (L4): the shell mounts behind the
+              login, so there is no "Login" branch to render any more. */}
           <div className="mt-3 flex items-center gap-2">
-            {token ? (
-              <>
-                <Link
-                  to="/profile"
-                  className={buttonClass({ variant: "ghost", size: "md", className: "flex-1 justify-center" })}
-                >
-                  My profile
-                </Link>
-                <Button
-                  type="button"
-                  onClick={() => setPendingLogout(true)}
-                  variant="ghost"
-                  size="md"
-                  className="justify-center gap-2"
-                  title="Logout"
-                >
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  <span>Logout</span>
-                </Button>
-              </>
-            ) : (
-              <Link to="/login" className={buttonClass({ variant: "solid", size: "md", className: "flex-1 justify-center gap-2" })}>
-                <LogIn className="h-4 w-4" aria-hidden="true" />
-                <span>Login</span>
-              </Link>
-            )}
+            <Link
+              to="/profile"
+              className={buttonClass({ variant: "ghost", size: "md", className: "flex-1 justify-center" })}
+            >
+              My profile
+            </Link>
+            <Button
+              type="button"
+              onClick={() => setPendingLogout(true)}
+              variant="ghost"
+              size="md"
+              className="justify-center gap-2"
+              title="Log out"
+              disabled={loggingOut}
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              <span>{loggingOut ? "Logging out…" : "Log out"}</span>
+            </Button>
           </div>
         </SettingsSection>
 
@@ -201,7 +214,7 @@ export default function SettingsPage() {
         {tab === "notifications" ? (
         /* Notifications */
         <SettingsSection title="Notifications">
-          <PushNotificationsSettings token={token} />
+          <PushNotificationsSettings />
         </SettingsSection>
         ) : null}
 
@@ -260,13 +273,14 @@ export default function SettingsPage() {
 
       <ConfirmDialog
         open={!!pendingLogout}
-        title="Logout?"
-        subtitle="Login again with your player password; nothing else changes."
-        confirmLabel="Logout"
+        title="Log out?"
+        subtitle="This device is signed out; log in again with your name and password."
+        confirmLabel="Log out"
+        busy={loggingOut}
+        busyLabel="Logging out…"
         onCancel={() => setPendingLogout(null)}
         onConfirm={() => {
-          setPendingLogout(null);
-          logout();
+          void confirmLogout();
         }}
       />
     </PageLayout>

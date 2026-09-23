@@ -20,14 +20,13 @@ export function listPlayers(): Promise<Player[]> {
   return apiFetch("/players", { method: "GET" });
 }
 
-export function createPlayer(token: string, display_name: string): Promise<Player> {
-  return apiFetch("/players", { method: "POST", token, body: JSON.stringify({ display_name }) });
+export function createPlayer(display_name: string): Promise<Player> {
+  return apiFetch("/players", { method: "POST", body: JSON.stringify({ display_name }) });
 }
 
-export function patchPlayer(token: string, id: number, display_name: string): Promise<Player> {
+export function patchPlayer(id: number, display_name: string): Promise<Player> {
   return apiFetch(`/players/${id}`, {
     method: "PATCH",
-    token,
     body: JSON.stringify({ display_name }),
   });
 }
@@ -40,90 +39,76 @@ export function getPlayerProfile(playerId: number): Promise<PlayerProfile> {
   return apiFetch(`/players/${playerId}/profile`, { method: "GET" });
 }
 
-export function patchPlayerProfile(token: string, playerId: number, body: { bio?: string }): Promise<PlayerProfile> {
+export function patchPlayerProfile(playerId: number, body: { bio?: string }): Promise<PlayerProfile> {
   return apiFetch(`/players/${playerId}/profile`, {
     method: "PATCH",
-    token,
     body: JSON.stringify(body),
   });
 }
 
 /**
- * Public read; `token` only decides the per-caller answers each row carries — `can_edit`
- * (`guestbook_can_edit`: the author inside the hour, or an admin) and `my_vote`. Read
- * anonymously they are `false` and `0` for everybody, which is how the edit pencil came to
- * be dead in the app while the API was right all along (G4). A logged-out reader still
- * gets the same list, with the same flags an anonymous caller is entitled to.
+ * The session decides the per-caller answers each row carries — `can_edit`
+ * (`guestbook_can_edit`: the author inside the hour, or an admin) and `my_vote`. Read as
+ * nobody they were `false` and `0` for everybody, which is how the edit pencil came to be
+ * dead in the app while the API was right all along (G4); the cookie now goes with every
+ * request by itself, and the viewer stays in the query key (`qk.playerGuestbookFull`).
  */
-export function listPlayerGuestbook(playerId: number, token?: string | null): Promise<PlayerGuestbookEntry[]> {
-  return apiFetch(`/players/${playerId}/guestbook`, { method: "GET", token: token ?? undefined });
+export function listPlayerGuestbook(playerId: number): Promise<PlayerGuestbookEntry[]> {
+  return apiFetch(`/players/${playerId}/guestbook`, { method: "GET" });
 }
 
 export function listPlayerGuestbookSummary(): Promise<PlayerGuestbookSummary[]> {
   return apiFetch("/players/guestbook-summary", { method: "GET" });
 }
 
-export function listPlayerGuestbookReadIds(token: string, playerId: number): Promise<PlayerGuestbookReadIds> {
-  return apiFetch(`/players/${playerId}/guestbook/read`, { method: "GET", token });
+export function listPlayerGuestbookReadIds(playerId: number): Promise<PlayerGuestbookReadIds> {
+  return apiFetch(`/players/${playerId}/guestbook/read`, { method: "GET" });
 }
 
-export function listPlayerGuestbookReadMap(token: string): Promise<PlayerGuestbookReadMapRow[]> {
-  return apiFetch("/players/guestbook-read-map", { method: "GET", token });
+export function listPlayerGuestbookReadMap(): Promise<PlayerGuestbookReadMapRow[]> {
+  return apiFetch("/players/guestbook-read-map", { method: "GET" });
 }
 
 export function listPlayerPokeSummary(): Promise<PlayerPokeSummary[]> {
   return apiFetch("/players/pokes-summary", { method: "GET" });
 }
 
-export function listPlayerPokeAuthoredUnreadSummary(token: string): Promise<PlayerPokeAuthoredUnreadSummary[]> {
-  return apiFetch("/players/pokes-authored-unread-summary", { method: "GET", token });
+export function listPlayerPokeAuthoredUnreadSummary(): Promise<PlayerPokeAuthoredUnreadSummary[]> {
+  return apiFetch("/players/pokes-authored-unread-summary", { method: "GET" });
 }
 
 export function listPlayerPokes(playerId: number, limit = 40): Promise<PlayerPoke[]> {
   return apiFetch(`/players/${playerId}/pokes?limit=${encodeURIComponent(String(limit))}`, { method: "GET" });
 }
 
-export function listPlayerPokeReadIds(token: string, playerId: number): Promise<PlayerPokeReadIds> {
-  return apiFetch(`/players/${playerId}/pokes/read`, { method: "GET", token });
+export function listPlayerPokeReadIds(playerId: number): Promise<PlayerPokeReadIds> {
+  return apiFetch(`/players/${playerId}/pokes/read`, { method: "GET" });
 }
 
-export function listPlayerPokeReadMap(token: string): Promise<PlayerPokeReadMapRow[]> {
-  return apiFetch("/players/pokes-read-map", { method: "GET", token });
+export function listPlayerPokeReadMap(): Promise<PlayerPokeReadMapRow[]> {
+  return apiFetch("/players/pokes-read-map", { method: "GET" });
 }
 
-export function createPlayerPoke(
-  token: string,
-  playerId: number,
-  authorPlayerId?: number | null
-): Promise<PlayerPoke> {
+export function createPlayerPoke(playerId: number, authorPlayerId?: number | null): Promise<PlayerPoke> {
   return apiFetch(`/players/${playerId}/pokes`, {
     method: "POST",
-    token,
     body: JSON.stringify({
       author_player_id: authorPlayerId ?? null,
     }),
   });
 }
 
-export function markAllPlayerPokesRead(
-  token: string,
-  playerId: number
-): Promise<{ ok: boolean; marked: number }> {
-  return apiFetch(`/players/${playerId}/pokes/read-all`, { method: "PUT", token });
+export function markAllPlayerPokesRead(playerId: number): Promise<{ ok: boolean; marked: number }> {
+  return apiFetch(`/players/${playerId}/pokes/read-all`, { method: "PUT" });
 }
 
-export function markPlayerGuestbookEntryRead(token: string, entryId: number): Promise<{ ok: boolean }> {
-  return apiFetch(`/players/guestbook/${entryId}/read`, { method: "PUT", token });
+export function markPlayerGuestbookEntryRead(entryId: number): Promise<{ ok: boolean }> {
+  return apiFetch(`/players/guestbook/${entryId}/read`, { method: "PUT" });
 }
 
-export function votePlayerGuestbookEntry(
-  token: string,
-  entryId: number,
-  value: -1 | 0 | 1
-): Promise<{ ok: boolean; value: number }> {
+export function votePlayerGuestbookEntry(entryId: number, value: -1 | 0 | 1): Promise<{ ok: boolean; value: number }> {
   return apiFetch(`/players/guestbook/${entryId}/vote`, {
     method: "PUT",
-    token,
     body: JSON.stringify({ value }),
   });
 }
@@ -132,15 +117,11 @@ export function listPlayerGuestbookEntryVoters(entryId: number): Promise<VoteVot
   return apiFetch(`/players/guestbook/${entryId}/voters`, { method: "GET" });
 }
 
-export function markAllPlayerGuestbookEntriesRead(
-  token: string,
-  playerId: number
-): Promise<{ ok: boolean; marked: number }> {
-  return apiFetch(`/players/${playerId}/guestbook/read-all`, { method: "PUT", token });
+export function markAllPlayerGuestbookEntriesRead(playerId: number): Promise<{ ok: boolean; marked: number }> {
+  return apiFetch(`/players/${playerId}/guestbook/read-all`, { method: "PUT" });
 }
 
 export function createPlayerGuestbookEntry(
-  token: string,
   playerId: number,
   body: string,
   parentEntryId?: number | null,
@@ -150,7 +131,6 @@ export function createPlayerGuestbookEntry(
 ): Promise<PlayerGuestbookEntry> {
   return apiFetch(`/players/${playerId}/guestbook`, {
     method: "POST",
-    token,
     body: JSON.stringify({
       body,
       parent_entry_id: parentEntryId ?? null,
@@ -174,18 +154,13 @@ export function guestbookSubjectImageUrl(
   return mediaUrl(`/players/guestbook-subjects/${snapshotId}/image`, capturedAt, width);
 }
 
-export function editPlayerGuestbookEntry(
-  token: string,
-  entryId: number,
-  body: string,
-): Promise<PlayerGuestbookEntry> {
+export function editPlayerGuestbookEntry(entryId: number, body: string): Promise<PlayerGuestbookEntry> {
   return apiFetch(`/players/guestbook/${entryId}`, {
     method: "PATCH",
-    token,
     body: JSON.stringify({ body }),
   });
 }
 
-export function deletePlayerGuestbookEntry(token: string, entryId: number): Promise<void> {
-  return apiFetch(`/players/guestbook/${entryId}`, { method: "DELETE", token });
+export function deletePlayerGuestbookEntry(entryId: number): Promise<void> {
+  return apiFetch(`/players/guestbook/${entryId}`, { method: "DELETE" });
 }

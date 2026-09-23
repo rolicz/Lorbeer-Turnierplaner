@@ -1,17 +1,16 @@
 /**
- * G4 — the guestbook feed is a public read that carries per-caller answers.
+ * G4 — the guestbook feed carries per-caller answers, and the viewer is part of the key.
  *
  * `GET /players/{id}/guestbook` computes `can_edit` (`guestbook_can_edit`: the author
- * inside the hour, or an admin) and `my_vote` from the bearer token. The app asked for it
- * without one, so the server answered for an anonymous caller and every row came back
- * `can_edit: false`, `my_vote: 0` — which is why the edit pencil had never rendered in the
- * app for anybody, author or admin, while the API was right all along.
- *
- * Sending the token is only half of it: the key has to name who asked, or the logged-out
- * payload already in the cache is handed to the account that just logged in and the flags
- * are wrong again, one step later. These tests drive the real hook against the real
- * `createAppQueryClient` and one shared cache, because that is the only way the second
- * half can fail.
+ * inside the hour, or an admin) and `my_vote` for whoever asks. The app once asked as
+ * nobody, so every row came back `can_edit: false`, `my_vote: 0` — which is why the edit
+ * pencil had never rendered for anybody, author or admin, while the API was right all
+ * along. Since L4 the request carries nothing at all: the session is the cookie the
+ * browser attaches by itself. What is left to get right is the *key* — it has to name
+ * who asked, or the previous account's payload, still fresh in the cache, is handed to
+ * the account that just logged in and the flags are wrong again, one step later. These
+ * tests drive the real hook against the real `createAppQueryClient` and one shared cache,
+ * because that is the only way the second half can fail.
  */
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -22,13 +21,14 @@ import { qk } from "../api/queryKeys";
 import type { PlayerGuestbookEntry, Role } from "../api/types";
 import { useProfileGuestbook } from "../pages/profile/useProfileGuestbook";
 
-const AUTHOR_ID = 2;
+const BERNI = 2;
+const ADMIN = 9;
 
 function row(over: Partial<PlayerGuestbookEntry> = {}): PlayerGuestbookEntry {
   return {
     id: 11,
     profile_player_id: 1,
-    author_player_id: AUTHOR_ID,
+    author_player_id: BERNI,
     author_display_name: "Berni",
     parent_entry_id: null,
     body: "nice header",
@@ -43,10 +43,16 @@ function row(over: Partial<PlayerGuestbookEntry> = {}): PlayerGuestbookEntry {
   };
 }
 
+/**
+ * Whose cookie the stubbed server sees. The app cannot read or send the cookie, so the
+ * test plays the browser's jar: the answer depends on this, never on the request.
+ */
+let sessionOf: number | null = null;
+
 /** The server's answer, per caller — exactly what `list_guestbook_entries` varies. */
-function guestbookFor(token: string | null): PlayerGuestbookEntry[] {
-  if (token === "berni") return [row({ can_edit: true, my_vote: 1 })];
-  if (token === "admin") return [row({ can_edit: true, my_vote: 0 })];
+function guestbookFor(viewer: number | null): PlayerGuestbookEntry[] {
+  if (viewer === BERNI) return [row({ can_edit: true, my_vote: 1 })];
+  if (viewer === ADMIN) return [row({ can_edit: true, my_vote: 0 })];
   return [row()];
 }
 
@@ -62,7 +68,7 @@ function installFetch() {
       const body = url.includes("/guestbook/read")
         ? { entry_ids: [] }
         : url.includes("/guestbook")
-          ? guestbookFor(auth ? auth.replace("Bearer ", "") : null)
+          ? guestbookFor(sessionOf)
           : {};
       return Promise.resolve(
         new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
@@ -72,13 +78,12 @@ function installFetch() {
 }
 
 /** What the feed would draw: the entry's id, whether it offers Edit, and my vote. */
-function Probe({ token, role }: { token: string | null; role: Role }) {
+function Probe({ viewerId, role }: { viewerId: number | null; role: Role }) {
   const gb = useProfileGuestbook({
     targetPlayerId: 1,
-    token,
     role,
-    actorPlayerId: AUTHOR_ID,
-    currentPlayerId: AUTHOR_ID,
+    actorPlayerId: viewerId,
+    currentPlayerId: viewerId,
     isOwnProfile: false,
     avatarUpdatedAtByPlayerId: new Map(),
   });
@@ -92,10 +97,11 @@ function Probe({ token, role }: { token: string | null; role: Role }) {
   );
 }
 
-function mount(qc: QueryClient, token: string | null, role: Role) {
+function mount(qc: QueryClient, viewerId: number | null, role: Role) {
+  sessionOf = viewerId;
   return render(
     <QueryClientProvider client={qc}>
-      <Probe token={token} role={role} />
+      <Probe viewerId={viewerId} role={role} />
     </QueryClientProvider>,
   );
 }
@@ -104,80 +110,73 @@ function guestbookCalls() {
   return calls.filter((c) => c.url.includes("/players/1/guestbook") && !c.url.includes("/read"));
 }
 
-describe("the guestbook feed is read as whoever is looking at it (G4)", () => {
+describe("the guestbook feed is read as whoever is looking at it (G4, L4)", () => {
   beforeEach(() => {
     calls.length = 0;
+    sessionOf = null;
     installFetch();
   });
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("sends no token for a logged-out reader, and offers no Edit", async () => {
+  it("reads as nobody when there is no session, and offers no Edit", async () => {
     const qc = createAppQueryClient();
-    mount(qc, null, "reader");
+    mount(qc, null, "none");
 
     await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:-:0"));
     expect(guestbookCalls()).toHaveLength(1);
+  });
+
+  it("gets the author the Edit control the API grants — and sends no credential of its own", async () => {
+    const qc = createAppQueryClient();
+    mount(qc, BERNI, "editor");
+
+    await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:edit:1"));
+    // The cookie is the browser's; the app attaches nothing (L4: no token anywhere).
     expect(guestbookCalls()[0].auth).toBeNull();
   });
 
-  it("sends the caller's token, so the author gets the Edit control the API grants", async () => {
+  it("never hands one identity's payload to the next", async () => {
+    // One cache, as in the app: Berni's rows are still in it, fresh (the
+    // ["players","guestbook"] row is 5 s), when the admin logs in on the same device.
+    // With the viewer out of the key they would simply be re-rendered under the new
+    // identity, flags and votes and all.
     const qc = createAppQueryClient();
-    mount(qc, "berni", "editor");
-
+    const out = mount(qc, BERNI, "editor");
     await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:edit:1"));
-    expect(guestbookCalls()[0].auth).toBe("Bearer berni");
-  });
-
-  it("never hands the logged-out payload to the account that just logged in", async () => {
-    // One cache, as in the app: the anonymous rows are still in it, fresh (the
-    // ["players","guestbook"] row is 5 s), when the login lands. With the viewer out of
-    // the key they would simply be re-rendered under the new identity, flags and all.
-    const qc = createAppQueryClient();
-    const out = mount(qc, null, "reader");
-    await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:-:0"));
     out.unmount();
 
-    mount(qc, "berni", "editor");
-    await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:edit:1"));
+    mount(qc, ADMIN, "admin");
+    // Same `can_edit` (an admin may edit anyone's), but Berni's upvote is Berni's.
+    await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:edit:0"));
 
-    // Two entries, not one overwritten: the logged-out answer is still the logged-out one.
-    expect(qc.getQueryData(qk.playerGuestbookFull(1, null))).toEqual([row()]);
+    // Two entries, not one overwritten.
+    expect(qc.getQueryData(qk.playerGuestbookFull(1, BERNI))).toEqual([row({ can_edit: true, my_vote: 1 })]);
+    expect(qc.getQueryData(qk.playerGuestbookFull(1, ADMIN))).toEqual([row({ can_edit: true, my_vote: 0 })]);
     expect(guestbookCalls()).toHaveLength(2);
   });
 
-  it("does not carry the previous account's flags into the next one", async () => {
-    const qc = createAppQueryClient();
-    const first = mount(qc, "berni", "editor");
-    await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:edit:1"));
-    first.unmount();
-
-    mount(qc, "admin", "admin");
-    // Same `can_edit` (an admin may edit anyone's), but Berni's upvote is Berni's.
-    await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:edit:0"));
-  });
-
-  it("hides Edit from an admin viewing as a reader, and the server still says can_edit", async () => {
-    // "View as lower role" is a frontend-only convenience, so the token — and therefore
-    // the flag — stays an admin's. The effective role gates it, exactly as
+  it("gates Edit on the effective role while the server still says can_edit", async () => {
+    // "View as lower role" is a frontend-only convenience, so the session — and therefore
+    // the flag — stays the account's. The effective role gates it, exactly as
     // `isEditorOrAdmin && !!row.can_edit` does for a tournament and a friendly (A10).
     const qc = createAppQueryClient();
-    mount(qc, "admin", "reader");
+    mount(qc, ADMIN, "none");
 
     await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:-:0"));
-    expect(qc.getQueryData<PlayerGuestbookEntry[]>(qk.playerGuestbookFull(1, "admin"))?.[0].can_edit).toBe(true);
+    expect(qc.getQueryData<PlayerGuestbookEntry[]>(qk.playerGuestbookFull(1, ADMIN))?.[0].can_edit).toBe(true);
   });
 
   it("is still reached by the prefix every mutation and the profile channel invalidate", async () => {
     // `resyncPlayer`, the four header mutations and every guestbook mutation invalidate
     // the short key. It has to keep matching, or a new message would never appear.
     const qc = createAppQueryClient();
-    const out = mount(qc, "berni", "editor");
+    const out = mount(qc, BERNI, "editor");
     await waitFor(() => expect(screen.getByTestId("probe").textContent).toBe("11:edit:1"));
     out.unmount();
 
     await qc.invalidateQueries({ queryKey: qk.playerGuestbook(1) });
-    expect(qc.getQueryState(qk.playerGuestbookFull(1, "berni"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(qk.playerGuestbookFull(1, BERNI))?.isInvalidated).toBe(true);
   });
 });

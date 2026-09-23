@@ -13,17 +13,16 @@ export function playerAvatarUrl(playerId: number, updatedAt?: string | null, wid
 }
 
 export async function putPlayerAvatar(
-  token: string,
   playerId: number,
   blob: Blob,
   filename = "avatar.webp"
 ): Promise<{ player_id: number; updated_at: string }> {
   const fd = new FormData();
   fd.append("file", blob, filename);
-  return apiUpload(`/players/${playerId}/avatar`, { token, body: fd });
+  return apiUpload(`/players/${playerId}/avatar`, { body: fd });
 }
 
-export async function deletePlayerAvatar(token: string, playerId: number): Promise<void> {
-  return apiFetch<void>(`/players/${playerId}/avatar`, { method: "DELETE", token });
+export async function deletePlayerAvatar(playerId: number): Promise<void> {
+  return apiFetch<void>(`/players/${playerId}/avatar`, { method: "DELETE" });
 }
 

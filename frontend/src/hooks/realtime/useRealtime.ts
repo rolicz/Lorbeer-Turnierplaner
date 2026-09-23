@@ -50,8 +50,7 @@ function resyncTournament(qc: QueryClient, tid: number) {
 
 export function useTournamentWS(tid: number | null) {
   const qc = useQueryClient();
-  const { token } = useAuth();
-  const url = tid ? safeUrl(() => buildWsUrlForPath(`/ws/tournaments/${tid}`, token)) : null;
+  const url = tid ? safeUrl(() => buildWsUrlForPath(`/ws/tournaments/${tid}`)) : null;
 
   useVisibilityResync(!!tid, () => {
     if (tid) resyncTournament(qc, tid);
@@ -81,8 +80,7 @@ function resyncGlobal(qc: QueryClient) {
 
 export function useAnyTournamentWS() {
   const qc = useQueryClient();
-  const { token } = useAuth();
-  const url = safeUrl(() => buildWsUrlForPath(`/ws/tournaments`, token));
+  const url = safeUrl(() => buildWsUrlForPath(`/ws/tournaments`));
 
   useVisibilityResync(true, () => resyncGlobal(qc));
 
@@ -105,26 +103,28 @@ export function useAnyTournamentWS() {
  * guestbook half was missing (A5) — the channel's own comment named it, but a
  * new entry only ever reached the viewer who wrote it.
  */
-function resyncPlayer(qc: QueryClient, playerId: number, token?: string | null) {
+function resyncPlayer(qc: QueryClient, playerId: number, viewerId: number | null) {
   void qc.invalidateQueries({ queryKey: qk.playerPokesSummary() });
   void qc.invalidateQueries({ queryKey: qk.playerPokes(playerId) });
-  void qc.invalidateQueries({ queryKey: qk.playerPokesReadIds(playerId, token ?? null) });
+  void qc.invalidateQueries({ queryKey: qk.playerPokesReadIds(playerId, viewerId) });
   void qc.invalidateQueries({ queryKey: qk.playerGuestbookSummary() });
   void qc.invalidateQueries({ queryKey: qk.playerGuestbook(playerId) });
-  void qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(playerId, token ?? null) });
-  if (token) {
-    void qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(token) });
-    void qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(token) });
-    void qc.invalidateQueries({ queryKey: qk.playerGuestbookReadMap(token) });
+  void qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(playerId, viewerId) });
+  if (viewerId != null) {
+    void qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(viewerId) });
+    void qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(viewerId) });
+    void qc.invalidateQueries({ queryKey: qk.playerGuestbookReadMap(viewerId) });
   }
 }
 
-export function usePlayerProfileWS(playerId: number | null, token?: string | null) {
+/** The viewer's read-state keys are resynced with the profile's; the viewer is the session's player. */
+export function usePlayerProfileWS(playerId: number | null) {
   const qc = useQueryClient();
-  const url = playerId ? safeUrl(() => buildWsUrlForPath(`/ws/players/${playerId}`, token)) : null;
+  const { playerId: viewerId } = useAuth();
+  const url = playerId ? safeUrl(() => buildWsUrlForPath(`/ws/players/${playerId}`)) : null;
 
   useVisibilityResync(!!playerId, () => {
-    if (playerId) resyncPlayer(qc, playerId, token);
+    if (playerId) resyncPlayer(qc, playerId, viewerId);
   });
 
   useEffect(() => {
@@ -132,11 +132,11 @@ export function usePlayerProfileWS(playerId: number | null, token?: string | nul
     return subscribe(url, {
       // Poke/guestbook payloads are read-state heavy and viewer-specific, so a
       // narrow refetch is both correct and cheap.
-      onMessage: () => resyncPlayer(qc, playerId, token),
+      onMessage: () => resyncPlayer(qc, playerId, viewerId),
       onOpen: (first) => {
-        if (!first) resyncPlayer(qc, playerId, token);
+        if (!first) resyncPlayer(qc, playerId, viewerId);
       },
       // Every message on this channel already resyncs, so a gap needs nothing extra.
     });
-  }, [playerId, qc, token, url]);
+  }, [playerId, qc, viewerId, url]);
 }

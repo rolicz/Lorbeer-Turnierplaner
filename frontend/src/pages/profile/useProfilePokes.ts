@@ -9,6 +9,7 @@ import {
 } from "../../api/players.api";
 import { qk } from "../../api/queryKeys";
 import type { Role } from "../../api/types";
+import { atLeast, useAuth } from "../../auth/AuthContext";
 
 export type PokeFlashKind = "none" | "sent" | "read";
 
@@ -19,16 +20,16 @@ export type PokeFlashKind = "none" | "sent" | "read";
  */
 export function useProfilePokes({
   targetPlayerId,
-  token,
   role,
   actorPlayerId,
 }: {
   targetPlayerId: number | null;
-  token: string | null;
   role: Role | null;
   actorPlayerId: number | null;
 }) {
   const qc = useQueryClient();
+  // The viewer's read-state keys are named after the session's player.
+  const { playerId: viewerId } = useAuth();
 
   const pokesSummaryQ = useQuery({
     queryKey: qk.playerPokesSummary(),
@@ -47,8 +48,8 @@ export function useProfilePokes({
   }>({ kind: "none", playerId: null });
 
   const canPokeAsActor =
-    !!token &&
-    role !== "reader" &&
+    role != null &&
+    atLeast(role, "editor") &&
     Number.isFinite(actorPlayerId) &&
     (actorPlayerId ?? 0) > 0 &&
     Number.isFinite(targetPlayerId) &&
@@ -88,30 +89,30 @@ export function useProfilePokes({
 
   const pokeMut = useMutation({
     mutationFn: async () => {
-      if (!token || !targetPlayerId) throw new Error("Not logged in");
-      return createPlayerPoke(token, targetPlayerId, actorPlayerId ?? null);
+      if (!targetPlayerId) throw new Error("Not logged in");
+      return createPlayerPoke(targetPlayerId, actorPlayerId ?? null);
     },
     onSuccess: async () => {
       setPokeButtonFlash({ kind: "sent", playerId: targetPlayerId ?? null });
       await qc.invalidateQueries({ queryKey: qk.playerPokesSummary() });
       await qc.invalidateQueries({ queryKey: qk.playerPokes(targetPlayerId ?? "none") });
       await qc.invalidateQueries({ queryKey: qk.playerPokesReadPrefix(targetPlayerId ?? "none") });
-      await qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(token) });
-      await qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(token) });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(viewerId) });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(viewerId) });
     },
   });
   const markPokesReadAllMut = useMutation({
     mutationFn: async () => {
-      if (!token || !targetPlayerId) throw new Error("Not logged in");
-      return markAllPlayerPokesRead(token, targetPlayerId);
+      if (!targetPlayerId) throw new Error("Not logged in");
+      return markAllPlayerPokesRead(targetPlayerId);
     },
     onSuccess: async () => {
       setPokeButtonFlash({ kind: "read", playerId: targetPlayerId ?? null });
       await qc.invalidateQueries({ queryKey: qk.playerPokesSummary() });
       await qc.invalidateQueries({ queryKey: qk.playerPokes(targetPlayerId ?? "none") });
-      await qc.invalidateQueries({ queryKey: qk.playerPokesReadIds(targetPlayerId ?? "none", token) });
-      await qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(token) });
-      await qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(token) });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesReadIds(targetPlayerId ?? "none", viewerId) });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesReadMap(viewerId) });
+      await qc.invalidateQueries({ queryKey: qk.playerPokesAuthoredUnread(viewerId) });
     },
   });
 

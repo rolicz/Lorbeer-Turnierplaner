@@ -2,18 +2,52 @@ export class ApiError extends Error {
   status: number;
   statusText: string;
   bodyText: string;
+  /**
+   * Seconds to wait before trying again — a 429's `{"retry_after": n}` (FastAPI wraps it
+   * in `detail`), falling back to its `Retry-After` header; `null` for every other status.
+   */
+  retryAfter: number | null;
 
-  constructor(status: number, statusText: string, bodyText: string) {
+  constructor(status: number, statusText: string, bodyText: string, retryAfter: number | null = null) {
     super(`${status} ${statusText}: ${bodyText}`);
     this.status = status;
     this.statusText = statusText;
     this.bodyText = bodyText;
+    this.retryAfter = retryAfter;
   }
+
+  /** The server's own sentence (`{"detail": "…"}`), when it sent one — for a form's error line. */
+  get detail(): string | null {
+    const parsed = parseJson(this.bodyText);
+    const detail = parsed && typeof parsed === "object" && "detail" in parsed ? (parsed as { detail: unknown }).detail : null;
+    return typeof detail === "string" && detail.trim() ? detail.trim() : null;
+  }
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function retryAfterFrom(res: Response, bodyText: string): number | null {
+  if (res.status !== 429) return null;
+  const parsed = parseJson(bodyText);
+  const detail = parsed && typeof parsed === "object" && "detail" in parsed ? (parsed as { detail: unknown }).detail : parsed;
+  const fromBody =
+    detail && typeof detail === "object" && "retry_after" in detail
+      ? Number((detail as { retry_after: unknown }).retry_after)
+      : NaN;
+  if (Number.isFinite(fromBody) && fromBody >= 0) return Math.ceil(fromBody);
+  const fromHeader = Number(res.headers.get("Retry-After"));
+  return Number.isFinite(fromHeader) && fromHeader >= 0 ? Math.ceil(fromHeader) : null;
 }
 
 /**
  * Vite env: build-time.
- * - Dev:   VITE_API_BASE_URL=http://192.168.x.x:8001   (or http://localhost:8001)
+ * - Dev:   VITE_API_BASE_URL=/api   (vite proxies it to the backend, so dev is one origin — L0)
  * - Prod:  VITE_API_BASE_URL=/api
  */
 const envBase = import.meta.env.VITE_API_BASE_URL;
@@ -40,10 +74,15 @@ function joinUrl(base: string, path: string) {
   return `${base.replace(/\/+$/, "")}${p}`;
 }
 
-export async function apiFetch<T>(
-  path: string,
-  opts: RequestInit & { token?: string | null } = {}
-): Promise<T> {
+/**
+ * The session is the `lk_session` cookie (L2): `HttpOnly`, set by the server on login and
+ * sent by the browser on every same-origin request — this one, an `<img>`, the websocket
+ * handshake, the service worker's — without being asked. There is no credential anywhere
+ * in the frontend and nothing here to attach; `credentials` stays at its default,
+ * `same-origin`, which is exactly the origin dev (vite's proxy) and production (Caddy)
+ * both are.
+ */
+export async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const headers = new Headers(opts.headers || {});
 
   // Only set Content-Type for requests that actually send a body.
@@ -52,18 +91,17 @@ export async function apiFetch<T>(
     headers.set("Content-Type", "application/json");
   }
 
-  if (opts.token) headers.set("Authorization", `Bearer ${opts.token}`);
-
   const url = joinUrl(API_BASE, path);
   const res = await fetch(url, { ...opts, headers });
 
   if (!res.ok) {
-    // Don't fire on the login endpoint — 401 there means wrong credentials, not expired session.
+    // Don't fire on the auth endpoints — a 401 there means wrong credentials or a bad
+    // legacy JWT, not a session the server has ended.
     if (res.status === 401 && !path.startsWith("/auth/")) {
       window.dispatchEvent(new CustomEvent("api:unauthorized"));
     }
     const text = await res.text();
-    throw new ApiError(res.status, res.statusText, text);
+    throw new ApiError(res.status, res.statusText, text, retryAfterFrom(res, text));
   }
 
   // Handle 204 No Content (e.g., DELETE)
@@ -96,24 +134,20 @@ export function mediaUrl(path: string, updatedAt?: string | null, width?: number
 
 // FormData uploads must not set Content-Type (browser adds the multipart boundary).
 // Use this instead of apiFetch for multipart/form-data requests.
-export async function apiUpload<T>(
-  path: string,
-  opts: { token: string; body: FormData; method?: string }
-): Promise<T> {
+export async function apiUpload<T>(path: string, opts: { body: FormData; method?: string }): Promise<T> {
   const url = joinUrl(API_BASE, path);
   const res = await fetch(url, {
     method: opts.method ?? "PUT",
-    headers: { Authorization: `Bearer ${opts.token}` },
     body: opts.body,
   });
   if (!res.ok) {
-    // Intentional (A5): a 401 here means the session expired mid-upload; route it through the same
-    // central logout+toast as apiFetch. No /auth/ guard needed — no upload path is under /auth/.
+    // Intentional (A5): a 401 here means the session ended mid-upload; route it through the same
+    // central logout as apiFetch. No /auth/ guard needed — no upload path is under /auth/.
     if (res.status === 401) {
       window.dispatchEvent(new CustomEvent("api:unauthorized"));
     }
     const text = await res.text();
-    throw new ApiError(res.status, res.statusText, text);
+    throw new ApiError(res.status, res.statusText, text, retryAfterFrom(res, text));
   }
   return (await res.json()) as T;
 }

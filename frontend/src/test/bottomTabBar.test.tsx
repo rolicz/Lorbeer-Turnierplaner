@@ -6,6 +6,7 @@ import type { LiveTournamentLite } from "../hooks/useLiveTournament";
 import { AuthProvider } from "../auth/AuthProvider";
 import BottomTabBar from "../ui/shell/BottomTabBar";
 import { rememberLocation, resetForgottenPaths } from "../ui/shell/lastLocation";
+import { seedSession } from "./authFixtures";
 
 // The bar reads the live tournament through the query cache; stub the hook so the
 // test needs no QueryClient and no network.
@@ -28,10 +29,12 @@ describe("BottomTabBar", () => {
   beforeEach(() => {
     live.current = null;
     localStorage.clear();
+    // The bar is shell chrome: it only ever renders for a member (L4).
+    seedSession();
     resetForgottenPaths();
   });
 
-  it("shows the five primary destinations for a reader, without Clubs", () => {
+  it("shows the five primary destinations for a member, without Clubs", () => {
     const { getAllByRole, queryByRole } = renderAt("/dashboard");
 
     const links = getAllByRole("link");
