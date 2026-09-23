@@ -22,6 +22,7 @@ const ProfilePage = lazy(() => import("../pages/ProfilePage"));
 const ClubsPage = lazy(() => import("../pages/ClubsPage"));
 const PlayersAdminPage = lazy(() => import("../pages/PlayersAdminPage"));
 const IdeasPage = lazy(() => import("../pages/ideas/IdeasPage"));
+const AdminPage = lazy(() => import("../pages/admin/AdminPage"));
 
 // `PageLayout`, so a lazy route still carries its back chevron while it loads (Q6).
 const pageFallback = <PageLayout><PageLoadingScreen /></PageLayout>;
@@ -100,8 +101,16 @@ function ShellRoutes() {
         }
       />
 
-      {/* L6: the admin page mounts here as
-          <Route path="/admin" element={<RequireRole minRole="owner">…</RequireRole>} /> */}
+      <Route
+        path="/admin"
+        element={
+          <RequireRole minRole="owner">
+            <Suspense fallback={pageFallback}>
+              <AdminPage />
+            </Suspense>
+          </RequireRole>
+        }
+      />
 
       <Route path="/tools" element={<Navigate to="/friendlies" replace />} />
 

@@ -10,9 +10,9 @@ describe("visibleDests", () => {
     expect(keys("none")).toEqual([]);
   });
 
-  it("shows every destination, Clubs and Ideas included, to a member", () => {
+  it("shows every destination but Admin, Clubs and Ideas included, to a member", () => {
     // There is no reader any more (L4): everyone behind the login is at least an editor,
-    // and every destination is theirs.
+    // and every destination but the admin page (L6, owner+) is theirs.
     expect(keys("editor")).toEqual([
       "dashboard",
       "tournaments",
@@ -22,8 +22,11 @@ describe("visibleDests", () => {
       "clubs",
       "ideas",
     ]);
-    expect(keys("owner")).toEqual(keys("editor"));
-    expect(keys("admin")).toEqual(keys("editor"));
+  });
+
+  it("adds Admin, last, for an owner and a site admin (L6)", () => {
+    expect(keys("owner")).toEqual([...keys("editor"), "admin"]);
+    expect(keys("admin")).toEqual(keys("owner"));
   });
 
   it("keeps the declaration order of NAV_DESTS", () => {
@@ -40,6 +43,7 @@ describe("activeDest", () => {
     expect(activeDest("/players")?.key).toBe("players");
     expect(activeDest("/clubs")?.key).toBe("clubs");
     expect(activeDest("/ideas")?.key).toBe("ideas");
+    expect(activeDest("/admin")?.key).toBe("admin");
   });
 
   it("maps live tournament pages to Tournaments", () => {

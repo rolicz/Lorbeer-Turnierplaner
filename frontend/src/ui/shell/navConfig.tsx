@@ -1,4 +1,4 @@
-import { BarChart3, Handshake, LayoutDashboard, Lightbulb, ShieldHalf, Trophy, Users } from "lucide-react";
+import { BarChart3, Handshake, LayoutDashboard, Lightbulb, ShieldCheck, ShieldHalf, Trophy, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { ROLE_RANK, type Role } from "../../auth/AuthContext";
@@ -78,6 +78,16 @@ export const NAV_DESTS: NavDest[] = [
     icon: Lightbulb,
     min: "editor",
     match: (p) => p === "/ideas" || p.startsWith("/ideas/"),
+  },
+  // The admin page (L6): after Ideas, owners and site admins only, and — like Clubs and
+  // Ideas — in the sidebar and the drawer but not the bottom tab bar.
+  {
+    key: "admin",
+    to: "/admin",
+    label: "Admin",
+    icon: ShieldCheck,
+    min: "owner",
+    match: (p) => p === "/admin" || p.startsWith("/admin/"),
   },
 ];
 

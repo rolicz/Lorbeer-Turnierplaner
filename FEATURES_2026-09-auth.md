@@ -1948,7 +1948,7 @@ grep -n "NoGroupPage" frontend/src/auth/RequireAuth.tsx                         
   in the copy before booting, never a VAPID key in a throwaway secrets file) arrived after the stack
   was already torn down and the copy deleted; any stack started for L5 from now on does both.
 
-## L6 — The admin page  ☐
+## L6 — The admin page  ☑
 
 **The gap.** No page shows who is logged in, from where, or on a migrated password; invites and
 reset links exist only as `manage.py` commands and L3's endpoints.
@@ -2000,24 +2000,103 @@ grep -n '"admin"' frontend/src/ui/shell/navConfig.tsx      # → only the Role t
 7. Empty states: `EmptyState` "No live codes." / "Nobody is logged in." per `DESIGN.md` §6.
 
 **Definition of done.**
-- ☐ `adminPage.test.tsx` (≈10): the three filters; the reset-link button absent for an owner
+- ☑ `adminPage.test.tsx` (≈10): the three filters; the reset-link button absent for an owner
   who is not site admin; the invite result shows the code once and the list never does;
   `SessionsSheet` marks the current device.
-- ☐ Browser, 390 / 1280, `blue` / `light`: as Roli, log in from a second context (a Playwright
+- ☑ Browser, 390 / 1280, `blue` / `light`: as Roli, log in from a second context (a Playwright
   context with its own jar); the Accounts tab shows two devices on Roli; revoke the second →
   its next request is 401; create a code → register with it in a third context → the new
   account appears with "1 device"; create a reset link for Flo → open it in a fourth context →
   set a password → Flo is logged in there. The title centre on `/admin` at 320 / 390 / 430 is the
   screen centre (the Q13 measurement, since this is a new top-bar route).
-- ☐ `npm run check` green.
-- ☐ Deviations filled in.
+- ☑ `npm run check` green.
+- ☑ Deviations filled in.
 
 **Canon.** `DESIGN.md` §7: the admin page's rows and sheet, "a secret is shown once, in
 `font-mono`, with a Copy button, and a list never repeats it"; §10: `/admin` is a destination
 (sidebar and drawer, not the bottom bar). `AGENTS.md` §2: `pages/admin/`; §10: the nav has eight
 destinations, the bar still five.
 
-**Deviations.** —
+**Deviations.**
+- **Two files outside L6's row, each for a stated reason.** `auth/RequireRole.tsx` (L4's): an
+  authed viewer below the route's role was sent to `/login`, whose "already authed → go to `from`"
+  sent them straight back — a member opening `/admin` got a **blank page** with the title "Admin"
+  (measured on the stack). With no reader any more everyone under `RequireAuth` is logged in, so a
+  missing role now goes to **`/dashboard`** (`replace`); `/clubs`' `minRole="editor"` never
+  triggered it because every member is an editor. `test/navConfig.test.ts`: it pinned "owner and
+  admin see exactly what an editor sees", which L6 makes false by design — now owner/admin =
+  editor's seven + `admin`, and `activeDest("/admin")`. **One shared piece inside the row:**
+  `pages/admin/ShownOnce.tsx`, the one "secret shown once" box (`inset`, `font-mono`, Copy buttons
+  over `utils/clipboard.ts::copyText` — the existing copy helper with its fallback — the text
+  selected when the clipboard is blocked, and "It will not be shown again." always last); the
+  invite code and the reset link both render through it, so the canon line has one implementation.
+- **Layout, as built.** `PageLayout title="Admin"`, `SectionTabs` **Accounts** (`Users`, default)
+  · **Invites** (`Ticket`) via `useTabParam`, the body in `mx-auto w-full max-w-2xl`. *Accounts*:
+  `section-head` "Accounts", the `ChipGroup` All / Logged in / Migrated password, then one `List`
+  of `ListRow`s: `AvatarCircle h-10 w-10` (no cups), name + `pill-default` **site admin** or
+  **owner**, and the subtitle. **The subtitle leads with the login state** — `migrated password`
+  in `text-warn`, or `no login` — then `N devices` · `last seen <fmtDateTime>`: in the plan's
+  order the marker Roli asked for was the part the 390px truncation ate (measured: "…16:09 · mig…"
+  beside two icon buttons); leading, only the timestamp's tail can go. Trailing, `UserCog` (owner
+  toggle, owner+) then `KeyRound` (reset link, site admin only), both `size="sm" iconOnly` ghost.
+  The row's own tap opens `SessionsSheet` **for a site admin only**; for an owner the row is not
+  a control at all (no overlay, no chevron), because the server would 403 the sheet. *Invites*:
+  `section-head` "Invite codes", the note `Input` and a **full-width** solid "Create code" under it
+  (the plan's side-by-side row wrapped the icon above the label at 390 and could not match the
+  input's height), the `ShownOnce` box — code as `ABCD-EFGH` in `text-2xl tabular-nums
+  tracking-wider`, "Copy code", "Copy link" (`{origin}/g/<group_slug>/register?code=<raw>`), "For
+  <note>. Works once, expires in 60 min. It will not be shown again." — then `section-head` "Live
+  codes" and a `List` (title = note or "No note", subtitle `created <ts> · by <name> · expires in
+  N min`, trailing `Trash2` revoke). Revoking the code that is on screen also clears the box.
+- **Rules decided here.** The owner toggle is offered only on rows whose effective `role` is
+  `owner` or `editor`: a site admin's row reads `admin` whatever its membership (L3), and `none`
+  is not in this group, so neither has a membership role this button could honestly show or move.
+  The site-admin controls follow `siteAdmin && role === "admin"`, so an admin "viewing as" owner
+  sees the owner's page. The last-owner 409 (and any refusal) is the server's sentence in the
+  error toast, "Role not changed". The reset-link dialog is not a red block (the link expires and
+  a newer one replaces it); **revoking an invite code has one** — it deletes a stored row (§7's
+  rule), and says "The code for <note> stops working at once." Sign-out asks, no red block, as L7.
+  In the sheet the admin's own current session is marked `this device` and has no sign-out (L7's
+  shape; that is Settings' job); "Sign out every device" names the count and says "— this one
+  included" when it is. "Expires in N min" reads the naive-UTC wire **as UTC for the duration
+  only**; every printed timestamp stays `fmtDateTime`'s, like L7.
+- **Tests: `adminPage.test.tsx`, 11** — the three filters (a passkey takes an account off
+  "Migrated password"), the "Nobody is logged in." empty state and "no login", an owner sees no
+  device sheet and no reset link but the owner toggles (none on the site admin's row), the reset
+  link asked-for then shown once in `font-mono` with "not be shown again", the 409's own words in
+  the toast, the sheet marking the admin's device with no button there and revoking another,
+  "Sign out every device", the code shown once (`LM9D-ZPBK` exactly once on screen), "Copy link"
+  writing `/g/altherren/register?code=LM9DZPBK` and the row never carrying the code, the revoke's
+  red line, and `RequireRole` sending a member home while letting an owner in. `navConfig.test.ts`
+  +1. **`npm run check` 909 in 94 files** (895/92 + L6's 12 in 1 new file + L12's in-flight
+  `promoteClubStars.test.tsx` in the same tree); `npm run build` green (`index-*.js` 757.85 kB,
+  `AdminPage-*.js` its own lazy chunk; the pre-existing >500 kB hint).
+- **Measured** on the stack (8237/8257, a `sqlite3` backup of the main checkout's `app.db` opened
+  `mode=ro` into the scratchpad, **7 `pushsubscription` + 7 `pushsubscriptionpreference` rows
+  deleted before the first boot**, an empty uploads dir, a throwaway secrets file naming the copy
+  with Roli (admin) / Berni / Flo and no VAPID key; first boot logged `Auth migrated: 3 accounts, 1
+  group, 6 memberships`), Playwright Chromium, a fresh set of contexts per run, at **390 blue,
+  1280 light, 390 light, 1280 blue — 134/134 checks**. Each run: Roli logs in through the screen
+  and again from a second context with an iPhone UA; `/admin` is reached from the **drawer** (390)
+  or the **sidebar** (1280) and the bottom bar has 5 links and no Admin; `a a` = 0 and no
+  horizontal overflow on the accounts list, the sheet, the reset modal, the invites tab and the
+  owner's list; Roli's row reads `site admin` · `migrated password` (`rgb(251,191,36)` blue /
+  `rgb(146,64,14)` light) · `N devices`, Mike's `no login`, the two filters narrow correctly; the
+  top-bar title "Admin" centres at **160.0 / 195.0 / 215.0** at 320 / 390 / 430. The sheet lists
+  every device with exactly one `this device` and the `iPhone · Safari` row; signing that out →
+  the phone's `/me` **401** and the row gone; "Sign out every device" on Flo → Flo's `/me` **401**.
+  A reset link for Flo (shown once, `…/g/altherren/reset#…`) opened in a fourth context → "Set
+  password" → dashboard as Flo. An invite code shown once (exactly one occurrence in the page
+  text, never in its list row) → registered a new account in a third context → that account
+  appears with `1 device`. Berni made owner through the toggle, then logged in himself: Admin in
+  sidebar/drawer, not in the bar, **0** reset-link buttons, **0** device-sheet rows, the owner
+  toggles present, and he creates and revokes a code. Flo (a member) sees no Admin anywhere and
+  `/admin` lands on `/dashboard` (before the `RequireRole` fix: a blank `/admin`). Every stack PID
+  killed by number (backend, npm, its `sh`, and the reparented `vite`).
+- **Seen, not mine:** headless Chromium still reads `Linux · Safari` (L7 noted `device_label`);
+  sessions a closed Playwright context leaves behind are still live server-side, so Roli's count
+  grew run by run (the checks compare against the row's own count, not a constant). No uploads
+  were copied, so avatars with metadata show a broken image on the stack only.
 
 ## L7 — Settings → Account: my devices, my password  ☑
 

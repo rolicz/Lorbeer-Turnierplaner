@@ -1,5 +1,5 @@
 import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { ROLE_RANK, type Role, useAuth } from "./AuthContext";
 
 /**
@@ -9,10 +9,11 @@ import { ROLE_RANK, type Role, useAuth } from "./AuthContext";
  */
 export function RequireRole({ minRole, children }: { minRole: Exclude<Role, "none">; children: React.ReactNode }) {
   const { role } = useAuth();
-  const location = useLocation();
-  // Remember where the viewer wanted to go so the login can send them back.
+  // Everyone here is already logged in (`RequireAuth` sits above), so a missing role is not
+  // a reason to log in again: `/login` would send an authed visitor straight back to `from`,
+  // and the two redirects left a member on a blank `/admin` (measured, L6). Home instead.
   if (ROLE_RANK[role] < ROLE_RANK[minRole]) {
-    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+    return <Navigate to="/dashboard" replace />;
   }
   return <>{children}</>;
 }

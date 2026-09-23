@@ -27,7 +27,7 @@ export default function BottomTabBar() {
   const loc = useLocation();
   // Each item points at the page you last had open in that destination (U6);
   // Tournaments falls back to the running tournament, as U2 introduced it.
-  const links = useDestinationLinks({ exclude: ["clubs", "ideas"] });
+  const links = useDestinationLinks({ exclude: ["clubs", "ideas", "admin"] });
 
   // While a tournament is running, the Tournaments tab carries the live dot.
   const liveT = useLiveTournament().data ?? null;
