@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, BellOff, BookOpen, Hand, Lightbulb, ListChecks, MessageSquare, Reply, ThumbsUp } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
+import { toRouterPath } from "../../app/basename";
 import { qk } from "../../api/queryKeys";
 import { listMyNotifications } from "../../api/notifications.api";
 import { usePushNotifications } from "../../push/usePushNotifications";
@@ -122,7 +123,9 @@ export default function NotificationBell({
         : prev,
     );
     setOpen(false);
-    navigate(n.path);
+    // The backend emits absolute, group-prefixed paths (L10); the router wants its own.
+    const to = toRouterPath(n.path);
+    if (to) navigate(to);
   }
 
   return (

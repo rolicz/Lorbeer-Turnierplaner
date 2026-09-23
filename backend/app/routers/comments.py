@@ -55,6 +55,7 @@ from ..services.file_storage import (
 )
 from ..services.media_derivatives import MediaWidthParam, media_response, version_token
 from ..services.notifications import enqueue_global_push, localized_push_message
+from ..services.paths import group_path
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["comments"])
@@ -605,7 +606,7 @@ async def create_comment(
         request,
         localized_push_message(
             push_key,
-            path=f"/live/{tournament_id}?comment={int(c.id)}",
+            path=group_path(f"/live/{tournament_id}?comment={int(c.id)}"),
             tag=f"comment-{tournament_id}",
             event_type=push_event_type,
             data={"tournament_id": tournament_id, "comment_id": int(c.id), "match_id": match_id},

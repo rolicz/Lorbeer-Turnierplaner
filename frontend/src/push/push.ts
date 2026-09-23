@@ -57,6 +57,7 @@ export function serializePushSubscription(
   subscription: PushSubscription,
   notificationLanguage?: PushNotificationLanguage,
   notificationMode?: PushNotificationMode,
+  replacesEndpoint?: string | null,
 ): BrowserPushSubscriptionPayload {
   const json = subscription.toJSON();
   const p256dh = json.keys?.p256dh;
@@ -74,6 +75,7 @@ export function serializePushSubscription(
     user_agent: navigator.userAgent,
     notification_language: notificationLanguage,
     notification_mode: notificationMode,
+    ...(replacesEndpoint ? { replaces_endpoint: replacesEndpoint } : {}),
   };
 }
 

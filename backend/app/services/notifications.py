@@ -20,6 +20,7 @@ from .notification_texts import (
     normalize_notification_language,
     render_notification_text,
 )
+from .paths import group_path
 from .stats.records import record_kind
 from .webpush import (
     WebPushConfig,
@@ -143,7 +144,7 @@ def notification_mode_options() -> list[dict[str, str]]:
 def _poke_push_message(*, profile_player_id: int, profile_player_name: str, author_player_name: str, poke_id: int) -> PushMessage:
     return localized_push_message(
         "poke_created",
-        path=f"/profiles/{profile_player_id}",
+        path=group_path(f"/profiles/{profile_player_id}"),
         tag=f"poke-{profile_player_id}",
         event_type="poke_created",
         data={"profile_player_id": profile_player_id, "poke_id": poke_id},
@@ -155,7 +156,7 @@ def _poke_push_message(*, profile_player_id: int, profile_player_name: str, auth
 def _poke_summary_message(*, profile_player_id: int, profile_player_name: str, latest_poke_id: int, extra_count: int, author_names: list[str]) -> PushMessage:
     return localized_push_message(
         "poke_summary",
-        path=f"/profiles/{profile_player_id}",
+        path=group_path(f"/profiles/{profile_player_id}"),
         tag=f"poke-{profile_player_id}",
         event_type="poke_summary",
         data={
@@ -239,7 +240,7 @@ def push_tournament_created(request: Request, *, tournament_id: int, tournament_
         request,
         localized_push_message(
             "tournament_created",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"tournament-created-{tournament_id}",
             event_type="tournament_created",
             data={"tournament_id": tournament_id},
@@ -253,7 +254,7 @@ def push_tournament_updated(request: Request, *, tournament_id: int, tournament_
         request,
         localized_push_message(
             "tournament_updated",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"tournament-updated-{tournament_id}",
             event_type="tournament_updated",
             data={"tournament_id": tournament_id},
@@ -267,7 +268,7 @@ def push_tournament_date_changed(request: Request, *, tournament_id: int, tourna
         request,
         localized_push_message(
             "tournament_date_changed",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"tournament-date-{tournament_id}",
             event_type="tournament_date_changed",
             data={"tournament_id": tournament_id},
@@ -282,7 +283,7 @@ def push_schedule_generated(request: Request, *, tournament_id: int, tournament_
         request,
         localized_push_message(
             "schedule_generated",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"schedule-generated-{tournament_id}",
             event_type="schedule_generated",
             data={"tournament_id": tournament_id, "matches": match_count},
@@ -297,7 +298,7 @@ def push_tournament_deleted(request: Request, *, tournament_id: int, tournament_
         request,
         localized_push_message(
             "tournament_deleted",
-            path="/tournaments",
+            path=group_path("/tournaments"),
             tag=f"tournament-deleted-{tournament_id}",
             event_type="tournament_deleted",
             data={"tournament_id": tournament_id},
@@ -313,7 +314,7 @@ def push_match_started(
         request,
         localized_push_message(
             "match_started",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"match-start-{match_id}",
             event_type="match_started",
             data={"tournament_id": tournament_id, "match_id": match_id},
@@ -330,7 +331,7 @@ def push_match_finished(
         request,
         localized_push_message(
             "match_finished",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"match-finished-{match_id}",
             event_type="match_finished",
             data={"tournament_id": tournament_id, "match_id": match_id},
@@ -348,7 +349,7 @@ def push_tournament_finished(
         request,
         localized_push_message(
             "tournament_finished",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"tournament-finished-{tournament_id}",
             event_type="tournament_finished",
             data={"tournament_id": tournament_id, "match_id": match_id},
@@ -374,7 +375,7 @@ def push_match_score_changed(
         request,
         localized_push_message(
             text_key,
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"match-score-{match_id}",
             event_type="match_score_changed",
             data={
@@ -405,7 +406,7 @@ def push_guestbook_created(
         int(profile_player_id),
         localized_push_message(
             "guestbook_created",
-            path=f"/profiles/{profile_player_id}",
+            path=group_path(f"/profiles/{profile_player_id}"),
             tag=f"guestbook-{profile_player_id}",
             event_type="guestbook_created",
             data={"profile_player_id": profile_player_id, "entry_id": entry_id},
@@ -454,7 +455,7 @@ def push_idea_created(
         return 0
     message = localized_push_message(
         "idea_created",
-        path=f"/ideas?idea={int(idea_id)}",
+        path=group_path(f"/ideas?idea={int(idea_id)}"),
         tag=f"idea-{int(idea_id)}",
         event_type="idea_created",
         data={"idea_id": int(idea_id)},
@@ -503,7 +504,7 @@ def push_idea_commented(
         return False
     message = localized_push_message(
         "idea_commented",
-        path=f"/ideas?idea={int(idea_id)}",
+        path=group_path(f"/ideas?idea={int(idea_id)}"),
         tag=f"idea-comment-{int(idea_id)}",
         event_type="idea_commented",
         data={"idea_id": int(idea_id), "comment_id": int(comment_id)},
@@ -547,7 +548,7 @@ def push_idea_voted(
         return False
     message = localized_push_message(
         "idea_voted",
-        path=f"/ideas?idea={int(idea_id)}",
+        path=group_path(f"/ideas?idea={int(idea_id)}"),
         tag=f"idea-vote-{int(idea_id)}",
         event_type="idea_voted",
         data={"idea_id": int(idea_id), "vote_count": int(vote_count)},
@@ -590,7 +591,7 @@ def push_idea_status(
         return False
     message = localized_push_message(
         "idea_status",
-        path=f"/ideas?idea={int(idea_id)}",
+        path=group_path(f"/ideas?idea={int(idea_id)}"),
         tag=f"idea-status-{int(idea_id)}",
         event_type="idea_status",
         data={"idea_id": int(idea_id), "status": status},
@@ -672,7 +673,7 @@ def push_friendly_created(request: Request, *, friendly_id: int, mode: str, scor
         request,
         localized_push_message(
             "friendly_created",
-            path="/friendlies",
+            path=group_path("/friendlies"),
             tag=f"friendly-created-{friendly_id}",
             event_type="friendly_created",
             data={"friendly_id": friendly_id},
@@ -687,7 +688,7 @@ def push_friendly_started(request: Request, *, friendly_id: int) -> None:
         request,
         localized_push_message(
             "friendly_started",
-            path="/friendlies",
+            path=group_path("/friendlies"),
             tag=f"friendly-started-{friendly_id}",
             event_type="friendly_started",
             data={"friendly_id": friendly_id},
@@ -700,7 +701,7 @@ def push_friendly_finished(request: Request, *, friendly_id: int, scoreline: str
         request,
         localized_push_message(
             "friendly_finished",
-            path="/friendlies",
+            path=group_path("/friendlies"),
             tag=f"friendly-finished-{friendly_id}",
             event_type="friendly_finished",
             data={"friendly_id": friendly_id},
@@ -716,13 +717,45 @@ def push_friendly_score_changed(
         request,
         localized_push_message(
             "friendly_score_changed",
-            path="/friendlies",
+            path=group_path("/friendlies"),
             tag=f"friendly-score-{friendly_id}",
             event_type="friendly_score_changed",
             data={"friendly_id": friendly_id, "score_a": score_a, "score_b": score_b},
             scoreline=scoreline,
         ),
     )
+
+
+def retire_replaced_push_subscription(
+    s: Session,
+    *,
+    player_id: int,
+    replaces_endpoint: str | None,
+    new_endpoint: str,
+) -> PushSubscriptionPreference | None:
+    """Disable the subscription a device just replaced, and hand back its preference (L10).
+
+    Only a row the **caller owns** is touched — an endpoint is not a secret worth trusting
+    from someone else's session. Returns that row's preference (or None) so the new row can
+    inherit the language and mode the device had: the service worker re-subscribes with no
+    idea what either was. Nothing is committed here.
+    """
+    old_norm = str(replaces_endpoint or "").strip()
+    if not old_norm or old_norm == str(new_endpoint or "").strip():
+        return None
+    old = s.exec(
+        select(PushSubscription).where(
+            PushSubscription.endpoint == old_norm,
+            PushSubscription.player_id == player_id,
+        )
+    ).first()
+    if old is None:
+        return None
+    if old.disabled_at is None:
+        old.disabled_at = datetime.utcnow()
+        old.updated_at = old.disabled_at
+        s.add(old)
+    return s.get(PushSubscriptionPreference, int(old.id or 0))
 
 
 def upsert_push_subscription(

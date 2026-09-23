@@ -33,6 +33,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Session, select
 
 from ..models import RecordHolder, RecordKeyState
+from .paths import group_path
 from .stats.records import RECORD_DEFS, RECORD_KEYS, compute_stats_records
 
 log = logging.getLogger(__name__)
@@ -73,10 +74,10 @@ def live_holders(s: Session) -> dict[str, tuple[frozenset[int], str, str]]:
         if not key:
             continue
         ids = frozenset(int(h["player"]["id"]) for h in entry.get("holders") or [])
-        out[key] = (ids, str(entry.get("label") or key), str(entry.get("path") or "/stats"))
+        out[key] = (ids, str(entry.get("label") or key), str(entry.get("path") or group_path("/stats")))
     # A record the registry names but the payload skipped would silently stop moving.
     for d in RECORD_DEFS:
-        out.setdefault(d.key, (frozenset(), d.label, "/stats"))
+        out.setdefault(d.key, (frozenset(), d.label, group_path("/stats")))
     return out
 
 

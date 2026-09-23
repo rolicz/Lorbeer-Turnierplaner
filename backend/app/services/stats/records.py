@@ -32,6 +32,7 @@ from sqlmodel import Session, select
 
 from ...models import FriendlyMatch, FriendlyMatchSide, Player
 from ...services.club_stars import StarRatingResolver
+from ..paths import group_path
 from .player_matches import friendly_group, friendly_stats_match_dict, stats_match_dict
 from .players import compute_stats_players, finished_matches_with_players
 from .ratings import compute_stats_ratings
@@ -105,10 +106,10 @@ def record_path(d: RecordDef, *, mode: str, scope: str) -> str:
     m = d.mode or mode
     base = f"/stats?view=overview&sub={{sub}}&mode={m}&source={scope}"
     if d.group in ("table", "elo"):
-        return base.format(sub="table") + f"&sort={d.sort_col}"
+        return group_path(base.format(sub="table") + f"&sort={d.sort_col}")
     if d.group == "streak":
-        return base.format(sub="streaks") + f"&record={d.key}"
-    return base.format(sub="records") + f"&record={d.key}"
+        return group_path(base.format(sub="streaks") + f"&record={d.key}")
+    return group_path(base.format(sub="records") + f"&record={d.key}")
 
 
 # ---- table / elo -------------------------------------------------------

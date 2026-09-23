@@ -2054,7 +2054,7 @@ grep -n "sessions\|password" frontend/src/pages/SettingsPage.tsx    # → 0 (aft
   — L7's 12 in 1 file on the 855/89 baseline, the rest is L10's in-flight `basename.test.ts` in the
   same tree.
 
-## L10 — The group segment in the URL and in every deep link; `sw.js` registers its own subscription  ☐
+## L10 — The group segment in the URL and in every deep link; `sw.js` registers its own subscription  ☑
 
 **The gap.** The app lives at `/dashboard`, `/live/3`; nothing in the URL names the group;
 the backend emits `path=f"/live/{id}"` in 50 places across 10 files; `sw.js` re-subscribes on
@@ -2120,27 +2120,146 @@ grep -n "cannot PUT" frontend/public/sw.js                                      
    drive the types) — verify with `git diff --stat` after a run anyway.
 
 **Definition of done.**
-- ☐ `basename.test.ts` (≈8): `/` → `/g/altherren/dashboard`; `/live/3?comment=9` → prefixed,
+- ☑ `basename.test.ts` (≈8): `/` → `/g/altherren/dashboard`; `/live/3?comment=9` → prefixed,
   search kept; `/g/altherren/live/3` untouched; `/g/other/x` → slug `other`; `toRouterPath`
   strips its own prefix and returns `null` (after `location.assign`) for another slug;
   `ORIGINAL_ENTRY_PATH` is the pre-redirect value.
-- ☐ Browser: open `http://localhost:<V>/` → the bar reads `/g/altherren/dashboard`; open
+- ☑ Browser: open `http://localhost:<V>/` → the bar reads `/g/altherren/dashboard`; open
   `/live/<id>` → redirected and rendered; the bell's item navigates in-app (no full reload —
   `performance.navigation`/`PerformanceNavigationTiming` count stays 1); a badge legend row
   likewise; back chevron behaviour on a deep link unchanged (Q6b: up); `useLocationRestore` in
   a standalone-emulated context still resumes.
-- ☐ `grep -rn '"/g/' frontend/src | grep -v test/` → `basename.ts` only; `grep -rn "/g/"
+- ☑ `grep -rn '"/g/' frontend/src | grep -v test/` → `basename.ts` only; `grep -rn "/g/"
   frontend/public/sw.js` → 0 (it never builds one).
-- ☐ `make test` (the path test, the push `replaces_endpoint` test), `make lint`, `npm run
+- ☑ `make test` (the path test, the push `replaces_endpoint` test), `make lint`, `npm run
   check`, `npm run build`.
-- ☐ Deviations filled in.
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §6: "every path the backend emits is absolute and group-prefixed, built
 by `paths.group_path`; the frontend strips it with `toRouterPath` and never builds one"; §10:
 the basename rule, the legacy redirect, why the manifest is untouched, the SW's own PUT and its
 401 case. `DESIGN.md` §10: "every location is basename-relative; the hierarchy never sees `/g/`".
 
-**Deviations.** —
+**Deviations.**
+- **`/` lands on the group's root, not on `/g/altherren/dashboard`** — the section's code would have
+  broken `useLocationRestore`, measured. The router's own `/` route (`<Navigate to="/dashboard">`,
+  inside `ShellRoutes`, i.e. a *child* of `AppShell`) is what makes the resume work: `AppShell`'s
+  persist effect skips `/`, and the restore effect in the same commit reads the saved location.
+  A document that *starts* at `/dashboard` stores `/dashboard` first, and the restore then
+  "resumes" into it. So `resolveEntry` maps `/` (and `/g`, `/g/`) to `/g/altherren/` and the router
+  finishes the trip to `/dashboard` exactly as it did before the batch. Measured on a production
+  build (`vite build` + `vite preview` with L0's proxy) with `navigator.standalone` forced true:
+  last location `/stats?view=h2h`, cold launch at `/` → **`/g/altherren/stats?view=h2h`**; a cold
+  launch at `/profiles/3` (a deep link) is left alone → `/g/altherren/profiles/3`. **In the vite
+  dev server the resume does not stick**, with or without this task: StrictMode runs the child
+  `<Navigate>`'s effect twice, so the trail reads `dashboard → stats?view=h2h → dashboard` (the
+  restore's `didRestore` guard stops it from running twice). Dev-only; the PWA on Roli's phone
+  that matters is the production build.
+- **`toRouterPath` has a pure half, `routerPathOf`.** `RecordBadges` builds its `to` while
+  *rendering*, and the section's `to={toRouterPath(r.path) ?? "#"}` would call `location.assign`
+  during a render for another group's path. `routerPathOf(abs)` answers without acting
+  (`null` = another group); `toRouterPath(abs, assign?)` is `routerPathOf` plus the navigation, and
+  is what the bell's click uses. Both live in `basename.ts`. A path with **no** group (a bell item
+  cached before the batch, a rolled-back backend) passes through unchanged — it already is a router
+  path. `/g/altherrenx/…` is correctly another group, not ours (tested).
+- **Files touched outside L10's row, each named by the section itself:** `backend/app/schemas/
+  requests.py` (`PushSubscriptionBody.replaces_endpoint`, step 7); `frontend/src/push/push.ts`
+  (`serializePushSubscription`'s `replacesEndpoint`, step 5 — the function lives there, not in
+  `usePushNotifications.ts`) and `frontend/src/api/push.api.ts` (the hand-written payload type
+  gains the field); four existing test files whose assertions spelled an un-prefixed path
+  (`test_guestbook_subjects.py` 1, `test_me_notifications.py` 4, `test_ideas.py` 2,
+  `test_push_notifications.py` 2 — each assertion gained `/g/altherren`, nothing else).
+  **`App.tsx` was not touched** — the basename sits on `<BrowserRouter>` in `main.tsx`.
+  **`schema.d.ts` moved by two lines** (`replaces_endpoint?: string | null` on
+  `PushSubscriptionBody`): the section said a request model does not drive the types, but
+  `openapi-typescript` emits every component schema, request bodies included. Regenerated once,
+  at the end, and committed with the model.
+- **Backend paths, as shipped.** `services/paths.py::group_path(rest, *, slug)` asserts a router
+  path (`/…`, not already `/g/…`) and is the one builder; it re-exports `DEFAULT_GROUP_SLUG` from
+  `auth_migration.py` (L1's spelling) rather than importing `groups.py`, which would have put the
+  notification service one import away from the gate's claims builder. Callers: 20 in
+  `services/notifications.py` (incl. `/tournaments` and `/friendlies`, which the section's grep
+  does not name), 4 in `routers/me.py`, 1 each in `routers/comments.py` and `routers/push.py` (the
+  test push), `stats/records.py::record_path` (all three branches), and `record_holders.py`'s
+  `/stats` fallback. `tests/test_paths.py`'s grep also covers `tournaments|friendlies`, and was
+  checked to bite: run over the pre-task sources (`17cc71d`) it finds 20 in `notifications.py` and 4 in
+  `me.py`. `localized_push_message`'s default `path="/"` and `sw.js`'s `"/"` fallback stay: `/`
+  is the redirect's to fix, and a default names no group.
+- **`replaces_endpoint`, as shipped** (`notifications.retire_replaced_push_subscription`, called by
+  the thin router): only a row **the caller owns** is touched (another player's endpoint is
+  ignored — tested); the old row gets `disabled_at` (a client disable: `last_http_status` is
+  left alone, so a 410 corpse stays a corpse and a client-disabled row can still be revived);
+  the new row inherits language and mode **unless the body names them** (the page's rotation
+  sends its own, the worker sends none). Five backend tests in `test_paths.py` plus the grep and
+  `group_path` cases — 10 in all.
+- **What `sw.js` does now.** On `pushsubscriptionchange` it uses `event.newSubscription` when the
+  browser gives one, else re-subscribes with the old key — or, when there is no old subscription
+  (Safari may send none), with the key from `GET /api/push/config`, which the cookie now opens.
+  Then, **only when it knows the old endpoint**, it `PUT`s `/api/push/subscription` with
+  `credentials: "same-origin"`, `replaces_endpoint` and no language/mode. Without an old endpoint
+  it deliberately does **not** report: the server would create the row with the *default*
+  language, and the page adopts a row's language over its own stored one
+  (`usePushNotifications`' effect on `currentSubscription`), so the worker would silently reset
+  the device's settings — that case stays the page's auto-sync, as before. A 401 (a revoked or
+  never-logged-in install) and a network error are swallowed. `API_BASE` is spelled `/api` in the
+  worker: both production (Caddy) and dev (L0's proxy) serve it there, and a worker cannot read
+  Vite's env. `app_standalone` is not sent (a worker cannot know it); the page's next auto-sync PUT
+  of the same endpoint writes it — display-only either way. **Measured** by calling the worker's
+  own `resubscribeAndReport` through Playwright's `serviceWorker.evaluate` with a stub
+  subscription: logged in, with an old endpoint → **PUT 200**, the new row `english`/`all` as the
+  old one was, the old row `disabled_at` set (read from the DB copy); logged in, no old endpoint →
+  **no PUT**; logged out → **PUT 401**, swallowed, nothing thrown. A real `pushsubscriptionchange`
+  cannot be fired in headless Chromium (no push service) — the phone's.
+- **Verified against the isolated stack** (backend 8241, vite 8261, DB + uploads copied to a
+  `mktemp -d` in the scratchpad, secrets naming that copy; every PID killed by number, the copy
+  removed): at **390 and 1280 × blue and light** — `/` logged out → `/g/altherren/login`, log in →
+  `/g/altherren/dashboard`; every `<a href>` in the shell prefixed (15–17 anchors, 0 bare), `a a` =
+  0; legacy `/stats?view=h2h` → `/g/altherren/stats?view=h2h` on the H2H tab, `/profiles/3` →
+  Rumpi's profile, `/ideas?idea=1` → `/g/altherren/ideas` (the one-shot consumed as always),
+  `/live/19` → the tournament, `/dashboard` → the dashboard; **back** on a cold `/live/19` →
+  `/g/altherren/tournaments` (Q6b: up), and after a drill-in from the list → pops back to it; the
+  **bell** item (a guestbook entry from Berni, `path` `/g/altherren/profiles/1?tab=guestbook&entry=…`)
+  → navigated in-app, same document (a window marker survived), **1** navigation entry; a **badge
+  legend** row → `href="/g/altherren/stats?…&record=most_titles"`, in-app, same document. The same
+  run on the production build (1280/light) read identically. Backend-emitted paths read
+  `/g/altherren/…` in `/me/notifications` and `/stats/records` (all 16).
+- **Something the push check found that is not L10's, written down so the next stack does not
+  repeat it:** to exercise the worker's PUT the stack needs push *enabled*, so a throwaway VAPID
+  key went into the throwaway secrets — and the dispatcher then **delivered to the real
+  subscriptions in the copied dev DB** (`web.push.apple.com` ×2, `updates.push.services.mozilla.com`
+  ×2) on the next guestbook entry. All four were **rejected** (403 / 401 — the key is not the one
+  those devices subscribed with), so nothing reached a phone; the key was removed and the stack
+  restarted within the minute. The same run showed a `POST /auth/login` answering **500 `database
+  is locked`** while those deliveries were in flight. **Canon for L15 (§10):** a verification stack
+  with *any* VAPID key and a copy of real data pushes to real devices — delete the
+  `pushsubscription` rows from the copy first. Whether the dispatcher holds a SQLite write lock
+  across its HTTP calls is worth one look by whoever owns push next; not investigated here.
+- **Not done here, and why:** `ui/shell/AppCrashBoundary.tsx` (`location.assign("/dashboard")`,
+  `href="/settings?tab=diagnostics"`) and `diagnostics/blankNotice.ts`
+  (`location.assign("/settings?tab=diagnostics")`) still spell un-prefixed paths. They are full
+  document loads outside the router (the crash boundary sits above every provider, the notice is
+  plain DOM on purpose), so the legacy redirect puts them under `/g/altherren` and they work — but
+  in part 2 they would land in the default group. Neither file is L10's; `toAbsolutePath` is the
+  one-line fix when part 2 needs it. `site.webmanifest` untouched (`id`/`start_url`/`scope` `/`).
+- **Gates:** `make lint` clean; `make gen-types` → `schema.d.ts` +2 (above); `cd frontend && npm run
+  check` **881 tests in 91 files** green (baseline 855/89 at `17cc71d`; **+14 in
+  `src/test/basename.test.ts`**, the other 12 in one file are L7's, committed beside this);
+  `npm run build` green (`index-*.js` 751.08 kB, the pre-existing >500 kB hint); the DoD greps:
+  `grep -rn '"/g/' frontend/src | grep -v test/` → **1 line, `basename.ts`**; `grep -rn "/g/"
+  frontend/public/sw.js` → **0**; `grep -rnE 'path=f?"/(live|profiles|ideas|dashboard|stats)'
+  backend/app` → **0**. `make test` **452 passed** in 31:37 (baseline 442 at `17cc71d`; +10 in `tests/test_paths.py`, nothing pre-existing moved beyond the nine prefixed assertions).
+- **What L11 and L13 inherit.** **L11**: the bell and the badge legend already go through
+  `basename.ts` (`toRouterPath` / `routerPathOf`), so `PlayerLink` needs nothing from this task —
+  a profile link is an ordinary `<Link to="/profiles/…">`, basename-relative; a *foreign* profile
+  in part 2 is `toAbsolutePath` + a full navigation, never a hand-built `/g/`. `routers/players.py`
+  was **not** touched by L10 after all (it emits no path — the guestbook and poke pushes are built
+  in `services/notifications.py`), so L11 has that file to itself. **L13**: every deep link the
+  rehearsal opens is `/g/altherren/…`; an **old** link (`/live/3?comment=9`, a pre-batch push, a
+  home-screen `/`) must land under the segment by the boot redirect — that is the check. Reset
+  links (`{origin}/g/altherren/reset#token`, L3) resolve with no redirect and the fragment is kept.
+  The installed PWA's resume (`useLocationRestore`) is only meaningful on the **production** build
+  (above). The rotation PUT now carries `replaces_endpoint`, so a device that rotates after a 410
+  keeps its language and mode.
 
 ## L12 — Cups in the database; the per-group star overlay; promote forward-only  ☐
 

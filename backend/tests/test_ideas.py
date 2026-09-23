@@ -355,7 +355,7 @@ def test_a_new_idea_is_pushed_to_the_admins_only_and_never_to_its_author(client,
     assert [pid for pid, _ in sent] == [admin_id]
     message = sent[0][1]
     assert message.event_type == "idea_created"
-    assert message.path.startswith("/ideas?idea=")
+    assert message.path.startswith("/g/altherren/ideas?idea=")
     assert message.text_context["author_name"] == "Editor"
     assert message.text_context["title"] == "Ideas page"
     assert message.text_context["meta_line"] == "Bug · Stats, Players"
@@ -548,7 +548,7 @@ def test_a_comment_a_vote_and_a_status_are_pushed_to_the_idea_author_only(
     assert [pid for pid, _ in sent] == [editor_id]
     message = sent[0][1]
     assert message.event_type == "idea_commented"
-    assert message.path == f"/ideas?idea={iid}"
+    assert message.path == f"/g/altherren/ideas?idea={iid}"
     assert message.tag == f"idea-comment-{iid}"
     assert message.data == {"idea_id": iid, "comment_id": comment_id}
     assert message.text_context["author_name"] == "Editor2"

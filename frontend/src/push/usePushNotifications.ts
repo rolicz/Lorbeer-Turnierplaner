@@ -92,7 +92,10 @@ async function putSubscriptionRotatingOn410(args: {
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 410 || !args.vapidPublicKey) throw error;
     const rotated = await rotateBrowserPushSubscription(args.vapidPublicKey);
-    await putPushSubscription(serializePushSubscription(rotated, args.language, args.mode));
+    // Name the corpse (L10): the server keeps this device's settings on the new row.
+    await putPushSubscription(
+      serializePushSubscription(rotated, args.language, args.mode, args.subscription.endpoint),
+    );
     return rotated.endpoint;
   }
 }

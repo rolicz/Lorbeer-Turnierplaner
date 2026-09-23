@@ -23,8 +23,10 @@ from ..services.notifications import (
     push_dispatcher_from_request,
     push_subscription_language,
     push_subscription_mode,
+    retire_replaced_push_subscription,
     upsert_push_subscription,
 )
+from ..services.paths import group_path
 
 router = APIRouter(prefix="/push", tags=["push"])
 
@@ -82,10 +84,23 @@ def put_subscription(
         if dead is not None and dead.disabled_at is not None and dead.last_http_status in (404, 410):
             raise HTTPException(status_code=410, detail="The push service no longer knows this endpoint; subscribe again")
 
+    player_id = int(claims.get("player_id"))
+    # A device replacing its own endpoint (a 410 rotation, or `sw.js` answering
+    # `pushsubscriptionchange` with the session cookie) keeps its language and mode and
+    # stops leaving the old row enabled behind it (L10). Explicit values in the body win.
+    inherited = retire_replaced_push_subscription(
+        s, player_id=player_id, replaces_endpoint=body.replaces_endpoint, new_endpoint=endpoint_norm
+    )
+    language = body.notification_language
+    mode = body.notification_mode
+    if inherited is not None:
+        language = language or inherited.notification_language
+        mode = mode or inherited.notification_mode
+
     try:
         row = upsert_push_subscription(
             s,
-            player_id=int(claims.get("player_id")),
+            player_id=player_id,
             endpoint=body.endpoint,
             p256dh=body.keys.p256dh,
             auth=body.keys.auth,
@@ -93,8 +108,8 @@ def put_subscription(
             user_agent=body.user_agent or request.headers.get("user-agent", ""),
             app_platform=body.app_platform or "",
             app_standalone=bool(body.app_standalone),
-            notification_language=body.notification_language,
-            notification_mode=body.notification_mode,
+            notification_language=language,
+            notification_mode=mode,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -157,7 +172,7 @@ def send_test_notification(
         int(claims.get("player_id")),
         localized_push_message(
             "push_test",
-            path="/dashboard",
+            path=group_path("/dashboard"),
             tag=f"push-test-{int(claims.get('player_id'))}",
             event_type="push_test",
             player_name=player_name,

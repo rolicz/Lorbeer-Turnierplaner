@@ -20,6 +20,9 @@ export type BrowserPushSubscriptionPayload = {
   user_agent?: string;
   notification_language?: PushNotificationLanguage;
   notification_mode?: PushNotificationMode;
+  /** The endpoint this one replaces on this device (L10) — the server moves its settings
+   *  and disables it in the same PUT. */
+  replaces_endpoint?: string | null;
 };
 
 export function getPushConfig(): Promise<PushConfigResponse> {

@@ -16,6 +16,7 @@ from ..models import (
 )
 from ..schemas.responses import MeOut, MyNotificationsOut
 from ..services.idea_events import unread_idea_events
+from ..services.paths import group_path
 from ..services.sessions import me_payload
 
 router = APIRouter(tags=["auth"])
@@ -122,7 +123,7 @@ def my_notifications(
                         "author_player_id": int(c.author_player_id) if c.author_player_id is not None else None,
                         "snippet": _snippet(c.body),
                         "created_at": c.created_at.isoformat(),
-                        "path": f"/live/{int(c.tournament_id)}?comment={int(c.id)}",
+                        "path": group_path(f"/live/{int(c.tournament_id)}?comment={int(c.id)}"),
                     }
                 )
 
@@ -156,7 +157,7 @@ def my_notifications(
                     "author_player_id": int(e.author_player_id),
                     "snippet": _snippet(e.body),
                     "created_at": e.created_at.isoformat(),
-                    "path": f"/profiles/{me_id}?tab=guestbook&entry={int(e.id)}",
+                    "path": group_path(f"/profiles/{me_id}?tab=guestbook&entry={int(e.id)}"),
                 }
             )
 
@@ -188,7 +189,7 @@ def my_notifications(
                     "author_player_id": int(k.author_player_id),
                     "snippet": "",
                     "created_at": k.created_at.isoformat(),
-                    "path": f"/profiles/{me_id}",
+                    "path": group_path(f"/profiles/{me_id}"),
                 }
             )
 
@@ -212,7 +213,7 @@ def my_notifications(
                 "author_player_id": int(event.actor_player_id),
                 "snippet": snippet,
                 "created_at": event.created_at.isoformat(),
-                "path": f"/ideas?idea={int(fr.id)}",
+                "path": group_path(f"/ideas?idea={int(fr.id)}"),
                 "idea_id": int(fr.id),
                 "idea_title": fr.title,
                 "idea_status": event.status or None,

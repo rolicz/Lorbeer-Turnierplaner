@@ -349,7 +349,7 @@ def test_comment_creation_enqueues_push(client, editor_headers, admin_headers, m
     assert len(messages) == 1
     message = messages[0]
     assert message.event_type == "comment_created"
-    assert message.path == f"/live/{tournament_id}?comment={comment_id}"
+    assert message.path == f"/g/altherren/live/{tournament_id}?comment={comment_id}"
     assert "Push Comments" in message.title
 
 
@@ -391,7 +391,7 @@ def test_goal_comment_creation_enqueues_goal_push(client, editor_headers, admin_
     assert len(messages) == 1
     message = messages[0]
     assert message.event_type == "goal_comment_created"
-    assert message.path == f"/live/{tournament_id}?comment={created.json()['id']}"
+    assert message.path == f"/g/altherren/live/{tournament_id}?comment={created.json()['id']}"
     payload = message.to_payload("english")
     assert payload["title"] == "Goal update in Match 1"
     assert "12' 1-0 Ronaldo" in payload["body"]

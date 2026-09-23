@@ -5,6 +5,7 @@ import { List, ListRow } from "../../ui/primitives/List";
 import { cn } from "../../ui/cn";
 import { recordIcon, recordModeLabel } from "../stats/recordIcons";
 import type { StatsRecord } from "../../api/types";
+import { routerPathOf } from "../../app/basename";
 
 /**
  * The records this player holds today, as one wrapping band of icon chips (M5, Rumpi's idea).
@@ -54,7 +55,7 @@ function RecordsHeldSheet({ open, held, onClose }: { open: boolean; held: Held[]
             return (
               <ListRow
                 key={r.key}
-                to={r.path}
+                to={routerPathOf(r.path) ?? "#"}
                 ariaLabel={`${r.label}: record holder${ongoing ? ", current run" : ""}. Open in Stats`}
                 leading={
                   <span className={cn(SHEET_MARK, ongoing && "border-accent")} data-record={r.key} aria-hidden="true">

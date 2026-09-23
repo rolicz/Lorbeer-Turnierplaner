@@ -321,7 +321,7 @@ def test_a_tagged_entry_notifies_exactly_once(client, editor_headers, editor2_he
     assert {i["kind"] for i in items} == {"guestbook"}
     tagged = [i for i in guestbook_items if int(i["id"]) == int(created.json()["id"])]
     assert len(tagged) == 1
-    assert tagged[0]["path"] == f"/profiles/{owner_id}?tab=guestbook&entry={created.json()['id']}"
+    assert tagged[0]["path"] == f"/g/altherren/profiles/{owner_id}?tab=guestbook&entry={created.json()['id']}"
 
 
 def test_orphans_are_swept_at_startup(client, editor_headers, editor2_headers, tmp_path):

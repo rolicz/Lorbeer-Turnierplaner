@@ -222,6 +222,10 @@ class PushSubscriptionBody(BaseModel):
     user_agent: str | None = None
     notification_language: str | None = None
     notification_mode: str | None = None
+    #: The endpoint this subscription replaces on this device (L10): a rotation after a 410,
+    #: or the service worker's own `pushsubscriptionchange`. Owned by the caller → its
+    #: preference moves to the new row and the old row is disabled in the same PUT.
+    replaces_endpoint: str | None = None
 
 
 class PushSubscriptionDeleteBody(BaseModel):

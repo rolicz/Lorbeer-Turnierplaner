@@ -3254,6 +3254,8 @@ export interface components {
             notification_language?: string | null;
             /** Notification Mode */
             notification_mode?: string | null;
+            /** Replaces Endpoint */
+            replaces_endpoint?: string | null;
         };
         /** PushSubscriptionDeleteBody */
         PushSubscriptionDeleteBody: {
