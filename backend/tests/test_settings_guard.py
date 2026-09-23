@@ -13,8 +13,6 @@ def _settings(**overrides) -> Settings:
     base = Settings(
         db_url="sqlite:///:memory:",
         player_accounts=(),
-        jwt_secret="guard-test",
-        ws_require_auth=False,
         log_level="INFO",
     )
     return dataclasses.replace(base, **overrides)

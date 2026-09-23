@@ -2,10 +2,8 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
 
-from .auth import decode_token_string
-from .config import CORS_ALLOW_ORIGINS
+from .auth_gate import AuthGate
 from .cup_defs import load_cup_defs
 from .db import configure_db, get_engine, init_db
 from .logging_config import setup_logging
@@ -22,6 +20,7 @@ from .routers.push import router as push_router
 from .routers.stats import router as stats_router
 from .routers.tournaments import router as tournaments_router
 from .services.notifications import NotificationDispatcher
+from .services.rate_limit import RateLimiter
 from .settings import Settings, assert_auth_config_safe
 from .ws import ws_manager, ws_manager_player_profiles, ws_manager_update_tournaments
 
@@ -61,14 +60,13 @@ def create_app(settings: Settings) -> FastAPI:
     )
 
     app.state.settings = settings
+    # The one rate limiter (L2): login, exchange and — from L3/L8 — redeem, reset, passkeys.
+    app.state.rate_limiter = RateLimiter()
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=CORS_ALLOW_ORIGINS if CORS_ALLOW_ORIGINS != ["*"] else ["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # The gate (L2): default-deny, outermost. No CORS any more — dev is same-origin through
+    # vite's proxy (L0) and production through Caddy, so no cross-origin request is expected
+    # and a browser that makes one gets no permission to read the answer.
+    app.add_middleware(AuthGate)
 
     app.include_router(auth_router)
     app.include_router(me_router)
@@ -85,22 +83,13 @@ def create_app(settings: Settings) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict[str, str]:
+        # Loopback only (the gate): Docker's healthcheck calls from inside the container.
         return {"status": "ok"}
 
-    def _ws_token_from_request(ws: WebSocket) -> str | None:
-        auth = ws.headers.get("authorization")
-        if auth and auth.lower().startswith("bearer "):
-            return auth.split(" ", 1)[1].strip()
-        return ws.query_params.get("token")
-
     def _ws_authorized(ws: WebSocket) -> bool:
-        if not app.state.settings.ws_require_auth:
-            return True
-        token = _ws_token_from_request(ws)
-        if not token:
-            return False
-        payload = decode_token_string(app.state.settings.jwt_secret, token)
-        return payload is not None
+        # Defence in depth: the gate has already refused a socket without a live session
+        # (it closes with 1008 before any accept). This is the one-line second check.
+        return bool((ws.scope.get("state") or {}).get("claims"))
 
     @app.websocket("/ws/tournaments/{tournament_id}")
     async def ws_tournament(ws: WebSocket, tournament_id: int) -> None:

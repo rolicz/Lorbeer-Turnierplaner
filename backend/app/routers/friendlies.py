@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, select
 
-from ..auth import decode_token, require_editor_claims
+from ..auth import require_auth_claims, require_editor_claims
 from ..db import get_session
 from ..models import (
     Club,
@@ -107,7 +107,7 @@ def list_friendlies(
     mode: str | None = Query(None, description='Optional mode filter: "1v1" or "2v2"'),
     limit: int = Query(200, ge=1, le=2000, description="Max rows"),
     s: Session = Depends(get_session),
-    claims: dict | None = Depends(decode_token),
+    claims: dict = Depends(require_auth_claims),
 ):
     mode_norm = str(mode or "").strip().lower()
     stmt = (

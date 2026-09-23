@@ -41,8 +41,6 @@ def _settings(db_url: str, accounts=()) -> Settings:
     return Settings(
         db_url=db_url,
         player_accounts=tuple(PlayerAccount(name=n, password=p, admin=a) for n, p, a in accounts),
-        jwt_secret="migration-test",
-        ws_require_auth=False,
         log_level="INFO",
         password_hash_profile="test",
         app_env="test",

@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from sqlmodel import Session, select
 
 from ..api_utils import bad_request, get_or_404
-from ..auth import decode_token, require_auth_claims, require_editor_claims
+from ..auth import require_auth_claims, require_editor_claims
 from ..db import get_engine, get_session
 from ..feature_areas import area_defs, area_label, normalize_areas
 from ..models import (
@@ -188,7 +188,7 @@ def list_idea_areas() -> dict:
 @router.get("/ideas", response_model=IdeaListOut)
 def list_all_ideas(
     s: Session = Depends(get_session),
-    claims: dict | None = Depends(decode_token),
+    claims: dict = Depends(require_auth_claims),
 ) -> dict:
     return list_ideas(s, claims)
 

@@ -1040,7 +1040,7 @@ grep -n "argon2\|webauthn" backend/requirements.txt                             
 - `make lint` clean; no response model touched, so no `gen-types`.
 
 
-## L2 — The gate, the sessions, the cookie login, the exchange, the rate limiter, the audit test, the test fixtures  ☐
+## L2 — The gate, the sessions, the cookie login, the exchange, the rate limiter, the audit test, the test fixtures  ☑
 
 **The gap.** `auth.py` decodes JWTs from a bearer header; 43 routes have no dependency; the
 websocket accepts anyone when `ws_require_auth` is false (it is, everywhere); `/health` answers
@@ -1140,26 +1140,199 @@ curl -sI http://127.0.0.1:<B>/tournaments | head -1                             
     (the `MeOut` change) with `schema.d.ts` in the commit.
 
 **Definition of done.**
-- ☐ `tests/test_auth_gate.py::test_every_route_is_gated_or_listed` passes and, when a worker
+- ☑ `tests/test_auth_gate.py::test_every_route_is_gated_or_listed` passes and, when a worker
   temporarily adds `@router.get("/probe")` with no dependency, still passes (the gate covers it)
   — and when a worker temporarily appends `"/probe"` to `PUBLIC_PATHS`, **fails** because the path
   does not exist. Both tried, both written down.
-- ☐ `make test` green; the count and the runtime written down against 303 / 11–15 min.
-- ☐ The gate's cost: `GET /tournaments` p50 over 50 requests against the dev-DB copy, before
+- ☑ `make test` green; the count and the runtime written down against 303 / 11–15 min.
+- ☑ The gate's cost: `GET /tournaments` p50 over 50 requests against the dev-DB copy, before
   (L1's tree) and after, in ms.
-- ☐ `curl -sI :<V>/api/tournaments` → 401; `-b jar` → 200; `curl -sI :<B>/health` → 200
+- ☑ `curl -sI :<V>/api/tournaments` → 401; `-b jar` → 200; `curl -sI :<B>/health` → 200
   (loopback peer). Through vite `:<V>/api/health` is **also** 200 in dev, because the proxy
   connects from 127.0.0.1 — the loopback rule is proven by the audit test's `LoopbackScope`
   shim and by production (Caddy's container IP is not loopback → 401), not by this curl.
-- ☐ `grep -rn "decode_token\|HTTPBearer\|CORSMiddleware" backend/app` → 0.
-- ☐ `make lint`, `make gen-types` committed.
-- ☐ Deviations filled in.
+- ☑ `grep -rn "decode_token\|HTTPBearer\|CORSMiddleware" backend/app` → 0.
+- ☑ `make lint`, `make gen-types` committed.
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §6: the gate, the three tuples, the claims shape, `ROLE_ORDER`, the
 cookie, the touch rule, the exchange and its expiry; §10: "an explicit `Cookie` header beats the
 TestClient jar — the fixtures depend on it"; §3: `make test` baseline.
 
-**Deviations.** —
+**Deviations.**
+- **`PUBLIC_PATHS` names only routes that exist: `/auth/login`, `/auth/exchange`.** §3's tuple
+  also listed `/auth/register`, `/auth/reset` and the two passkey sign-in paths, but the same
+  section has the audit assert that "the three tuples contain **only** paths that exist", and
+  the DoD's second sabotage (a phantom `"/probe"` must *fail*) depends on that assertion — the
+  two cannot both hold before L3 and L8 exist. So **L3 adds `/auth/register` and `/auth/reset`
+  to `PUBLIC_PATHS` with its routes, and L8 adds `/auth/passkeys/login/options` and
+  `/auth/passkeys/login/verify` with its.** Until then a new `/auth/…` route is an *account*
+  path by construction (a session required, no membership) — L3's register test will answer 401
+  the moment it is written, which is the audited-once property working as intended, not a bug.
+- **`/redoc` is in `LOOPBACK_ONLY_PATHS`** beside `/docs`, `/docs/oauth2-redirect` and
+  `/openapi.json`: FastAPI mounts all four as plain `Route`s, and the audit refuses to skip a
+  route object it cannot classify (`AssertionError: unclassifiable route object …`), so the
+  fourth had to be named. **Tuple syntax:** an entry ending in `/` is a prefix, any other is
+  exact, and exact wins — which is how `/auth/login` is public under the `/auth/` account
+  prefix. Loopback paths are refused to a *member* from a non-loopback peer too: the rule is the
+  peer, never the session.
+- **The audit found 118 API route × method pairs** (the plan's 113 at `cfc1669` plus L2's five:
+  `POST /auth/logout`, `POST /auth/exchange`, `GET /auth/sessions`, `DELETE
+  /auth/sessions/{id}`, `POST /auth/sessions/revoke-others`), plus the 4 FastAPI docs routes and
+  the 3 websocket endpoints — 122 HTTP pairs walked anonymously *and* with a no-membership
+  session (a fresh session per route, because the walk passes `/auth/logout` and `DELETE
+  /auth/sessions/1`, which would otherwise end the walker's own). The gate's refusals carry a
+  spelled-once `detail` (`NOT_LOGGED_IN` / `NOT_A_MEMBER`), which is how the test tells the
+  gate's 401 from a public route's own (`/auth/exchange` without a bearer is *its* 401, not the
+  gate's). **Both sabotages were tried on this tree and behaved:** an unguarded
+  `@app.get("/probe")` in `main.py` → the audit **passes** (1 passed in 12.2 s — the gate
+  covers it); `"/probe"` appended to `PUBLIC_PATHS` → the audit **fails** with
+  `AssertionError: '/probe' is listed but is not a route` (1 failed in 5.6 s). Both files were
+  restored (`grep -c '"/probe"'` → 0 in each).
+- **Which `X-Forwarded-For` hop is trusted, and why:** entry **1 from the right** — the one
+  Caddy itself wrote — because `docker-compose.yml` sets `TRUSTED_PROXY_HOPS: "1"` (L1) and
+  Caddy is the only proxy in front of the backend. Counting from the right is correct whether
+  Caddy *appends* to a client-supplied header or *replaces* it (the plan's open question): in
+  both cases the rightmost entry is Caddy's own observation and everything left of it is
+  client-supplied. In production the backend's socket peer is Caddy's bridge address (`172.x`,
+  never loopback), so the loopback carve-out is unreachable from the internet. **A loopback peer
+  counts as one hop** (`max(hops, 1)`): vite's dev proxy connects from `127.0.0.1` and, as L0
+  measured, sends **no** `X-Forwarded-For` at all, so dev falls back to the peer and every dev
+  caller shares one bucket — fine for a dev box, and a chain shorter than the configured hops
+  always falls back to the peer, never to a client-chosen entry. `client_ip` runs once per
+  request in the gate and lands in `request.state.client_ip`, which is where the limiter and
+  `AuthSession.ip` read it (measured on the stack: `ip = 127.0.0.1` through vite).
+- **One claims builder:** `services/groups.py::build_claims(s, player_id, session_id)` is what
+  the gate writes into `scope["state"]["claims"]` *and* what login / exchange answer with, so a
+  fresh login and the next request cannot describe one person two ways. Shape:
+  `{player_id, player_name, role, site_admin, session_id, groups: [{id, slug, name, role}]}` —
+  `role` is the *effective* role here (`effective_role`), `groups[].role` the raw membership
+  role. Every key the routers read off the JWT (`player_id`, `player_name`, `role`) kept its
+  name; `sub`/`iat`/`exp` were read by `/me` alone and are gone. `DEFAULT_GROUP_SLUG` stays
+  spelled in `auth_migration.py` (L1 put it there first) and `groups.py` re-exports it rather
+  than editing L1's file.
+- **`me_payload(s, claims)` lives in `services/sessions.py`**, not in a router — `GET /me`,
+  `/auth/login` and `/auth/exchange` all return it, and a router importing a router is the shape
+  `AGENTS.md` warns about. `has_passkey` reads the `Passkey` table (zero rows until L8) rather
+  than being a literal `False`, so L8 changes nothing here. L3's planned
+  `accounts.account_summary` can feed it.
+- **A login or exchange that *presents* a live session revokes it first** (`_start_session`):
+  the browser is about to overwrite that cookie, so the row could never be used again and
+  would only sit in the device list for 90 days. Found by the first smoke run, where the shared
+  test client's Editor session vanished the moment `login(client, "Editor2", …)` ran through its
+  jar — so **the `login()` helper sends an explicit empty `Cookie` header** (the other half of
+  the measured "explicit header beats the jar" fact) and **reads the token from `Set-Cookie`,
+  not from the jar**: after a login the jar briefly holds two cookies of that name (domain
+  `testserver.local` from the response and the fixture's domain-less one) and
+  `client.cookies.get` raises `CookieConflict`. The fixture's own cookie is set domain-less
+  (`client.cookies.set(name, value)`), which httpx sends to any host — measured, not assumed.
+- **No timing oracle on a name:** an unknown name, or an account with `password_hash NULL`,
+  is verified against a dummy argon2 hash (one per hasher, built lazily) before the same 401, so
+  "does this name exist" costs the same time either way.
+- **The exchange has no per-account bucket** — an unverifiable token names no account — so it
+  shares login's IP and global buckets (`limits_for("login", ip=…)`), and a bad token counts as
+  a failure there. It ignores the JWT's `role` claim on purpose: the account and its
+  memberships decide, so a token minted as `admin` a season ago logs in as whatever the person
+  is today (tested). Measured on the stack: the 217-char JWT L1's tree minted was exchanged
+  for a `kind="exchange"` session (`sessions: [('exchange', True), ('password', False)]`).
+- **The three `/auth/sessions` routes are L2's** (the plan let either task own them; the
+  session tests need them), so L3 leaves them. `GET` lists the caller's *live* rows,
+  `DELETE /{id}` finds the id in the caller's own list and 404s otherwise,
+  `POST /revoke-others` keeps the current — `RevokedOut{revoked}`.
+- **Small rules added beyond the spec:** `resolve_session` deletes an expired row it finds (the
+  row is dead anyway; the table stays small); the gate's 401 for a cookie that names no live
+  session also sends `Max-Age=0`, so a browser stops presenting it; on a **websocket** scope the
+  session is read but not touched (there is no response to carry the cookie; the PWA's HTTP
+  requests do the touching); `create_session` refuses an unknown `kind`; `Secure` in dev-origin
+  mode falls back to the request's own scheme when there is no `Origin` header (a same-origin
+  GET, curl) — never to a proxy header; a rate-limited 429 is *not* counted as a hit, or a
+  client already being refused could extend its own penalty and starve a shared IP.
+- **A route that sets the cookie itself has the last word over the touch** — found by reading
+  the gate again after it worked, not by a test. The renewal is appended to
+  `http.response.start` *after* the route's own headers, so a stale-but-live session that
+  logged out (the route sends `Max-Age=0`) or logged in as someone else (the route sends the
+  new token) would have carried **two** `lk_session` cookies with the renewed *old* value
+  last — and a browser keeps the last one, i.e. a token the server had just revoked. The
+  gate now skips the renewal when the response already carries a `set-cookie` for
+  `lk_session`; `test_a_route_that_sets_the_cookie_itself_wins_over_the_touch` asserts exactly
+  one such header on both paths and **was run against the pre-fix behaviour first** (1 failed
+  in 6.2 s), so it is known to bite.
+- **The gate's cost, measured on the Pi against the dev-DB copy** (50 sequential keep-alive
+  requests after 5 warm-ups, p50): `GET /tournaments` **30.9 ms** anonymous and **32.3 ms**
+  with a bearer token on L1's tree; **35.5 ms** with the cookie on this tree (three runs:
+  35.5 / 35.5 / 35.4). An anonymous request costs 0.5 ms (a 401 before any DB work). The
+  resolve itself was micro-timed in-process: **3.4 ms** through the threadpool at first (five
+  queries — SQLAlchemy's per-query floor is ~0.4–1.5 ms here), **2.7 ms** after folding the
+  account+player lookup into one join and taking the current group from the membership rows
+  already in hand (three queries: session by hash, account⋈player, memberships⋈group). The
+  threadpool hop is 0.4 ms of that; opening the NullPool session 0.1 ms. `/me` answers in
+  7.5 ms all in, a 64 px avatar in 6.8 ms. The touch is a write at most every 5 min per
+  session and was not in these numbers (it never fired within a 50-request run).
+- **`settings.py`:** `ws_require_auth` is gone (field, `load_settings` parameter, env);
+  `jwt_secret` is now a *default* field (`""`, was the required `"dev-change-me"`) placed after
+  `log_level`, so every constructor is keyword-only as before and the exchange answers 410 the
+  day a secrets file stops carrying it. **Files edited outside L2's row for that reason,** all
+  under §12's "every `Settings(...)` constructor": `tests/test_auth_migration.py`,
+  `tests/test_settings_guard.py`, `tests/test_league_nation.py`,
+  `tests/test_push_notifications.py` — each lost `jwt_secret=`/`ws_require_auth=` and nothing
+  else. `tests/test_websocket_public.py` was renamed to say what it now proves (the cookie
+  carries the handshake). `manage.py auth-preflight` still runs against a copy (`RESULT: OK`).
+- **The ≈25 hand edits of §12 became 14 sites in 12 files**, not 9: the seven "reader" sites
+  the plan listed, plus `test_comments_current.py`, `test_friendlies_current.py`,
+  `test_match_swap_sides.py`, `test_players_permissions.py` and three in
+  `test_tournament_endpoints_current.py` that asserted `in (401, 403)` for a header-less call —
+  which the logged-in shared client would now have answered 200. Each became `anon.…` → 401.
+  Two "reader" tests changed meaning rather than fixture: `test_ideas.py` and
+  `test_idea_comments.py` used to assert that *nobody* sees no capabilities; nobody now sees
+  nothing at all (401), so they assert that about a **member who did not write it**
+  (`editor2_headers`) and add the 401.
+- **Verified against the isolated stack** (backend 8233, vite 8253, DB + uploads + `cups.json`
+  copied from the main checkout to a `mktemp -d`, the secrets file naming that copy; all PIDs
+  killed by number): first boot logs the same `Auth migrated: 3 accounts, 1 group, 6
+  memberships …` line L1 recorded and the second boot logs nothing; anonymous `GET
+  /tournaments` **401**, `curl -sI` (HEAD) **401**, an unknown path **401**; `/health` **200**
+  from `127.0.0.1`; `POST /auth/login` → `Set-Cookie: lk_session=…; HttpOnly; Max-Age=7776000;
+  Path=/; SameSite=lax` (no `Secure` in dev-origin mode over http); `/me` → Roli · admin ·
+  `altherren:owner` · `password_migrated: true`; through vite `:8253/api/tournaments` **401**
+  anonymous and **200** with the jar, `/api/health` **200** (the proxy's loopback peer),
+  `/api/players/1/avatar?w=64` **200 image/webp** with the cookie and **401** without; ten wrong
+  passwords → 401, the eleventh → **429** with `retry-after: 599` and `{"detail":
+  {"retry_after": 599}}`, and the *right* password is 429 too until the window passes (a
+  slowdown, never a lockout); logout → `Max-Age=0` and the next `/me` 401.
+- **What L4 inherits.** `make gen-types` moved `schema.d.ts` (+302/−21): `LoginOut` is gone,
+  `MeOut` is `{role, player_id, player_name, site_admin, groups: MeGroupOut[], has_password,
+  has_passkey, password_migrated, session_id}`, and `SessionOut`, `RevokedOut`, `MeGroupOut`,
+  `LogoutBody` and the five new paths exist. **`npm run check` is red on exactly one root
+  cause: `tsc` fails on `src/api/types.ts:118` (`S["LoginOut"]` no longer exists)**, and
+  because that leaves `LoginResponse` error-typed, eslint reports three
+  `@typescript-eslint/no-unsafe-argument` errors on `src/pages/LoginPage.tsx:36` (`res.token`,
+  `res.player_id`, `res.player_name`). Nothing else in the frontend types off the removed
+  fields; vitest is untouched at **839 tests in 88 files** (the L0 baseline). The wire L4
+  codes against: `POST /auth/login` answers `MeOut`
+  and *sets the cookie* (no token in the body); `POST /auth/logout {push_endpoint?}`; `POST
+  /auth/exchange` with `Authorization: Bearer <old jwt>` → `MeOut` + cookie, 401 on a bad token,
+  **410** once the secret is empty; `GET /me` is an *account* path (a session with no membership
+  gets it, with `role: "none"` and `groups: []`); every other read is 401 without the cookie
+  and 403 without a membership; the websocket handshake authenticates by the cookie and the
+  `?token=` the client still appends is ignored. Until L4 the app in a browser is expectedly
+  broken: `apiFetch` sends a bearer header nobody reads, and the login page stores a `token`
+  field that is no longer there.
+- **Not done here, and why:** the `Makefile`'s `AUTH_DEV_ORIGIN=1 APP_ENV=development` on the
+  backend recipes (L1's leftover; the file is not in L2's row and it matters only for passkeys —
+  `make backend` boots fine, pinned https origin, guard passes); `backend/secrets.json.example`
+  and `README.md` still show `ws_require_auth` (L15's files; an unknown key in a secrets file is
+  ignored by `load_settings`, so nothing breaks). **The main checkout's
+  `frontend/.env.local` must be switched to the two relative lines the moment Roli moves his dev
+  servers onto this branch** — L0 left CORS in place so the absolute lines kept working; L2
+  removed it, and a cookie set by `:8001` is invisible to a page on `:8000`. Nothing in the
+  main checkout was touched.
+- `make lint` clean. `make test`: **373 passed in 19:05** on a quiet Pi (L1's 334 plus 39:
+  `test_auth_gate.py` 14, `test_sessions.py` 16, `test_rate_limit.py` 9; nothing pre-existing
+  moved), against the plan's 303 / 11–15 min — the `test` argon2 profile in `conftest.py` took
+  back the per-test migration cost L1 measured, and the audit test alone walks 122 routes twice
+  (12 s). `cd frontend && npm run check`: **red on the one
+  root cause above** (tsc 1 error, eslint 3 errors, all `LoginOut`/`LoginResponse`), vitest
+  **839 passed in 88 files**; `make gen-types` re-run is byte-identical (md5 checked).
 
 ## L3 — The account and group API  ☐
 

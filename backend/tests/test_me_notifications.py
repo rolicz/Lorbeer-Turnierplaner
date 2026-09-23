@@ -105,8 +105,8 @@ def test_notifications_exclude_self_authored_and_read(client, editor_headers, ad
     assert after["items"] == []
 
 
-def test_notifications_requires_auth(client):
-    assert client.get("/me/notifications").status_code == 401
+def test_notifications_requires_auth(anon):
+    assert anon.get("/me/notifications").status_code == 401
 
 
 def _create_idea(client, headers, **overrides) -> dict:

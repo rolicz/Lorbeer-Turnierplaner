@@ -22,7 +22,7 @@ def _backdate_comment(cid: int, hours: float) -> None:
         s.commit()
 
 
-def test_comment_edit_only_real_author_even_when_general(client, editor_headers, admin_headers):
+def test_comment_edit_only_real_author_even_when_general(client, anon, editor_headers, editor2_headers, admin_headers):
     editor_id, admin_id = _player_ids(client)
     tid = client.post(
         "/tournaments",
@@ -51,11 +51,13 @@ def test_comment_edit_only_real_author_even_when_general(client, editor_headers,
     blocked = client.patch(f"/comments/{cid_admin}", json={"body": "nope"}, headers=editor_headers)
     assert blocked.status_code == 403, blocked.text
 
-    # An unauthenticated list never reports can_edit=True and keeps General anonymous.
-    rows = client.get(f"/tournaments/{tid}/comments").json()["comments"]
+    # Another member's list never reports can_edit=True and keeps General anonymous; nobody
+    # (no session) gets no list at all (L2).
+    rows = client.get(f"/tournaments/{tid}/comments", headers=editor2_headers).json()["comments"]
     general = next(x for x in rows if x["id"] == cid)
     assert general["author_player_id"] is None
     assert general["can_edit"] is False
+    assert anon.get(f"/tournaments/{tid}/comments").status_code == 401
 
 
 def test_comment_edit_window_expires(client, editor_headers, admin_headers):

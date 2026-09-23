@@ -10,6 +10,12 @@ class LoginBody(BaseModel):
     password: str = ""
 
 
+class LogoutBody(BaseModel):
+    """`push_endpoint`: this device's push subscription, disabled in the same request (L2)."""
+
+    push_endpoint: str | None = None
+
+
 class PlayerCreateBody(BaseModel):
     display_name: str
 

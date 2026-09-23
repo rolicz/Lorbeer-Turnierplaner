@@ -42,20 +42,44 @@ class VotersOut(BaseModel):
 
 
 # ---- auth / me ---------------------------------------------------------
-class LoginOut(BaseModel):
-    token: str
+class MeGroupOut(BaseModel):
+    """One of the caller's groups: `role` is the membership role (`owner` | `member`)."""
+
+    id: int
+    slug: str
+    name: str
     role: str
-    player_id: int
-    player_name: str
 
 
 class MeOut(BaseModel):
-    role: str | None
-    player_id: int | None
-    player_name: str | None
-    sub: str | None
-    iat: int | None
-    exp: int | None
+    """Who the caller is on this device — answered by `GET /me`, `POST /auth/login` and
+    `POST /auth/exchange` alike (L2). `role` is the effective role in the current group
+    (`none` | `editor` | `owner` | `admin`). `has_passkey` is False until L8 writes a row."""
+
+    role: str
+    player_id: int
+    player_name: str
+    site_admin: bool
+    groups: list[MeGroupOut]
+    has_password: bool
+    has_passkey: bool
+    password_migrated: bool
+    session_id: int | None
+
+
+class SessionOut(BaseModel):
+    """One logged-in device of the caller (`GET /auth/sessions`, L2)."""
+
+    id: int
+    kind: str
+    device_label: str
+    created_at: datetime
+    last_seen_at: datetime
+    current: bool
+
+
+class RevokedOut(BaseModel):
+    revoked: int
 
 
 class MyNotificationOut(BaseModel):

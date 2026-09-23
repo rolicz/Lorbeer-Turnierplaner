@@ -11,7 +11,7 @@ import httpx
 from fastapi import Request
 from sqlmodel import Session, select
 
-from ..models import Player, PushSubscription, PushSubscriptionPreference
+from ..models import Account, Player, PushSubscription, PushSubscriptionPreference
 from ..settings import Settings
 from .idea_events import idea_event_audience
 from .notification_texts import (
@@ -416,23 +416,16 @@ def push_guestbook_created(
 
 
 def admin_player_ids(request: Request, s: Session) -> list[int]:
-    """The player ids behind the admin accounts in `secrets.json`.
+    """The player ids of the site admins: `Account.site_admin` (L2).
 
-    Admin is a property of the *account* (`player_accounts[].admin`), not of a row in
-    the database, and accounts are matched to players by display name exactly the way
-    `auth.resolve_player_login` does it — case-insensitively. Anything else here would
-    be a second definition of "who is an admin".
+    The same flag the bell reads from the session's claims (`claims["site_admin"]`), so
+    this is not a second definition of "who is an admin". `request` is kept for the
+    callers' sake and is unused: `secrets.json` is no longer consulted here — the boot
+    migration read it once (L1).
     """
-    settings = getattr(request.app.state, "settings", None)
-    wanted = {
-        str(acc.name or "").strip().casefold()
-        for acc in getattr(settings, "player_accounts", ()) or ()
-        if getattr(acc, "admin", False)
-    }
-    if not wanted:
-        return []
-    rows = s.exec(select(Player.id, Player.display_name)).all()
-    return [int(pid) for pid, name in rows if str(name or "").strip().casefold() in wanted]
+    del request
+    rows = s.exec(select(Account.player_id).where(Account.site_admin == True)).all()  # noqa: E712 - SQL, not Python
+    return [int(pid) for pid in rows]
 
 
 def push_idea_created(

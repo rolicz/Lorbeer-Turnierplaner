@@ -207,8 +207,6 @@ def test_notification_modes_filter_delivery(client, monkeypatch):
             Settings(
                 db_url="sqlite://",
                 player_accounts=(),
-                jwt_secret="test-jwt-secret",
-                ws_require_auth=False,
                 log_level="DEBUG",
                 push_vapid_public_key="test-public-key",
                 push_vapid_private_key="test-private-key",
@@ -550,8 +548,6 @@ def test_poke_push_digest_summarizes_within_cooldown(tmp_path):
             settings=Settings(
                 db_url=f"sqlite:///{tmp_path / 'poke-digest.db'}",
                 player_accounts=(),
-                jwt_secret="test-jwt-secret",
-                ws_require_auth=False,
                 log_level="DEBUG",
                 push_vapid_public_key="test-public",
                 push_vapid_private_key="test-private",

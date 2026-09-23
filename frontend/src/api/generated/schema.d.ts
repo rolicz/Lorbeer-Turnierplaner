@@ -21,6 +21,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description End this device's session. With `push_endpoint`, also disable that device's push
+         *     subscription in the same request, so no client-side hook has to race the session's end.
+         */
+        post: operations["logout_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange
+         * @description Trade the pre-batch JWT (`Authorization: Bearer <token>`) for one cookie session.
+         *
+         *     This is what keeps "nobody is logged out by the deploy" true: the first boot of the new
+         *     frontend finds the old token in `localStorage` and comes here. Answers **410** once
+         *     `jwt_secret` is empty — the day a later batch retires the legacy login for good.
+         */
+        post: operations["exchange_auth_exchange_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Sessions
+         * @description The caller's own live sessions, newest activity first.
+         */
+        get: operations["my_sessions_auth_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke My Session
+         * @description Sign one of my devices out. An id that is not mine is a 404, not a 403 — there is
+         *     nothing to learn about other people's sessions here.
+         */
+        delete: operations["revoke_my_session_auth_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sessions/revoke-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke My Other Sessions
+         * @description Sign every other device out; this one stays.
+         */
+        post: operations["revoke_my_other_sessions_auth_sessions_revoke_others_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -2378,16 +2484,13 @@ export interface components {
              */
             password: string;
         };
-        /** LoginOut */
-        LoginOut: {
-            /** Token */
-            token: string;
-            /** Role */
-            role: string;
-            /** Player Id */
-            player_id: number;
-            /** Player Name */
-            player_name: string;
+        /**
+         * LogoutBody
+         * @description `push_endpoint`: this device's push subscription, disabled in the same request (L2).
+         */
+        LogoutBody: {
+            /** Push Endpoint */
+            push_endpoint?: string | null;
         };
         /** MarkedResponse */
         MarkedResponse: {
@@ -2458,20 +2561,45 @@ export interface components {
             /** Goals */
             goals?: number | string | null;
         };
-        /** MeOut */
+        /**
+         * MeGroupOut
+         * @description One of the caller's groups: `role` is the membership role (`owner` | `member`).
+         */
+        MeGroupOut: {
+            /** Id */
+            id: number;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Role */
+            role: string;
+        };
+        /**
+         * MeOut
+         * @description Who the caller is on this device — answered by `GET /me`, `POST /auth/login` and
+         *     `POST /auth/exchange` alike (L2). `role` is the effective role in the current group
+         *     (`none` | `editor` | `owner` | `admin`). `has_passkey` is False until L8 writes a row.
+         */
         MeOut: {
             /** Role */
-            role: string | null;
+            role: string;
             /** Player Id */
-            player_id: number | null;
+            player_id: number;
             /** Player Name */
-            player_name: string | null;
-            /** Sub */
-            sub: string | null;
-            /** Iat */
-            iat: number | null;
-            /** Exp */
-            exp: number | null;
+            player_name: string;
+            /** Site Admin */
+            site_admin: boolean;
+            /** Groups */
+            groups: components["schemas"]["MeGroupOut"][];
+            /** Has Password */
+            has_password: boolean;
+            /** Has Passkey */
+            has_passkey: boolean;
+            /** Password Migrated */
+            password_migrated: boolean;
+            /** Session Id */
+            session_id: number | null;
         };
         /**
          * MyNotificationOut
@@ -2901,6 +3029,11 @@ export interface components {
             rank: number;
             latest?: components["schemas"]["StatsRecordTournamentOut"] | null;
         };
+        /** RevokedOut */
+        RevokedOut: {
+            /** Revoked */
+            revoked: number;
+        };
         /** ScheduleGeneratedOut */
         ScheduleGeneratedOut: {
             /** Ok */
@@ -2911,6 +3044,30 @@ export interface components {
             labels: {
                 [key: string]: string;
             };
+        };
+        /**
+         * SessionOut
+         * @description One logged-in device of the caller (`GET /auth/sessions`, L2).
+         */
+        SessionOut: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Device Label */
+            device_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Current */
+            current: boolean;
         };
         /** StatsBlockOut */
         StatsBlockOut: {
@@ -3844,7 +4001,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoginOut"];
+                    "application/json": components["schemas"]["MeOut"];
                 };
             };
             /** @description Validation Error */
@@ -3854,6 +4011,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LogoutBody"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exchange_auth_exchange_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    my_sessions_auth_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"][];
+                };
+            };
+        };
+    };
+    revoke_my_session_auth_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_my_other_sessions_auth_sessions_revoke_others_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedOut"];
                 };
             };
         };

@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, delete, select
 
 from ..api_utils import bad_request, conflict, forbidden, get_or_404
-from ..auth import decode_token, require_admin, require_editor, require_editor_claims
+from ..auth import require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_session
 from ..models import (
     Comment,
@@ -391,7 +391,7 @@ def _state_rank(state: str) -> int:
 @router.get("", response_model=list[TournamentListItemOut])
 def list_tournaments(
     s: Session = Depends(get_session),
-    claims: dict | None = Depends(decode_token),
+    claims: dict = Depends(require_auth_claims),
 ):
     return build_tournament_list(s, claims=claims)
 
@@ -469,7 +469,7 @@ def get_tournaments_comments_summary(s: Session = Depends(get_session)) -> list[
 def get_tournament(
     tournament_id: int,
     s: Session = Depends(get_session),
-    claims: dict | None = Depends(decode_token),
+    claims: dict = Depends(require_auth_claims),
 ):
     t = get_or_404(s, Tournament, tournament_id, name="Tournament")
     return serialize_tournament(s, t, claims=claims)

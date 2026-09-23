@@ -1,137 +1,68 @@
-import time
+"""Who the caller is, and what they may do (L2).
 
-import jwt
+The auth gate (`app/auth_gate.py`) has already resolved the session cookie into
+`request.state.claims` by the time a route runs; this module only *reads* it. There is no
+bearer header, no JWT and no `reader` role any more: every route gets a real requirement.
+
+    ROLE_ORDER: none < editor < owner < admin
+
+`require_editor` (≥ editor — a plain member of the current group), `require_owner`
+(≥ owner — new, for L3's group operations), `require_admin` (site admin, exactly today's
+meaning; no admin route becomes an owner route in part 1). The `*_claims` variants hand the
+claims dict to handlers that need the caller's identity.
+"""
+
+from __future__ import annotations
+
 from fastapi import Depends, HTTPException, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import func
-from sqlmodel import Session, select
 
-from .models import Player
+from .auth_gate import NOT_LOGGED_IN
 
-bearer = HTTPBearer(auto_error=False)
-
-ROLE_ORDER = {"reader": 1, "editor": 2, "admin": 3}
-
-def _normalize_name(name: str) -> str:
-    return str(name or "").strip().casefold()
+ROLE_ORDER: dict[str, int] = {"none": 0, "editor": 1, "owner": 2, "admin": 3}
 
 
-def _configured_account(request: Request, username: str) -> dict | None:
-    target = _normalize_name(username)
-    if not target:
-        return None
-    for acc in request.app.state.settings.player_accounts:
-        if _normalize_name(acc.name) == target:
-            return {"name": acc.name, "password": acc.password, "admin": bool(acc.admin)}
-    return None
+def require_auth_claims(request: Request) -> dict:
+    """The claims the gate wrote, or 401. Behind the gate this is unreachable except on a
+    public path — where "not logged in" is exactly the right answer."""
+    claims = getattr(request.state, "claims", None)
+    if not claims:
+        raise HTTPException(status_code=401, detail=NOT_LOGGED_IN)
+    return claims
 
 
-def create_token(request: Request, *, role: str, player_id: int, player_name: str) -> str:
-    if role not in ROLE_ORDER:
-        raise ValueError("invalid role")
-
-    s = request.app.state.settings
-    now = int(time.time())
-    payload = {
-        "sub": f"player:{int(player_id)}",
-        "role": role,
-        "player_id": int(player_id),
-        "player_name": str(player_name),
-        "iat": now,
-        "exp": now + 60 * 60 * 24 * 180,
-    }
-    return jwt.encode(payload, s.jwt_secret, algorithm="HS256")
-
-
-def resolve_player_login(
-    request: Request,
-    s: Session,
-    *,
-    username: str,
-    password: str,
-) -> tuple[Player, str] | None:
-    account = _configured_account(request, username)
-    if account is None:
-        return None
-    if password != account["password"]:
-        return None
-
-    uname = _normalize_name(username)
-    player = s.exec(
-        select(Player).where(func.lower(Player.display_name) == uname).order_by(Player.id.asc())
-    ).first()
-    if player is None or player.id is None:
-        return None
-
-    role = "admin" if account["admin"] else "editor"
-    return player, role
-
-def decode_token(
-    request: Request,
-    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
-) -> dict | None:
-    if creds is None:
-        return None
-    s = request.app.state.settings
-    try:
-        return jwt.decode(creds.credentials, s.jwt_secret, algorithms=["HS256"])
-    except Exception:
-        return None
-
-
-def decode_token_string(jwt_secret: str, token: str) -> dict | None:
-    try:
-        return jwt.decode(token, jwt_secret, algorithms=["HS256"])
-    except Exception:
-        return None
-
-
-def require_auth_claims(
-    request: Request,
-    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
-) -> dict:
-    if creds is None:
-        raise HTTPException(status_code=401, detail="Missing token")
-
-    s = request.app.state.settings
-    try:
-        payload = jwt.decode(creds.credentials, s.jwt_secret, algorithms=["HS256"])
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    role = payload.get("role")
-    player_id_raw = payload.get("player_id")
-    try:
-        player_id = int(player_id_raw)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token payload")
-
-    if role not in ROLE_ORDER:
-        raise HTTPException(status_code=401, detail="Invalid token payload")
-
-    payload["player_id"] = player_id
-    return payload
+def _rank(claims: dict) -> int:
+    role = str(claims.get("role") or "none")
+    return ROLE_ORDER.get(role, 0)
 
 
 def require_min_role(min_role: str):
+    """A dependency that answers the caller's role, or 403 below `min_role`."""
     min_rank = ROLE_ORDER[min_role]
 
-    def dep(
-        claims: dict = Depends(require_auth_claims),
-    ) -> str:
-        role = claims.get("role")
-        if role not in ROLE_ORDER or ROLE_ORDER[role] < min_rank:
+    def dep(claims: dict = Depends(require_auth_claims)) -> str:
+        if _rank(claims) < min_rank:
             raise HTTPException(status_code=403, detail="Insufficient privileges")
-        return role
+        return str(claims.get("role"))
 
     return dep
 
+
+def require_min_role_claims(min_role: str):
+    """Like `require_min_role`, but hands back the whole claims dict."""
+    min_rank = ROLE_ORDER[min_role]
+
+    def dep(claims: dict = Depends(require_auth_claims)) -> dict:
+        if _rank(claims) < min_rank:
+            raise HTTPException(status_code=403, detail="Insufficient privileges")
+        return claims
+
+    return dep
+
+
 require_editor = require_min_role("editor")
+require_owner = require_min_role("owner")
 require_admin = require_min_role("admin")
 
-
-def require_editor_claims(claims: dict = Depends(require_auth_claims)) -> dict:
-    role = claims.get("role")
-    if role not in ROLE_ORDER or ROLE_ORDER[role] < ROLE_ORDER["editor"]:
-        raise HTTPException(status_code=403, detail="Insufficient privileges")
-    return claims
+require_editor_claims = require_min_role_claims("editor")
+require_owner_claims = require_min_role_claims("owner")
+require_admin_claims = require_min_role_claims("admin")

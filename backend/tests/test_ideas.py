@@ -45,10 +45,13 @@ def _png() -> bytes:
 # ---- reading is public --------------------------------------------------
 
 
-def test_reader_can_read_and_gets_no_capabilities(client, editor_headers):
+def test_another_member_can_read_and_gets_no_capabilities(client, anon, editor_headers, editor2_headers):
     created = _create(client, editor_headers)
 
-    r = client.get("/ideas")
+    # No session: no board (L2 — there is no reader any more).
+    assert anon.get("/ideas").status_code == 401
+
+    r = client.get("/ideas", headers=editor2_headers)
     assert r.status_code == 200
     body = r.json()
     assert len(body["ideas"]) == 1
@@ -78,16 +81,16 @@ def test_area_catalog_is_public_and_labels_every_key(client):
 # ---- the permission matrix ---------------------------------------------
 
 
-def test_reader_may_not_write_anything(client, editor_headers):
+def test_nobody_may_write_anything(client, anon, editor_headers):
     idea = _create(client, editor_headers)
     iid = idea["id"]
 
-    assert client.post("/ideas", json={"title": "x", "areas": ["stats"]}).status_code == 401
-    assert client.patch(f"/ideas/{iid}", json={"title": "x"}).status_code == 401
-    assert client.delete(f"/ideas/{iid}").status_code == 401
-    assert client.put(f"/ideas/{iid}/vote", json={"value": 1}).status_code == 401
-    assert client.put(f"/ideas/{iid}/status", json={"status": "done"}).status_code == 401
-    assert client.put(f"/ideas/{iid}/image", files={"file": ("a.png", _png(), "image/png")}).status_code == 401
+    assert anon.post("/ideas", json={"title": "x", "areas": ["stats"]}).status_code == 401
+    assert anon.patch(f"/ideas/{iid}", json={"title": "x"}).status_code == 401
+    assert anon.delete(f"/ideas/{iid}").status_code == 401
+    assert anon.put(f"/ideas/{iid}/vote", json={"value": 1}).status_code == 401
+    assert anon.put(f"/ideas/{iid}/status", json={"status": "done"}).status_code == 401
+    assert anon.put(f"/ideas/{iid}/image", files={"file": ("a.png", _png(), "image/png")}).status_code == 401
 
 
 def test_logged_in_non_author_may_create_and_vote_but_not_edit(client, editor_headers, editor2_headers):
@@ -473,8 +476,6 @@ def test_the_idea_push_is_delivered_to_the_admin_devices_in_each_language(client
             Settings(
                 db_url="sqlite://",
                 player_accounts=(),
-                jwt_secret="test-jwt-secret",
-                ws_require_auth=False,
                 log_level="DEBUG",
                 push_vapid_public_key="test-public-key",
                 push_vapid_private_key="test-private-key",
@@ -714,8 +715,6 @@ def test_the_idea_comment_push_is_delivered_to_the_author_and_not_the_commenter(
             Settings(
                 db_url="sqlite://",
                 player_accounts=(),
-                jwt_secret="test-jwt-secret",
-                ws_require_auth=False,
                 log_level="DEBUG",
                 push_vapid_public_key="test-public-key",
                 push_vapid_private_key="test-private-key",

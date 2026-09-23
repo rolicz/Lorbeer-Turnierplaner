@@ -19,9 +19,8 @@ app = create_app(
     Settings(
         db_url="sqlite://",
         player_accounts=(),
-        jwt_secret="codegen-only",
-        ws_require_auth=False,
         log_level="ERROR",
+        app_env="test",
     )
 )
 

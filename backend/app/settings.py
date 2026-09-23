@@ -22,9 +22,11 @@ class PlayerAccount:
 class Settings:
     db_url: str
     player_accounts: tuple[PlayerAccount, ...]
-    jwt_secret: str
-    ws_require_auth: bool
     log_level: str
+    #: Kept only for `POST /auth/exchange` (L2), which trades the pre-batch JWT for a cookie
+    #: session; empty means the exchange answers 410. Deleted together with `PyJWT`,
+    #: `services/legacy_jwt.py` and the endpoint by the batch after the auth batch is proven.
+    jwt_secret: str = ""
     push_vapid_public_key: str = ""
     push_vapid_private_key: str = ""
     push_vapid_subject: str = ""
@@ -92,7 +94,6 @@ def load_settings(
     secrets_path: str,
     db_url: str | None = None,
     jwt_secret: str | None = None,
-    ws_require_auth: bool | None = None,
     log_level: str | None = None,
 ) -> Settings:
     secrets: dict = {}
@@ -178,9 +179,8 @@ def load_settings(
     return Settings(
         db_url=pick("db_url", db_url, "sqlite:///./app.db", env_key="DB_URL"),
         player_accounts=tuple(accounts),
-        jwt_secret=pick("jwt_secret", jwt_secret, "dev-change-me", env_key="JWT_SECRET"),
-        ws_require_auth=pick_bool("ws_require_auth", ws_require_auth, False, env_key="WS_REQUIRE_AUTH"),
         log_level=pick("log_level", log_level, "INFO", env_key="LOG_LEVEL"),
+        jwt_secret=pick("jwt_secret", jwt_secret, "", env_key="JWT_SECRET"),
         push_vapid_public_key=pick("push_vapid_public_key", None, "", env_key="PUSH_VAPID_PUBLIC_KEY").strip(),
         push_vapid_private_key=push_vapid_private_key,
         push_vapid_subject=pick("push_vapid_subject", None, "", env_key="PUSH_VAPID_SUBJECT").strip(),

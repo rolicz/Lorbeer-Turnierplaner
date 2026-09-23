@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ..api_utils import bad_request, conflict, forbidden, get_or_404
-from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
+from ..auth import require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
     Comment,
@@ -272,7 +272,7 @@ def _format_shots_comment_body(shots_a: int, shots_b: int) -> str:
 def list_comments(
     tournament_id: int,
     s: Session = Depends(get_session),
-    claims: dict | None = Depends(decode_token),
+    claims: dict = Depends(require_auth_claims),
 ) -> dict:
     get_or_404(s, Tournament, tournament_id, name="Tournament")
     return list_comments_for_tournament(s, tournament_id, claims)

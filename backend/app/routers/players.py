@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from sqlmodel import Session, select
 
 from ..api_utils import bad_request, conflict, forbidden
-from ..auth import decode_token, require_admin, require_auth_claims, require_editor_claims
+from ..auth import require_admin, require_auth_claims, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
     Player,
@@ -576,7 +576,7 @@ def _poke_payload(
 def list_player_guestbook(
     player_id: int,
     s: Session = Depends(get_session),
-    claims: dict | None = Depends(decode_token),
+    claims: dict = Depends(require_auth_claims),
 ):
     player = s.get(Player, player_id)
     if not player:
