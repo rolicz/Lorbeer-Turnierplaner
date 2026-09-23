@@ -35,8 +35,24 @@ describe("pushSetupState", () => {
     expect(pushSetupState({ ...healthy, serverEnabled: false, browserEndpoint: null, permission: "default" })).toBe("none");
   });
 
-  it("respects a denied permission — that is a decision", () => {
-    expect(pushSetupState({ ...healthy, permission: "denied", browserEndpoint: null })).toBe("none");
+  it("calls a denied permission blocked, not silence (Q-E, Roli 2026-09-23)", () => {
+    // P5 returned "none" here — "a decision, and it is respected" — and the app then said
+    // nothing, for ever, to a device that receives nothing. Overruled: it is its own state.
+    expect(pushSetupState({ ...healthy, permission: "denied", browserEndpoint: null })).toBe("blocked");
+  });
+
+  it("still says nothing to a device that turned push off here and denied it as well", () => {
+    // P5's "a deliberate no is never nagged" survives Q-E: the mark is for the reader who
+    // did not switch push off in Settings.
+    expect(pushSetupState({ ...healthy, permission: "denied", browserEndpoint: null, userDisabled: true })).toBe("none");
+  });
+
+  it("says nothing about a denied permission before the app is usable at all", () => {
+    // No login, no support, no server: the three guards still come first, so a logged-out
+    // reader's bell never wears the mark.
+    expect(pushSetupState({ ...healthy, permission: "denied", browserEndpoint: null, token: null })).toBe("none");
+    expect(pushSetupState({ ...healthy, permission: "denied", browserEndpoint: null, supported: false })).toBe("none");
+    expect(pushSetupState({ ...healthy, permission: "denied", browserEndpoint: null, serverEnabled: false })).toBe("none");
   });
 
   it("is ok as soon as a subscription exists", () => {
