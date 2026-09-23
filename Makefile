@@ -8,6 +8,10 @@ FRONTEND_DIR := frontend
 
 FRONTEND_PORT ?= 8000
 
+# Where vite's dev proxy forwards /api (prefix stripped) and /ws (L0): dev is one origin,
+# like production behind Caddy. The phone's URL is the vite port only.
+BACKEND_ORIGIN ?= http://127.0.0.1:8001
+
 # Absolute path so it works even when backend Makefile runs in backend/
 BACKEND_PY ?= $(abspath $(BACKEND_DIR)/.venv/bin/python)
 
@@ -15,8 +19,8 @@ help:
 	@echo "Repo targets:"
 	@echo "  make backend           Run backend (local) on 127.0.0.1:8001"
 	@echo "  make backend-lan       Run backend (LAN) on 0.0.0.0:8001"
-	@echo "  make frontend          Run frontend (local) on :$(FRONTEND_PORT)"
-	@echo "  make frontend-lan      Run frontend (LAN) on :$(FRONTEND_PORT)"
+	@echo "  make frontend          Run frontend (local) on :$(FRONTEND_PORT), proxying /api + /ws to $(BACKEND_ORIGIN)"
+	@echo "  make frontend-lan      Run frontend (LAN) on :$(FRONTEND_PORT), proxying /api + /ws to $(BACKEND_ORIGIN)"
 	@echo "  make frontend-install  npm install in frontend/"
 	@echo "  make dev               Run backend-lan + frontend-lan together (Linux/macOS)"
 	@echo "  make test              Run backend tests"
@@ -52,10 +56,10 @@ frontend-install:
 	$(NODE_ENV_SH) cd $(FRONTEND_DIR) && npm install
 
 frontend:
-	$(NODE_ENV_SH) cd $(FRONTEND_DIR) && npm run dev -- --port $(FRONTEND_PORT)
+	$(NODE_ENV_SH) cd $(FRONTEND_DIR) && BACKEND_ORIGIN=$(BACKEND_ORIGIN) npm run dev -- --port $(FRONTEND_PORT)
 
 frontend-lan:
-	$(NODE_ENV_SH) cd $(FRONTEND_DIR) && npm run dev -- --host 0.0.0.0 --port $(FRONTEND_PORT)
+	$(NODE_ENV_SH) cd $(FRONTEND_DIR) && BACKEND_ORIGIN=$(BACKEND_ORIGIN) npm run dev -- --host 0.0.0.0 --port $(FRONTEND_PORT)
 
 # Runs both concurrently (Linux/macOS). On Windows, use two terminals:
 #   make backend-lan

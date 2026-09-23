@@ -764,7 +764,7 @@ workers will see each other's in-flight files in `npm run check`; commit only yo
 
 ---
 
-## L0 — Same-origin dev: vite proxies `/api` and `/ws`  ☐
+## L0 — Same-origin dev: vite proxies `/api` and `/ws`  ☑
 
 **The gap.** `frontend/.env.local` (untracked) points the browser at `http://192.168.178.78:8001`;
 `vite.config.ts` has no `server.proxy`; `app/main.py:63-69` mounts `CORSMiddleware` with `*`.
@@ -810,19 +810,68 @@ cat frontend/.env.local                                     # → the two absolu
    replaces it; L2 deletes the middleware and `app/config.py`.
 
 **Definition of done.**
-- ☐ From the phone (or `curl -H 'Host: 192.168.178.78:8000'` from the Pi):
+- ☑ From the phone (or `curl -H 'Host: 192.168.178.78:8000'` from the Pi):
   `http://192.168.178.78:8000/api/tournaments` → the JSON the backend serves;
   `http://127.0.0.1:<V>/api/health` → `{"status":"ok"}`.
-- ☐ The realtime dot goes live through the proxy: open a tournament at `http://127.0.0.1:<V>`,
+- ☑ The realtime dot goes live through the proxy: open a tournament at `http://127.0.0.1:<V>`,
   `ConnectionIndicator` renders nothing (i.e. connected); the backend log shows the `/ws/…`
   upgrade arriving at the backend port.
-- ☐ `npm run check` green (no source changed; the config file compiles).
-- ☐ Deviations filled in.
+- ☑ `npm run check` green (no source changed; the config file compiles).
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §3: "the dev UI reaches the API through vite's proxy; `.env.local` is
 relative; the phone's URL is the vite port only."
 
-**Deviations.** —
+**Deviations.**
+- **The proxy keys are `"/api/"` and `"/ws/"`, with the trailing slash** — the plan wrote `"/api"`
+  and `"/ws"`. Vite matches a string key as a plain prefix, so `"/api"` would also have swallowed
+  an SPA path like `/apiary`; the slash makes it the exact shape of Caddy's `handle_path /api/*`
+  and `handle /ws/*`. Consequence, identical to production: a bare `/api` (no slash) is not
+  proxied and falls through to the SPA's `index.html` (measured: `200 text/html`). The rewrite is
+  unchanged (`/^\/api/` → `""`, so `/api/health` reaches the backend as `/health`).
+- `BACKEND_ORIGIN` is read as `process.env.BACKEND_ORIGIN || "http://127.0.0.1:8001"` (an empty
+  string also falls back). The `Makefile` spells it once as `BACKEND_ORIGIN ?= http://127.0.0.1:8001`
+  and passes it on the `frontend` / `frontend-lan` command lines, so `make frontend
+  BACKEND_ORIGIN=…` overrides it; `make help` prints where the proxy points. `backend-lan` still
+  binds `0.0.0.0` — untouched, as the task says.
+- **`frontend/.env.local`** — the new content is exactly the two lines above
+  (`VITE_API_BASE_URL=/api`, `VITE_WS_BASE_URL=` empty). It was written **only in this worktree**
+  (it did not exist here; the file is git-ignored by `frontend/.env.*`, so nothing is committed).
+  **The main checkout's `.env.local` still holds the two absolute `192.168.178.78:8001` lines and
+  was not touched** — it keeps working after the merge too, because L0 leaves CORS in place; it
+  must be switched to the relative lines when Roli moves his dev servers onto this branch, and
+  **L2 makes that mandatory** (CORS and cross-origin cookies go). L15 carries this into
+  `README.md`'s dev section (L14 was dropped). Note the §10 vitest gotcha flips with it: with a
+  relative `.env.local`, `API_BASE` in tests is `/api` on this machine too.
+- Measured against the isolated stack (backend 8231 on `127.0.0.1` with a DB + uploads copy under
+  the scratchpad, vite 8251 bound to `0.0.0.0` so the LAN address answers):
+  - `http://127.0.0.1:8251/api/health` → `{"status":"ok"}`; **`http://192.168.178.78:8251/api/tournaments`
+    → `200`, 13,324 B `application/json`**, byte-identical in size to the backend's own
+    `http://127.0.0.1:8231/tournaments`; `http://192.168.178.78:8251/api/players/1/avatar?w=64` →
+    `200` 1,060 B `image/webp` (media and the `?w=` ladder ride through unchanged).
+  - What the backend actually receives, measured with a header-echo server on 8231 behind the
+    same vite: `path=/tournaments?x=1` (prefix stripped, query kept), `host: 192.168.178.78:8251`
+    (`changeOrigin: false` keeps the browser's `Host`), and **no `X-Forwarded-*` header at all**;
+    uvicorn logs every proxied request with peer `127.0.0.1`.
+  - WebSockets over the LAN address: `ws://192.168.178.78:8251/ws/tournaments` and
+    `…/ws/tournaments/20` open, answer `connected` and a `pong`; the backend logs
+    `"WebSocket /ws/tournaments" [accepted]` on 8231 (path not stripped).
+  - Browser (headless Chromium, 390×844 dpr 3) on `http://192.168.178.78:8251/live/20` **and** on
+    `http://127.0.0.1:8251/live/20`: every request and socket has the page's own origin (one
+    origin in the list), 8 `/api/…` requests, `/ws/tournaments` and `/ws/tournaments/20` connect,
+    no failed request, and after 3 s the page shows neither "Reconnecting" nor "Offline" (past
+    `ConnectionIndicator`'s 1.2 s grace, i.e. connected). Vite's own HMR socket (`/?token=…`) is
+    unaffected by the `/ws/` key.
+  - Vite logs `ws proxy error: write ECONNRESET / EPIPE` **only when a client dies without a
+    closing handshake** (a killed script, `browser.close()`); a clean `close(1000)` logs nothing
+    (measured 7 → 7). http-proxy noise, not a fault — left alone.
+- `npm run check` green: **839 tests in 88 files** (the baseline), tsc and eslint clean.
+- **Not done here, and why:** no real phone was in the loop — the LAN proof is `curl`, Node's
+  WebSocket and Chromium against `192.168.178.78:8251` from the Pi itself, which exercises the
+  LAN interface and vite's `0.0.0.0` bind but not Wi-Fi. **The plan's Playwright note is wrong**:
+  there is no `playwright` under `frontend/node_modules` (nor a root `node_modules/` any more); this
+  task borrowed `playwright-core` 1.62.1 from `/home/roli/projects/racer/node_modules` (read-only,
+  Chromium 1243 from `~/.cache/ms-playwright`). L4+ will hit the same thing.
 
 ## L1 — The schema, the settings, the boot guard, the migration, `auth-preflight`  ☐
 
