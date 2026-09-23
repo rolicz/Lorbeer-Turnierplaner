@@ -1,3 +1,7 @@
+# Import additional site configs (one file per app). Host dir configurable
+# via CADDY_SITES_DIR in .env; defaults to the in-repo deploy/sites/.
+import /etc/caddy/sites/*.caddy
+
 lorbeerkranz.xyz, www.lorbeerkranz.xyz {
   encode gzip zstd
 

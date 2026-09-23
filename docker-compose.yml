@@ -57,6 +57,7 @@ services:
         condition: service_started
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${CADDY_SITES_DIR:-./deploy/sites}:/etc/caddy/sites:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
