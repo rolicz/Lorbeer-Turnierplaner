@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from sqlalchemy import inspect, text
 from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 from .league_nations import backfill_league_nations
+
+if TYPE_CHECKING:
+    from .settings import Settings
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +32,11 @@ def configure_db(db_url: str) -> None:
 
     _engine = create_engine(db_url, **engine_kwargs)
 
-def init_db() -> None:
+def init_db(settings: Settings | None = None) -> None:
+    """Create and migrate the schema, then run the idempotent boot backfills.
+
+    `settings` is what the auth migration reads `player_accounts[]` from; without it (a
+    test helper that only wants the tables) the migration is skipped and says so."""
     if _engine is None:
         raise RuntimeError("DB not configured. Call configure_db(db_url) first.")
 
@@ -39,6 +47,7 @@ def init_db() -> None:
 
     SQLModel.metadata.create_all(_engine)
     _ensure_runtime_columns()
+    _ensure_runtime_indexes()
 
     changed = backfill_league_nations(_engine)
     if changed > 0:
@@ -48,6 +57,16 @@ def init_db() -> None:
     seeded = backfill_club_star_history(_engine)
     if seeded > 0:
         log.info("Club star history seeded: %s", seeded)
+
+    # Accounts, the one group, memberships and the group_id backfill (L1). After the
+    # runtime columns (it backfills them), before the record holders. Raises on a
+    # database that cannot be given unique login names — the backend must not boot there.
+    if settings is None:
+        log.info("Auth migration skipped: init_db() was called without settings")
+    else:
+        from .services.auth_migration import migrate_from_settings
+
+        migrate_from_settings(_engine, settings)
 
     # Who holds which record, as of now (M2). Lazily imported for the same reason as
     # above, and *silent by design*: a key that has never been computed is stored
@@ -91,6 +110,23 @@ _RUNTIME_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # `edited_at` existed: `create_all` never alters an existing table, so without it
     # those copies would keep a `featurerequest` the shipped code cannot read.
     ("featurerequest", "edited_at", "DATETIME"),
+    # The group a row belongs to (L1). Nullable, no default: old code never writes it,
+    # and the boot migration backfills NULL rows only. The models declare the same
+    # column with `foreign_key="group.id"`, so a fresh database gets it from create_all.
+    ("tournament", "group_id", "INTEGER"),
+    ("friendlymatch", "group_id", "INTEGER"),
+    ("featurerequest", "group_id", "INTEGER"),
+    ("clubstarrating", "group_id", "INTEGER"),
+)
+
+# Indexes create_all would have made for a runtime column on a fresh database, but never
+# makes on an existing table: (index name, table, column). Named exactly as SQLModel
+# names them, so a fresh and a migrated database end up with the same index.
+_RUNTIME_INDEXES: tuple[tuple[str, str, str], ...] = (
+    ("ix_tournament_group_id", "tournament", "group_id"),
+    ("ix_friendlymatch_group_id", "friendlymatch", "group_id"),
+    ("ix_featurerequest_group_id", "featurerequest", "group_id"),
+    ("ix_clubstarrating_group_id", "clubstarrating", "group_id"),
 )
 
 
@@ -107,6 +143,19 @@ def _ensure_runtime_columns() -> None:
             continue
         with _engine.begin() as conn:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+
+def _ensure_runtime_indexes() -> None:
+    if _engine is None:
+        return
+    inspector = inspect(_engine)
+    tables = set(inspector.get_table_names())
+    for name, table, column in _RUNTIME_INDEXES:
+        if table not in tables:
+            continue
+        if column not in {col["name"] for col in inspector.get_columns(table)}:
+            continue
+        with _engine.begin() as conn:
+            conn.execute(text(f"CREATE INDEX IF NOT EXISTS {name} ON {table} ({column})"))
 
 def get_session():
     if _engine is None:

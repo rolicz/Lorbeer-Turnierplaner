@@ -22,13 +22,16 @@ from .routers.push import router as push_router
 from .routers.stats import router as stats_router
 from .routers.tournaments import router as tournaments_router
 from .services.notifications import NotificationDispatcher
-from .settings import Settings
+from .settings import Settings, assert_auth_config_safe
 from .ws import ws_manager, ws_manager_player_profiles, ws_manager_update_tournaments
 
 log = logging.getLogger(__name__)
 
 def create_app(settings: Settings) -> FastAPI:
     setup_logging(settings.log_level)
+
+    # Refuse an unsafe auth configuration before anything is configured or listening (L1).
+    assert_auth_config_safe(settings)
 
     # IMPORTANT: configure DB BEFORE init_db / Session usage
     configure_db(settings.db_url)
@@ -40,7 +43,7 @@ def create_app(settings: Settings) -> FastAPI:
         load_cup_defs()
         log.info("Cup defs validated")
 
-        init_db()
+        init_db(settings)
         log.info("DB initialized")
 
         push_dispatcher = NotificationDispatcher(get_engine(), settings)

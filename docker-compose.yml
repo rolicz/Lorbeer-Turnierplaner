@@ -17,6 +17,11 @@ services:
       PUSH_VAPID_PRIVATE_KEY_FILE: "${PUSH_VAPID_PRIVATE_KEY_FILE:-/data/vapid_private_key.pem}"
       PUSH_VAPID_SUBJECT: "${PUSH_VAPID_SUBJECT:-}"
       PUSH_TTL_SECONDS: "${PUSH_TTL_SECONDS:-300}"
+      # Auth (L1). `production` arms the boot guard (no dev origin, no test hash profile);
+      # Caddy is the one proxy in front, so the client IP is the last X-Forwarded-For entry.
+      # AUTH_ORIGIN defaults to https://lorbeerkranz.xyz in code and is not repeated here.
+      APP_ENV: "production"
+      TRUSTED_PROXY_HOPS: "1"
     healthcheck:
       test:
         [

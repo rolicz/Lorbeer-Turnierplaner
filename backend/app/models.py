@@ -35,6 +35,10 @@ class Tournament(SQLModel, table=True):
 
     settings_json: str = Field(default="{}")
 
+    #: The group this row belongs to (L1 adds the column; L3 writes it on create, part 2
+    #: filters by it). NULL on a row old code wrote; the boot migration backfills it.
+    group_id: Optional[int] = Field(default=None, foreign_key="group.id", index=True)
+
     players: List["Player"] = Relationship(back_populates="tournaments", link_model=TournamentPlayer)
     matches: List["Match"] = Relationship(back_populates="tournament")
 
@@ -240,6 +244,10 @@ class ClubStarRating(SQLModel, table=True):
     #: bound, not the exact day). The UI has to be able to say which.
     source: str = Field(default="live", index=True)
 
+    #: The group whose rating this is; NULL = the global rating (L1 adds the column, L12
+    #: gives it meaning: the as-of resolver prefers the group's row over the global one).
+    group_id: Optional[int] = Field(default=None, foreign_key="group.id", index=True)
+
 
 class ClubCrestFile(SQLModel, table=True):
     """
@@ -281,6 +289,10 @@ class FriendlyMatch(SQLModel, table=True):
     updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
 
     source: str = Field(default="tools", index=True)
+
+    #: The group this row belongs to (L1 adds the column; L3 writes it on create, part 2
+    #: filters by it). NULL on a row old code wrote; the boot migration backfills it.
+    group_id: Optional[int] = Field(default=None, foreign_key="group.id", index=True)
 
     sides: List["FriendlyMatchSide"] = Relationship(back_populates="friendly_match")
 
@@ -468,6 +480,10 @@ class FeatureRequest(SQLModel, table=True):
     #: byline that says "edited" because someone triaged the idea is a lie.
     edited_at: dt.datetime | None = Field(default=None)
 
+    #: The group this row belongs to (L1 adds the column; L3 writes it on create, part 2
+    #: filters by it). NULL on a row old code wrote; the boot migration backfills it.
+    group_id: Optional[int] = Field(default=None, foreign_key="group.id", index=True)
+
 
 class FeatureRequestArea(SQLModel, table=True):
     """
@@ -591,3 +607,159 @@ class RecordKeyState(SQLModel, table=True):
     record_key: str = Field(primary_key=True)
     computed_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
     holder_count: int = Field(default=0)
+
+
+# --- Auth and groups (the 2026-09 auth batch) ------------------------------------------
+#
+# Ten additive tables. Old code reads none of them, so a rollback leaves them inert: a
+# session, passkey, invite or account written by new code is simply never consulted.
+# Written first by `services/auth_migration.py::migrate_from_settings` (L1), which turns
+# `secrets.json`'s `player_accounts[]` into `Account` rows once.
+
+
+class Group(SQLModel, table=True):
+    """A friend group. Part 1 has exactly one, `altherren`, seeded at boot (L1).
+
+    Per group: tournaments, friendlies, cups, comments, ideas, stats. Shared across groups:
+    clubs, leagues, players, profiles, guestbook walls. Read by `services/groups.py` (L2)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    slug: str = Field(index=True, unique=True)
+    name: str
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+
+
+class GroupMembership(SQLModel, table=True):
+    """Who is in which group, and as what: `owner` | `member` (member = today's editor).
+
+    The boot migration makes every existing player a member of `altherren` and every
+    migrated admin an owner (L1); `services/groups.py::effective_role` reads it (L2)."""
+
+    group_id: int = Field(foreign_key="group.id", primary_key=True)
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    role: str = Field(default="member")  # "owner" | "member"
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+
+
+class Account(SQLModel, table=True):
+    """A player who can log in — every player has one from the first migrated boot (L1).
+
+    `name_key` is the casefolded display name, and its unique index is where "login names
+    are unique app-wide, case-insensitively" lives: SQLite's `UNIQUE` on
+    `Player.display_name` is case-sensitive and cannot be re-collated without rebuilding
+    the table. `password_hash` is an argon2id string with its own salt inside
+    (`services/passwords.py`), NULL when the account has no password (`password_origin
+    = "none"`): such a player gets in only through a reset link (L3) or a passkey (L8).
+    Read by the login (L2), the account API (L3) and the passkey ceremonies (L8)."""
+
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    name_key: str = Field(index=True, unique=True)
+    password_hash: Optional[str] = Field(default=None)
+    password_origin: str = Field(default="none")  # "none" | "migrated" | "set"
+    password_updated_at: Optional[dt.datetime] = Field(default=None)
+    site_admin: bool = Field(default=False)
+    #: 32 random bytes, base64url — the WebAuthn user handle (L8). Never the player id.
+    webauthn_user_handle: str = Field(index=True, unique=True)
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+
+
+class AuthSession(SQLModel, table=True):
+    """One logged-in device. The cookie carries a random token; this row holds only its
+    sha256 (`token_hash`). Revocation is `DELETE`. Written and read by
+    `services/sessions.py` (L2); listed by the account and admin APIs (L3)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    player_id: int = Field(foreign_key="player.id", index=True)
+    token_hash: str = Field(index=True, unique=True)
+    kind: str = Field(default="password")  # "password" | "passkey" | "register" | "reset" | "exchange"
+    user_agent: str = Field(default="")
+    device_label: str = Field(default="")
+    ip: str = Field(default="")
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    last_seen_at: dt.datetime = Field(default_factory=dt.datetime.utcnow, index=True)
+    expires_at: dt.datetime = Field(index=True)
+
+
+class Passkey(SQLModel, table=True):
+    """A registered WebAuthn credential (L8 writes and reads it)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    player_id: int = Field(foreign_key="player.id", index=True)
+    credential_id: str = Field(index=True, unique=True)  # base64url
+    public_key: str  # base64url (COSE)
+    sign_count: int = Field(default=0)
+    transports: str = Field(default="[]")  # JSON list
+    aaguid: str = Field(default="")
+    device_type: str = Field(default="")
+    backed_up: bool = Field(default=False)
+    label: str = Field(default="")
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    last_used_at: Optional[dt.datetime] = Field(default=None)
+
+
+class WebAuthnChallenge(SQLModel, table=True):
+    """A server-minted, single-use ceremony challenge (L8). Consumed by `DELETE` *before*
+    verification, so a replayed challenge fails by simply not existing."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    challenge: str = Field(index=True, unique=True)  # base64url
+    kind: str  # "register" | "login"
+    player_id: Optional[int] = Field(default=None, foreign_key="player.id")  # NULL for sign-in
+    expires_at: dt.datetime = Field(index=True)
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+
+
+class InviteCode(SQLModel, table=True):
+    """A single-use, one-hour code that grants membership in its group (L3). The code is
+    shown once at creation; the row holds only its sha256."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code_hash: str = Field(index=True, unique=True)
+    group_id: int = Field(foreign_key="group.id")
+    #: NULL when minted from the CLI (`manage.py invite`), which has no caller.
+    created_by: Optional[int] = Field(default=None, foreign_key="player.id")
+    note: str = Field(default="")
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    expires_at: dt.datetime = Field(index=True)
+    redeemed_by: Optional[int] = Field(default=None, foreign_key="player.id")
+    redeemed_at: Optional[dt.datetime] = Field(default=None)
+
+
+class PasswordResetToken(SQLModel, table=True):
+    """An admin-issued, one-hour, single-use reset link (L3). The long random token travels
+    in the URL fragment; the row holds only its sha256."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    player_id: int = Field(foreign_key="player.id", index=True)
+    token_hash: str = Field(index=True, unique=True)
+    #: NULL when minted from the CLI (`manage.py reset-link`), which has no caller.
+    created_by: Optional[int] = Field(default=None, foreign_key="player.id")
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    expires_at: dt.datetime = Field(index=True)
+    used_at: Optional[dt.datetime] = Field(default=None)
+
+
+class Cup(SQLModel, table=True):
+    """A cup of one group (L12: `cups.json` becomes the seed, `cup_defs.load_cup_defs`
+    reads these rows)."""
+
+    __table_args__ = (UniqueConstraint("group_id", "key", name="uq_cup_group_key"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    group_id: int = Field(foreign_key="group.id", index=True)
+    key: str
+    name: str
+    since_date: Optional[dt.date] = Field(default=None)
+    sort_order: int = Field(default=0)
+
+
+class CupEra(SQLModel, table=True):
+    """One era of a cup: from `since` on, the cup is played in `mode` (L12)."""
+
+    __table_args__ = (UniqueConstraint("cup_id", "since", name="uq_cupera_cup_since"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    cup_id: int = Field(foreign_key="cup.id", index=True)
+    since: dt.date
+    mode: str  # "1v1" | "2v2" | "any"

@@ -439,7 +439,73 @@ def parse_args() -> argparse.Namespace:
         help="Remote repo root, e.g. hetzner:/home/rczerny/projects/Lorbeer-Turnierplaner",
     )
 
+    preflight = sub.add_parser(
+        "auth-preflight",
+        help="Dry-run the auth boot migration against a database (opened read-only) and report; exit 1 on a problem",
+    )
+    # Accepted after the subcommand too (`auth-preflight --secrets … --db-url …`), which is
+    # how the deploy notes spell it; SUPPRESS keeps the global value when they are absent.
+    preflight.add_argument("--secrets", default=argparse.SUPPRESS)
+    preflight.add_argument("--db-url", default=argparse.SUPPRESS)
+
+    # The escape hatch's five commands (FEATURES_2026-09-auth.md, "The escape hatch"). The
+    # CLI shape is fixed here (L1); the bodies need `services/accounts.py` and are L3's.
+    reset_link = sub.add_parser("reset-link", help="Print a one-hour password reset link for a player (L3)")
+    reset_link.add_argument("--player", required=True)
+    set_password = sub.add_parser("set-password", help="Prompt (no echo) for a new password and store its hash (L3)")
+    set_password.add_argument("--player", required=True)
+    make_admin = sub.add_parser("make-admin", help="Make a player's account a site admin (L3)")
+    make_admin.add_argument("--player", required=True)
+    invite = sub.add_parser("invite", help="Print a one-hour invite code for a group (L3)")
+    invite.add_argument("--group", required=True)
+    sessions = sub.add_parser("sessions", help="List a player's sessions, or revoke them all (L3)")
+    sessions.add_argument("--player", required=True)
+    sessions.add_argument("--revoke-all", action="store_true")
+
     return p.parse_args()
+
+
+ESCAPE_HATCH_COMMANDS = {"reset-link", "set-password", "make-admin", "invite", "sessions"}
+
+
+def _read_only_engine(db_path: Path):
+    """A SQLAlchemy engine over `mode=ro` — the recovery command's precedent: nothing it
+    runs can write, even by mistake."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import NullPool
+
+    uri = f"file:{db_path}?mode=ro"
+    return create_engine("sqlite://", creator=lambda: sqlite3.connect(uri, uri=True), poolclass=NullPool)
+
+
+def _render_preflight(report, *, db_path: Path) -> str:
+    lines = [f"Auth preflight against {db_path} (read-only, nothing written)", ""]
+    lines.append(f"  group to create:            {'altherren' if report.groups_created else '— (exists)'}")
+    lines.append(f"  memberships to create:      {report.memberships_created}")
+    lines.append(
+        f"  accounts with a password:   {report.accounts_migrated}"
+        + (f"  ({', '.join(report.migrated_names)})" if report.migrated_names else "")
+    )
+    lines.append(f"  accounts without a password: {report.accounts_created - report.accounts_migrated}")
+    lines.append(
+        f"  owners (site admins):       {report.owners_promoted}"
+        + (f"  ({', '.join(report.admin_names)})" if report.admin_names else "")
+    )
+    backfill = ", ".join(f"{t}={n}" for t, n in report.backfilled.items()) or "—"
+    lines.append(f"  group_id backfill:          {backfill}")
+    for name in report.duplicate_entries:
+        lines.append(f"  note: player_accounts entry {name!r} repeats an earlier name; the first one wins")
+    if report.accounts_with_password_after == 0:
+        lines.append("  WARNING: no account would have a password afterwards — nobody could log in with one.")
+    lines.append("")
+    if report.unmatched_names:
+        lines.append("PROBLEM: player_accounts names that match no player (they would be skipped):")
+        lines.extend(f"  - {name}" for name in report.unmatched_names)
+    if report.case_collisions:
+        lines.append("PROBLEM: players whose names differ only in case (the backend would refuse to boot):")
+        lines.extend(f"  - {' / '.join(names)}" for names in report.case_collisions)
+    lines.append("RESULT: " + ("FAIL" if report.problems else "OK"))
+    return "\n".join(lines)
 
 
 def main() -> None:
@@ -460,7 +526,25 @@ def main() -> None:
         db_commands = db_commands | {args.cmd}
     if args.cmd in db_commands:
         configure_db(settings.db_url)
-        init_db()
+        init_db(settings)
+
+    if args.cmd in ESCAPE_HATCH_COMMANDS:
+        print(f"{args.cmd}: not until L3 — the command shape is fixed, its body is not written yet", file=sys.stderr)
+        raise SystemExit(2)
+
+    if args.cmd == "auth-preflight":
+        from app.services.auth_migration import migrate_from_settings
+
+        db_path = _sqlite_path_from_settings(settings.db_url)
+        if db_path is None or not db_path.is_file():
+            raise RuntimeError(f"auth-preflight needs an existing SQLite file; db_url={settings.db_url!r}")
+        engine = _read_only_engine(db_path)
+        try:
+            report = migrate_from_settings(engine, settings, dry_run=True)
+        finally:
+            engine.dispose()
+        print(_render_preflight(report, db_path=db_path))
+        raise SystemExit(1 if report.problems else 0)
 
     if args.cmd == "seed":
         data = load_seed_file(args.file)

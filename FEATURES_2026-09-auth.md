@@ -873,7 +873,7 @@ relative; the phone's URL is the vite port only."
   task borrowed `playwright-core` 1.62.1 from `/home/roli/projects/racer/node_modules` (read-only,
   Chromium 1243 from `~/.cache/ms-playwright`). L4+ will hit the same thing.
 
-## L1 — The schema, the settings, the boot guard, the migration, `auth-preflight`  ☐
+## L1 — The schema, the settings, the boot guard, the migration, `auth-preflight`  ☑
 
 **The gap.** `models.py` has no `Group`, `Account` or session table; `settings.py` knows
 `jwt_secret` and `ws_require_auth` and nothing about an origin, a proxy or an environment;
@@ -955,19 +955,90 @@ grep -n "argon2\|webauthn" backend/requirements.txt                             
    Deviations.
 
 **Definition of done.**
-- ☐ `make test` green (the existing 303 plus `test_auth_migration.py` ≈ 12: each step, idempotency
+- ☑ `make test` green (the existing 303 plus `test_auth_migration.py` ≈ 12: each step, idempotency
   on a second run, the unmatched name, the collision refusal, the four backfills;
   `test_settings_guard.py` ≈ 6: every refusal, the warning, the two legitimate shapes).
-- ☐ Argon2 timing written down: `hash_password` × 10 on the Pi with the `default` profile, median
+- ☑ Argon2 timing written down: `hash_password` × 10 on the Pi with the `default` profile, median
   in ms; and once inside `docker compose build`'s image if a build is run (else say not run).
-- ☐ The rollback drill of step 9, with its numbers.
-- ☐ `make lint` clean. No response model touched → no `gen-types`.
-- ☐ Deviations filled in.
+- ☑ The rollback drill of step 9, with its numbers.
+- ☑ `make lint` clean. No response model touched → no `gen-types`.
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §5: the ten tables, the four columns, the migration and its one log line;
 §4: the new settings keys with their defaults and the guard; §8: `auth-preflight`.
 
-**Deviations.** —
+**Deviations.**
+- **`backend/app/main.py` was touched although L1's row does not list it** — step 3 and step 6 of
+  this very section require it (`init_db(settings)` in the lifespan, `assert_auth_config_safe`
+  first thing in `create_app`). Two lines; L0 does not touch the file; L2 owns it next.
+- **The `Makefile` half of step 7 was *not* done**: the file is L0's in group A. `make backend`
+  boots fine without it (defaults: `development`, pinned `https://` origin → the guard passes);
+  `AUTH_DEV_ORIGIN=1 APP_ENV=development` on the `backend`/`backend-lan` recipes is left for
+  whoever next owns the Makefile (L2 or L8 — it matters only once passkeys exist).
+- **`argon2-cffi` is a wheel on both targets.** Installed into the shared venv through the
+  symlink (additive, expected): `argon2_cffi-25.1.0-py3-none-any` plus, unpinned as the library
+  declares it, **`argon2_cffi_bindings-26.1.0-cp310-abi3-manylinux_2_26_aarch64.manylinux_2_28_aarch64`**
+  (not 25.1.0 as step 1 guessed — 26.1.0 is what resolves today). For production, `pip download
+  --only-binary=:all: --platform manylinux_2_28_x86_64 --python-version 3.11` fetched
+  `argon2_cffi_bindings-26.1.0-cp310-abi3-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl` (26 kB)
+  and `cffi-2.1.1-cp311-…manylinux2014_x86_64` — nothing compiles on `python:3.11-slim`
+  (Debian glibc 2.36).
+- **Argon2 timing, measured on the Pi 5**: `default` profile (RFC 9106 low-memory, argon2id,
+  t=3, m=65536 KiB, p=4) — `hash_password` × 10 **median 123.7 ms** (min 119.5, max 133.5),
+  verify median 127.4 ms; `test` profile 7.5 ms. Under the 500 ms line, so `memory_cost` stays.
+  **Not measured inside the x86 image** — no `docker compose build` was run.
+- **Salt**, as Roli required: `PasswordHasher.from_parameters(RFC_9106_LOW_MEMORY)`, no salt
+  argument anywhere, no pepper. `test_one_password_hashed_twice_gives_two_different_hashes_that_both_verify`
+  hashes one password twice under **both** profiles and asserts the strings differ, the salt
+  segments differ, both start `$argon2id$` and both verify; a second test draws 20 hashes of one
+  password and gets 20 distinct salts.
+- **Step 2 is keyed on "no `Account` *and* no membership", not on "no membership" alone.** The
+  migration runs on every boot, and L3's registration creates a player with an account and no
+  membership; "no membership" alone would have pulled every uninvited registrant into
+  `altherren` at the next restart. A player old code writes while rolled back (no account) is
+  still picked up — tested both ways. **L3 must create the `Account` in the same transaction as
+  the `Player`** (register, and the admin roster's `POST /players` if it is to stay out of the
+  group).
+- **Case collisions refuse the boot on every boot, not only the first.** Until L3 checks
+  `name_key` on `POST /players`, an admin creating `flo` beside `Flo` would make the *next
+  restart* refuse — L3 must close that (409 on a taken `name_key`).
+- Added beyond the spec, each small: `APP_ENV` / `PASSWORD_HASH_PROFILE` values outside their
+  lists are **refused** (a typo such as `prod` must not switch the production guards off);
+  `AUTH_RP_NAME` and `SESSION_TTL_DAYS` are env-readable like the rest; `auth_origin` loses a
+  trailing `/`. `InviteCode.created_by` and `PasswordResetToken.created_by` are **nullable**
+  because `manage.py invite` / `reset-link` have no caller. `MigrationReport` also carries
+  `duplicate_entries` (a repeated name in `player_accounts[]`: first wins, as the old login did),
+  `migrated_names`, `admin_names` and `accounts_with_password_after` (the preflight prints a
+  WARNING, not a failure, when nobody would have a password). A migrated password shorter than
+  10 characters is hashed as it is — refusing it would lock its owner out.
+- The log line keeps the planned prefix and appends detail:
+  `Auth migrated: 3 accounts, 1 group, 6 memberships — 3 players without a password, 1 owner,
+  backfilled tournament=18, friendlymatch=23, featurerequest=1, clubstarrating=657`
+  (the dev DB copy's first boot, 1.5 s including three default-profile hashes).
+- **Preflight** against a copy of the dev DB (pre-L1 schema), with a throwaway three-account
+  secrets file: exit **0**, 6 memberships, 3 password accounts (Roli, Berni, Flo), 3 without,
+  1 owner (Roli), the same four backfill counts; the file's sha256 identical before and after
+  (`mode=ro`). Tests prove exit **1** on an unmatched name and on a case collision, and exit 0
+  with nothing to do on an already-migrated database. The five escape-hatch parsers exist and
+  exit **2** with "not until L3".
+- **Rollback drill, measured** (dev DB copy outside the repo, port 8232): new code booted it
+  (the line above; 10 tables, 4 columns, 5 `ix_*_group_id` indexes incl. `ix_cup_group_id`;
+  hashes `$argon2id$v=19$m=65536,t=3,p=4`). Then `git archive cfc1669 backend` booted the **same
+  file** with the old-shape secrets: clean boot (`Cup defs validated`, `DB initialized`), `POST
+  /auth/login` **200** (JWT, 217 chars), wrong password **401**, `GET /me` **200**, `GET
+  /tournaments` **200** (13,324 B), `/stats/records`, `/friendlies`, `/ideas` **200**, `POST
+  /tournaments` **200** → id 21 with `group_id NULL`; old code left the 6 accounts and 6
+  memberships untouched. New code again on the same file: `Auth migrated: 0 accounts, 0 groups,
+  0 memberships — … backfilled tournament=1`, tournament 21 → `group_id 1`, and the JWT old
+  code minted still answers `GET /me` 200 (L2 is what changes that).
+- **Test runtime**: `make test` **334 passed** (303 + 31: 20 in `test_auth_migration.py`, 11 in
+  `test_settings_guard.py`) in **17:48**, against 13–16 min before. Part of it is the Pi (L0's
+  worker ran alongside), part is real: every `TestClient` lifespan now migrates `conftest.py`'s
+  three accounts under the `default` profile (~0.4 s per test). **L2's `conftest.py` rewrite
+  should pass `password_hash_profile="test"`**, as §12 already says; L1 left `conftest.py` alone
+  because it is L2's.
+- `make lint` clean; no response model touched, so no `gen-types`.
+
 
 ## L2 — The gate, the sessions, the cookie login, the exchange, the rate limiter, the audit test, the test fixtures  ☐
 
