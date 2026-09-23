@@ -1334,7 +1334,7 @@ TestClient jar — the fixtures depend on it"; §3: `make test` baseline.
   root cause above** (tsc 1 error, eslint 3 errors, all `LoginOut`/`LoginResponse`), vitest
   **839 passed in 88 files**; `make gen-types` re-run is byte-identical (md5 checked).
 
-## L3 — The account and group API  ☐
+## L3 — The account and group API  ☑
 
 **The gap.** After L2 an account can log in and out and nothing else: no registration, no
 invite, no reset, no password change, no admin surface, no owner role, no `group_id` on a new
@@ -1405,25 +1405,162 @@ grep -n "group_id" backend/app/routers/tournaments.py                           
     `schema.d.ts` first and L4 rebasing its aliases on it).
 
 **Definition of done.**
-- ☐ `tests/test_accounts.py` (≈30): register happy path (row, account, membership, cookie,
+- ☑ `tests/test_accounts.py` (≈30): register happy path (row, account, membership, cookie,
   code spent); the code twice → generic 400; expired → same message; name taken by case
   (`"flo"` vs `Flo`) → 409; password 9 chars → 400; redeem from inside; reset link mints,
   consumes, ends other sessions, second use fails; password change wrong current → 403; remove
   password without passkey → 409; `create_player` collides by case → 409 and creates the
   account + membership.
-- ☐ `tests/test_admin.py` (≈20): the owner/site-admin split on every route; last-owner demotion
+- ☑ `tests/test_admin.py` (≈20): the owner/site-admin split on every route; last-owner demotion
   refused; invite listing never carries the code; reset link for a player with no login gives
   them one; `GET /players` hides a no-group account and shows it after redeem.
-- ☐ `manage.py reset-link --player Roli` against the stack's copy prints a URL that the reset
+- ☑ `manage.py reset-link --player Roli` against the stack's copy prints a URL that the reset
   page (L5) will consume — for L3, `curl` the token to `/auth/reset` and log in with the new
   password.
-- ☐ `make test`, `make lint`, `make gen-types` committed.
-- ☐ Deviations filled in.
+- ☑ `make test`, `make lint`, `make gen-types` committed.
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §6: the account and admin endpoints, who may call each, the generic
 refusal rule, the roster rule; §8: the five commands.
 
-**Deviations.** —
+**Deviations.**
+- **Files touched outside L3's row, each for a stated reason:** `backend/app/main.py` (two lines —
+  import and `include_router` for the new `routers/admin.py`; nothing else registers a router);
+  `backend/app/auth_gate.py` (L2's handoff: `PUBLIC_PATHS` gains **`/auth/register`** and
+  **`/auth/reset`**, nothing else — `/auth/redeem` is deliberately *not* public, it stays an account
+  path because redeeming as an existing account needs that account's session; L2's audit walks all
+  fourteen new route × method pairs (five `/auth/…`, nine `/admin/…`) unchanged and passes); `backend/tests/test_sessions.py` (one
+  assertion: L2 pinned `device_label == ""`, which was the pre-L3 state — a session minted by the
+  test client now reads `"Unknown device"`). `conftest.py` was not touched; its
+  `create_nogroup_account` still builds the rows directly, which is exactly the state `register`
+  can produce minus the membership.
+- **`account_summary` was not written**: `services/sessions.py::me_payload` (L2) already *is* that
+  summary and every account endpoint answers `MeOut` through it; a second function would have been
+  a second answer to "does this account have a password". `accounts.has_passkey` exists for
+  `remove_password` (and L8). **`session_out(row, current_id)`** moved from `routers/auth.py` into
+  `services/accounts.py` so `/auth/sessions` and `/admin/accounts/{pid}/sessions` share one shape
+  without a router importing a router.
+- **Login surface, as shipped** (all in `routers/auth.py`, thin): `POST /auth/register
+  {code, display_name, password}` → `MeOut` + cookie (`kind="register"`), public; `POST
+  /auth/redeem {code}` → `MeOut` (the fresh groups), account path; `POST /auth/reset {token,
+  password}` → `MeOut` + cookie (`kind="reset"`), public; `POST /auth/password {current_password?,
+  new_password}` → `MeOut`; `DELETE /auth/password` → `MeOut`. One wrapper (`_counted`) runs each
+  rate-limited body: 429 before it runs, **every 4xx it raises counted**, a success recorded.
+- **Rules decided here, beyond the section's text:**
+  - **Register checks the code first**, before the name and the password, and *spends* it last,
+    in the same transaction as `Player` + `Account` + `GroupMembership` + the session. So a caller
+    without a valid code cannot learn whether a name is taken (tested), and a 409 name / 400
+    password refusal leaves the code usable for the second try (tested). The spend is a
+    **conditional `UPDATE … WHERE redeemed_at IS NULL`** — two requests racing for one code cannot
+    both win; the reset token is spent the same way.
+  - **Reset validates the password before spending the token**, so a too-short password does not
+    burn the link. **A new reset link deletes the player's previous unused ones** — the newest is
+    the only one that works, which is how a link sent to the wrong chat is killed.
+  - **`POST /auth/password` is rate-limited on the `login` family's account key** (10 wrong
+    current passwords / 10 min → 429): a stolen session must not become a free password oracle.
+    A password change **does not** end the account's other sessions (the plan is silent; every
+    added state is a way to log someone out by mistake) — the reset link does, as specified. An
+    account with no password (reset pending, passkey-only later) sets its first without a current
+    one.
+  - **Redeeming into a group you are already in is 409** and leaves the code unspent; a code
+    always grants `member`, never `owner`.
+  - **The last owner of a group cannot be demoted by anyone, the site admin included** (409). The
+    section says "a site admin may do anything"; read as "may act without being a member", not as
+    "may leave a group with nobody who can invite". Several owners are fine; an owner may demote
+    another owner while two remain.
+  - **`PATCH /players/{id}` moves `Account.name_key` with the rename**, in the same transaction —
+    the display name *is* the login name; without this a renamed player would log in under the old
+    name and the old key would block the name for everybody else. Recasing one's own name is
+    allowed. `ensure_name_free` checks every `Account.name_key` **and** every `Player` (an old-code
+    row without an account), so neither register nor the admin routes can write a pair the boot
+    migration would refuse. **`POST /players` keeps its looser rule** (non-empty, no 2–40 limit —
+    the existing tests create players called `A`), but now answers **409** for a taken name where
+    it used to return the existing row, and writes `Player` + passwordless `Account` + `altherren`
+    membership in one commit (L1's handoff).
+  - **Reset-link URLs:** `{origin}/g/altherren/reset#<token>`; `origin` is the pinned
+    `auth_origin`, except in dev-origin mode where the admin's request `Origin` wins when it sent
+    one (so a link minted on `http://192.168.178.78:8000` points back there, measured). `manage.py
+    reset-link` uses `auth_origin` and takes `--origin` to override.
+- **The push prefix lives in `NotificationDispatcher._payload_for`**, called by `_deliver_one` per
+  recipient row — not in `enqueue_personal_for_player` / `enqueue_for_player` as the section said.
+  The rule is *per recipient* ("only when the recipient is in several"), the enqueue does not know
+  who receives a broadcast, and `to_payload` re-renders the title from the text key per language,
+  so a prefix written into `PushMessage.title` at enqueue would have been overwritten. One place
+  still; no text key changed. `group_prefix_for_push(s, player_id, group_id=None)` names the
+  current group when none is given (part 1 has one). Tested through the real `_deliver` with the
+  HTTPS POST faked: the two-group recipient gets `Altherren · <title>`, the one-group recipient
+  the plain title.
+- **Admin routes, as shipped** (`routers/admin.py`, `require_owner` on the router): owner+ —
+  `GET /admin/accounts` (site admin: every player incl. uninvited registrants; owner: members of
+  their groups; `role` is the **effective** role in the current group), `POST /admin/invites
+  {note}` → `InviteCreatedOut{id, code, group_slug, note, expires_at}`, `GET /admin/invites` →
+  `InviteOut{id, group_slug, note, created_at, expires_at, created_by: PlayerRef|null}` (no code —
+  asserted against the response *text*, formatted and normalised), `DELETE /admin/invites/{id}`,
+  `PUT /admin/groups/{slug}/members/{pid}/role {role: owner|member}` → `AdminAccountOut`; **site
+  admin only** (the four with `require_admin`) — `GET /admin/accounts/{pid}/sessions` →
+  `SessionOut[]` (`current` = the admin's own), `DELETE /admin/sessions/{sid}`, `POST
+  /admin/accounts/{pid}/revoke-sessions` → `RevokedOut`, `POST /admin/reset-links {player_id}` →
+  `ResetLinkOut{player_id, url, expires_at}`. `MemberRoleBody.role` is a `Literal`, so an unknown
+  role is FastAPI's 422.
+- **`device_label`** recognises iPhone/iPad/Android/Windows/Mac/Linux × Edge/Firefox/Chrome/Safari
+  (Chrome/Firefox/Edge on iOS by `CriOS`/`FxiOS`/`EdgiOS`; the installed iOS PWA, whose UA has no
+  `Safari/` token, still reads `iPhone · Safari`); curl and the test client are `Unknown device`.
+  It is written at mint time by `routers/auth.py::_start_session` through `create_session`'s
+  existing `device_label` parameter — `services/sessions.py` was not touched.
+- **`group_id` on writes**: `create_tournament`, `create_friendly_match`, `create_idea` stamp
+  `current_group(s).id`; the three list endpoints carry the `# part 2: filter by group` comment
+  (for tournaments it sits on the router's call to `build_tournament_list`, whose service file is
+  not L3's). One test creates one of each and asserts the column.
+- **The five escape-hatch commands** each accept `--secrets` / `--db-url` after the subcommand too
+  (the preflight's `SUPPRESS` precedent), resolve the player by login name case-insensitively,
+  configure the engine **without** `init_db` (no seeding, no migration, no sweeps against a live
+  server's database), print one line and exit 0, or print why on stderr and exit 1.
+  `make-admin` gained the `--revoke` the section names (L1's parser lacked it); `invite` gained
+  `--note`; `reset-link` gained `--origin`. **`set-password` reads the two entries with
+  `getpass` on a terminal and as two stdin lines otherwise** (`docker compose exec -T`, a test) —
+  getpass alone would fall back to `/dev/tty` and hang a piped run; the password is never echoed.
+  **Tested twice:** as subprocesses against the test app's own database file in
+  `tests/test_admin.py` (7 tests: each command's success, `set-password`'s two refusals, an
+  unknown player and an unknown group → exit 1), and by hand against the stack's DB copy below.
+- **Verified against the isolated stack** (backend **8234** on `127.0.0.1`, dev DB copied from the
+  main checkout to a scratch dir outside the repo, secrets file naming that copy, the PID killed by
+  number; no vite — every check is a backend curl, so the proxy is L0's measurement, not this
+  one's): first boot logged L1's line (`Auth migrated: 3 accounts, 1 group, 6 memberships …`).
+  **Escape hatch:** `reset-link --player roli` → `https://lorbeerkranz.xyz/g/altherren/reset#…`,
+  exit 0; that token to `POST /auth/reset` → **200** `MeOut` (admin, owner of altherren); the same
+  token again → **400** "That reset link is not valid"; login with the new password **200**, the
+  old **401**. `set-password --player ROLI` (piped) → exit 0, login **200**. `make-admin --player
+  Berni` → `/me` says `admin`, `site_admin: true`; `--revoke` → `editor`, `false`. `invite --group
+  altherren --note rehearsal` → `LM9D-ZPBK`; registering with it → `Neuling · editor ·
+  [altherren]`, `GET /tournaments` **200**. `sessions --player Roli` listed 3, `--revoke-all`
+  revoked 3, the old cookie's `/me` **401**. **API:** a login with an iPhone UA lists as
+  `iPhone · Safari`; `GET /admin/accounts` → all seven players with role / origin / sessions;
+  `POST /admin/invites` → `NH7Q-XC99` once, `GET /admin/invites` → the row without it; `POST
+  /admin/reset-links` with `Origin: http://192.168.178.78:8000` → a link on that origin;
+  anonymous `/admin/accounts` **401**, anonymous `/auth/redeem` **401**, anonymous
+  `/auth/register` with a bad code **400** (public, reached the route).
+- **What L4 / L5 / L6 / L7 inherit** — the wire is in `schema.d.ts` (committed with the response
+  models): `RegisterBody`, `RedeemBody`, `ResetBody`, `PasswordChangeBody`, `InviteCreateBody`,
+  `ResetLinkCreateBody`, `MemberRoleBody`; `AdminAccountOut`, `InviteCreatedOut`, `InviteOut`,
+  `ResetLinkOut`; every account endpoint answers `MeOut`. Refusal texts the UI may show verbatim:
+  `"That code is not valid"` (every bad code), `"That reset link is not valid"` (every bad token),
+  `"That name is taken"` (409), `"The current password is wrong"` (403), the password-length 400s
+  from `passwords.validate_new_password`, `"You are already in this group"` (409 on redeem), the
+  last-owner 409. The 429 shape is L2's (`Retry-After`, `{"detail": {"retry_after": n}}`) —
+  register and redeem share one *redeem* bucket per IP (10/h) and one global (40/h). **L5**: the
+  reset page posts `{token, password}` and gets a session; register/redeem both answer `MeOut`, so
+  `NoGroupPage` can swap in the fresh `groups` without a second `/me`. **L6**: `role` in
+  `AdminAccountOut` is effective (`admin` for a site admin whatever their membership), and the four
+  site-admin routes answer an owner **403** — hide them for owners. **L7**: `POST /auth/password`
+  needs `current_password` whenever `MeOut.has_password`; `DELETE /auth/password` is 409 until L8
+  exists. **L8**: `accounts.has_passkey` and `remove_password` are ready; add the passkey sign-in
+  paths to `PUBLIC_PATHS` as L2 said.
+- **Gates:** `make lint` clean; `make gen-types` committed with the response models (re-run
+  byte-identical); `make test` **442 passed** in 32:27 (373 at `db63bb9` in 31:37 on the same Pi, run against the first commit before the new tests existed) (L2's 373 plus 69: 45 in
+  `test_accounts.py`, 24 in `test_admin.py`; nothing pre-existing moved except the one
+  `test_sessions.py` assertion above). The two new files alone take ≈ 8 min on the Pi — the seven
+  escape-hatch tests each start a Python subprocess.
+- **Commits:** `8b207e1` (the code, the schemas and `schema.d.ts`, committed first so L4 could type against it) and this one (`manage.py`, the two test files, this section).
 
 ## L4 — The frontend switch: cookie session, no token anywhere, the login screen, `RequireAuth`, the offline rule  ☑
 

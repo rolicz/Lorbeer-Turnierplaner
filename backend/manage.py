@@ -448,17 +448,27 @@ def parse_args() -> argparse.Namespace:
     preflight.add_argument("--secrets", default=argparse.SUPPRESS)
     preflight.add_argument("--db-url", default=argparse.SUPPRESS)
 
-    # The escape hatch's five commands (FEATURES_2026-09-auth.md, "The escape hatch"). The
-    # CLI shape is fixed here (L1); the bodies need `services/accounts.py` and are L3's.
-    reset_link = sub.add_parser("reset-link", help="Print a one-hour password reset link for a player (L3)")
+    # The escape hatch's five commands (FEATURES_2026-09-auth.md, "The escape hatch"): Roli's
+    # way back in if login breaks on deploy day. Shape fixed by L1, bodies by L3. Each
+    # resolves the player by login name (case-insensitive), prints one line, commits.
+    def _hatch(name: str, help_text: str) -> argparse.ArgumentParser:
+        cmd = sub.add_parser(name, help=help_text)
+        cmd.add_argument("--secrets", default=argparse.SUPPRESS)
+        cmd.add_argument("--db-url", default=argparse.SUPPRESS)
+        return cmd
+
+    reset_link = _hatch("reset-link", "Print a one-hour, single-use password reset link for a player")
     reset_link.add_argument("--player", required=True)
-    set_password = sub.add_parser("set-password", help="Prompt (no echo) for a new password and store its hash (L3)")
+    reset_link.add_argument("--origin", help="Origin the link points at (default: the configured auth_origin)")
+    set_password = _hatch("set-password", "Prompt (no echo, twice) for a new password and store its argon2id hash")
     set_password.add_argument("--player", required=True)
-    make_admin = sub.add_parser("make-admin", help="Make a player's account a site admin (L3)")
+    make_admin = _hatch("make-admin", "Make a player's account a site admin (or, with --revoke, take it away)")
     make_admin.add_argument("--player", required=True)
-    invite = sub.add_parser("invite", help="Print a one-hour invite code for a group (L3)")
-    invite.add_argument("--group", required=True)
-    sessions = sub.add_parser("sessions", help="List a player's sessions, or revoke them all (L3)")
+    make_admin.add_argument("--revoke", action="store_true")
+    invite = _hatch("invite", "Print a one-hour, single-use invite code for a group")
+    invite.add_argument("--group", required=True, help="The group's slug, e.g. altherren")
+    invite.add_argument("--note", default="")
+    sessions = _hatch("sessions", "List a player's live sessions, or revoke them all")
     sessions.add_argument("--player", required=True)
     sessions.add_argument("--revoke-all", action="store_true")
 
@@ -466,6 +476,99 @@ def parse_args() -> argparse.Namespace:
 
 
 ESCAPE_HATCH_COMMANDS = {"reset-link", "set-password", "make-admin", "invite", "sessions"}
+
+
+def _hatch_player(s, name: str):
+    """The `(Player, Account)` whose login name is `name`, or None (the caller reports)."""
+    from app.models import Player
+    from app.services.accounts import find_account_by_name
+
+    account = find_account_by_name(s, name)
+    player = s.get(Player, int(account.player_id)) if account is not None else None
+    return (player, account) if player is not None else (None, None)
+
+
+def _run_escape_hatch(args, settings) -> int:
+    """The five escape-hatch commands. Returns the exit code: 0 done, 1 refused."""
+    import datetime as dt
+    import getpass
+
+    from fastapi import HTTPException
+
+    from app.models import AuthSession
+    from app.services.accounts import set_password as store_password
+    from app.services.groups import group_by_slug
+    from app.services.invites import create_invite
+    from app.services.passwords import hasher_for
+    from app.services.reset_links import create_reset, reset_url
+    from app.services.sessions import list_sessions, revoke_all_sessions
+
+    with Session(get_engine()) as s:
+        if args.cmd == "invite":
+            group = group_by_slug(s, args.group)
+            if group is None:
+                print(f"invite: no group with the slug {args.group!r}", file=sys.stderr)
+                return 1
+            row, code = create_invite(s, group_id=int(group.id), created_by=None, note=args.note)
+            s.commit()
+            print(f"{code}  (group {group.slug}, single use, expires {row.expires_at.isoformat(timespec='minutes')} UTC)")
+            return 0
+
+        player, account = _hatch_player(s, args.player)
+        if account is None:
+            print(f"{args.cmd}: no account answers to {args.player!r}", file=sys.stderr)
+            return 1
+        who = f"{player.display_name} (id={player.id})"
+
+        if args.cmd == "reset-link":
+            row, token = create_reset(s, player_id=int(player.id), created_by=None)
+            s.commit()
+            print(f"{reset_url(args.origin or settings.auth_origin, token)}  ({who}, single use, expires {row.expires_at.isoformat(timespec='minutes')} UTC)")
+            return 0
+
+        if args.cmd == "set-password":
+            if sys.stdin.isatty():
+                first = getpass.getpass(f"New password for {player.display_name}: ")
+                second = getpass.getpass("Again: ")
+            else:  # piped (`docker compose exec -T`, a test): two lines on stdin, never echoed back
+                first = sys.stdin.readline().rstrip("\r\n")
+                second = sys.stdin.readline().rstrip("\r\n")
+            if first != second:
+                print("set-password: the two entries differ — nothing stored", file=sys.stderr)
+                return 1
+            try:
+                store_password(s, account, first, hasher_for(settings.password_hash_profile), origin="set")
+            except HTTPException as exc:
+                print(f"set-password: {exc.detail} — nothing stored", file=sys.stderr)
+                return 1
+            s.commit()
+            print(f"Password set for {who}; existing sessions stay signed in")
+            return 0
+
+        if args.cmd == "make-admin":
+            account.site_admin = not args.revoke
+            account.updated_at = dt.datetime.utcnow()
+            s.add(account)
+            s.commit()
+            print(f"{who} is {'no longer' if args.revoke else 'now'} a site admin")
+            return 0
+
+        if args.cmd == "sessions":
+            if args.revoke_all:
+                n = revoke_all_sessions(s, int(player.id))
+                s.commit()
+                print(f"Revoked {n} session(s) of {who}")
+                return 0
+            rows: list[AuthSession] = list_sessions(s, int(player.id))
+            print(f"{len(rows)} live session(s) of {who}")
+            for row in rows:
+                print(
+                    f"  #{row.id}  {row.kind:<9} {row.device_label or '—':<20} "
+                    f"last seen {row.last_seen_at.isoformat(timespec='minutes')}  from {row.ip or '?'}"
+                )
+            return 0
+
+    raise AssertionError(f"unhandled escape-hatch command {args.cmd!r}")  # pragma: no cover
 
 
 def _read_only_engine(db_path: Path):
@@ -529,8 +632,8 @@ def main() -> None:
         init_db(settings)
 
     if args.cmd in ESCAPE_HATCH_COMMANDS:
-        print(f"{args.cmd}: not until L3 — the command shape is fixed, its body is not written yet", file=sys.stderr)
-        raise SystemExit(2)
+        configure_db(settings.db_url)
+        raise SystemExit(_run_escape_hatch(args, settings))
 
     if args.cmd == "auth-preflight":
         from app.services.auth_migration import migrate_from_settings
