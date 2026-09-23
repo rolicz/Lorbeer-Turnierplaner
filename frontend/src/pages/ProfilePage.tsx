@@ -5,6 +5,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import VoteVotersModal from "../ui/primitives/VoteVotersModal";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
+import EmptyState from "../ui/primitives/EmptyState";
 
 import { atLeast, useAuth } from "../auth/AuthContext";
 import {
@@ -68,7 +69,11 @@ export default function ProfilePage() {
     queryKey: qk.playerProfile(targetPlayerId ?? "none"),
     queryFn: () => getPlayerProfile(targetPlayerId as number),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+    // A 403 is the server's "not in your group" (L11) — an answer, not a hiccup; asking
+    // again cannot change it. Anything else keeps the app's one retry.
+    retry: (count, error) => !(error instanceof ApiError && error.status === 403) && count < 1,
   });
+  const notInYourGroup = profileQ.error instanceof ApiError && profileQ.error.status === 403;
   // A player that no longer exists must not trap the Players tab (U6).
   const { pathname: locPathname, search: locSearch } = useLocation();
   useEffect(() => {
@@ -295,6 +300,16 @@ export default function ProfilePage() {
     return (
       <PageLayout>
         <div className="px-1 py-8 text-center text-sm text-text-muted">Login to open your profile.</div>
+      </PageLayout>
+    );
+  }
+
+  // The server refused: this player shares no group with the reader (L11). Inside
+  // `PageLayout`, so the back chevron survives (Q6); nothing of the profile is drawn.
+  if (notInYourGroup) {
+    return (
+      <PageLayout title="Profile">
+        <EmptyState title="This profile is in another group." className="py-8" />
       </PageLayout>
     );
   }

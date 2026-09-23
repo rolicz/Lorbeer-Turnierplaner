@@ -2691,7 +2691,7 @@ mark; the server refuses independently"; §11: the last `role="button"` is gone.
 - **Gates**: `make lint` clean; `cd frontend && npm run check` **919 tests in 95 files** (baseline
   909/94 at `5c77313` incl. L12's in-flight test; +7 in `playerLink.test.tsx`, +3 in the new
   `profileAccessSurfaces.test.tsx`); `npm run build` green (`index-*.js` 759.87 kB, the
-  pre-existing >500 kB hint); `make test` MAKETEST. No response model touched, `schema.d.ts`
+  pre-existing >500 kB hint); `make test` **501 passed** in 47:27 on a loaded Pi (baseline 452; +6 mine in `test_player_profiles_auth.py`, the rest are L12's in-flight tests in the same tree). No response model touched, `schema.d.ts`
   untouched.
 - **Canon for L15** (as the task says, plus): `DESIGN.md` §7 — `PlayerLink stretched`; "who may
   open a profile is answered inside `PlayerLink`, from the roster; a foreign author wears the

@@ -12,6 +12,13 @@ export function List({ children, className }: { children: React.ReactNode; class
   return <div className={cn("list-divided", className)}>{children}</div>;
 }
 
+/**
+ * The stretched primary action's class — the whole row is the target, the content sits
+ * above it at `z-10` with `pointer-events-none`. Exported so a custom overlay
+ * (`PlayerLink stretched`, L11) is the identical box and cannot drift from the built-in one.
+ */
+export const LIST_ROW_OVERLAY_CLASS = "absolute inset-0 z-0 rounded-xl focus-ring";
+
 type ListRowOwnProps = {
   /** Leading slot: avatar, icon, rank badge… */
   leading?: React.ReactNode;
@@ -24,6 +31,12 @@ type ListRowOwnProps = {
   state?: unknown;
   /** Primary action: callback (button). */
   onClick?: () => void;
+  /**
+   * A custom stretched primary action, rendered in place of the built-in `Link`/`button`
+   * (e.g. `<PlayerLink stretched …/>`, which decides for itself whether it is a door at all).
+   * It must use `LIST_ROW_OVERLAY_CLASS`.
+   */
+  overlay?: React.ReactNode;
   /** Accessible label for the stretched primary link/button (defaults to title). */
   ariaLabel?: string;
   /** Show a trailing chevron (defaults on for interactive rows w/o trailing). */
@@ -48,6 +61,7 @@ export function ListRow({
   to,
   state,
   onClick,
+  overlay: customOverlay,
   ariaLabel,
   chevron,
   active = false,
@@ -55,12 +69,12 @@ export function ListRow({
   className,
   children,
 }: ListRowOwnProps) {
-  const interactive = Boolean(to || onClick);
+  const interactive = Boolean(to || onClick || customOverlay);
   const showChevron = chevron ?? (interactive && trailing == null);
   const label = ariaLabel ?? (typeof title === "string" ? title : undefined);
 
-  const overlayClass = "absolute inset-0 z-0 rounded-xl focus-ring";
-  const overlay = !interactive ? null : to ? (
+  const overlayClass = LIST_ROW_OVERLAY_CLASS;
+  const overlay = !interactive ? null : customOverlay != null ? customOverlay : to ? (
     <Link to={to} state={state} aria-label={label} className={overlayClass} aria-current={active ? "page" : undefined} />
   ) : (
     <button type="button" onClick={onClick} aria-label={label} className={overlayClass} disabled={disabled} />

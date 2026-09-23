@@ -8,6 +8,7 @@ import Button from "../ui/primitives/Button";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
+import PlayerLink from "../ui/primitives/PlayerLink";
 import { Pill } from "../ui/primitives/Pill";
 import { List, ListRow } from "../ui/primitives/List";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
@@ -143,12 +144,17 @@ export default function PlayersAdminPage() {
     );
   }
 
-  const openProfile = (playerId: number, jumpUnread: boolean) => {
-    navigate(`/profiles/${playerId}${jumpUnread ? "?unread=1" : ""}`);
-    // Keep row-click behavior consistent with profile subnav scroll positioning.
+  // Keep row-click behavior consistent with profile subnav scroll positioning. The row
+  // itself is a `PlayerLink` (L11), whose `onClick` runs before its navigation, so this
+  // lands on the profile once it has rendered — exactly as it did from `openProfile`.
+  const scrollToProfileMain = () => {
     window.setTimeout(() => {
       scrollToSectionById("profile-section-main", 24);
     }, 0);
+  };
+  const openProfile = (playerId: number, jumpUnread: boolean) => {
+    navigate(`/profiles/${playerId}${jumpUnread ? "?unread=1" : ""}`);
+    scrollToProfileMain();
   };
 
   return (
@@ -193,8 +199,7 @@ export default function PlayersAdminPage() {
             return (
               <div key={p.id}>
                 <ListRow
-                  onClick={() => openProfile(p.id, false)}
-                  ariaLabel={`Open ${p.display_name}'s profile`}
+                  overlay={<PlayerLink stretched playerId={p.id} name={p.display_name} onClick={() => scrollToProfileMain()} />}
                   leading={
                     <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" cups={heldCups} />
                   }

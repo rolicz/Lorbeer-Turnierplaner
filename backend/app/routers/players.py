@@ -59,7 +59,7 @@ from ..services.file_storage import (
     media_path_for_profile_header,
     upsert_media_row,
 )
-from ..services.groups import current_group, roster_for
+from ..services.groups import current_group, ensure_shared_group, roster_for
 from ..services.guestbook import guestbook_can_edit, guestbook_entry_payload, list_guestbook_entries
 from ..services.guestbook_subjects import (
     SubjectUnavailable,
@@ -333,10 +333,15 @@ def list_player_poke_read_map(
 
 
 @router.get("/{player_id}/profile", response_model=ProfileOut)
-def get_player_profile(player_id: int, s: Session = Depends(get_session)):
+def get_player_profile(
+    player_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+):
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
     profile = s.get(PlayerProfile, player_id)
     payload = _profile_payload(player, profile)
     header = s.get(PlayerHeaderImageFile, player_id)
@@ -356,6 +361,7 @@ def patch_player_profile(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     profile = s.get(PlayerProfile, player_id)
     if profile is None:
@@ -372,19 +378,33 @@ def patch_player_profile(
     return _profile_payload(player, profile)
 
 
+def _roster_ids(s: Session, claims: dict) -> list[int]:
+    return [int(p.id) for p in roster_for(s, claims)]
+
+
 @router.get("/avatars", response_model=list[PlayerMediaMetaOut])
-def list_player_avatar_meta(s: Session = Depends(get_session)):
+def list_player_avatar_meta(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)):
     """
     Lightweight avatar metadata used by the frontend to avoid spamming 404 requests.
-    Returns only player_id + updated_at for players who have an avatar.
+    Returns only player_id + updated_at for players who have an avatar — and only for the
+    caller's roster (L11): the picture itself is refused to anyone outside it
+    (`ensure_shared_group`), so a stranger's avatar must never be *announced* either, or the
+    browser asks for it, gets a 403 and draws a broken image where the monogram belongs.
     """
-    rows = s.exec(select(PlayerAvatarFile.player_id, PlayerAvatarFile.updated_at)).all()
+    rows = s.exec(
+        select(PlayerAvatarFile.player_id, PlayerAvatarFile.updated_at).where(PlayerAvatarFile.player_id.in_(_roster_ids(s, claims)))
+    ).all()
     return [{"player_id": int(pid), "updated_at": updated_at} for pid, updated_at in rows]
 
 
 @router.get("/headers", response_model=list[PlayerMediaMetaOut])
-def list_player_header_meta(s: Session = Depends(get_session)):
-    rows = s.exec(select(PlayerHeaderImageFile.player_id, PlayerHeaderImageFile.updated_at)).all()
+def list_player_header_meta(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)):
+    """The same for header images, and for the same reason."""
+    rows = s.exec(
+        select(PlayerHeaderImageFile.player_id, PlayerHeaderImageFile.updated_at).where(
+            PlayerHeaderImageFile.player_id.in_(_roster_ids(s, claims))
+        )
+    ).all()
     return [{"player_id": int(pid), "updated_at": updated_at} for pid, updated_at in rows]
 
 
@@ -392,8 +412,10 @@ def list_player_header_meta(s: Session = Depends(get_session)):
 def get_player_avatar(
     player_id: int,
     w: MediaWidthParam = None,
+    claims: dict = Depends(require_auth_claims),
 ):
     with Session(get_engine()) as s:
+        ensure_shared_group(s, claims, player_id)
         fs_row = s.get(PlayerAvatarFile, player_id)
         if not fs_row:
             raise HTTPException(status_code=404, detail="Avatar not found")
@@ -469,8 +491,10 @@ def delete_player_avatar(
 def get_player_header_image(
     player_id: int,
     w: MediaWidthParam = None,
+    claims: dict = Depends(require_auth_claims),
 ):
     with Session(get_engine()) as s:
+        ensure_shared_group(s, claims, player_id)
         fs_row = s.get(PlayerHeaderImageFile, player_id)
         if not fs_row:
             raise HTTPException(status_code=404, detail="Header image not found")
@@ -492,10 +516,11 @@ def get_player_header_image(
 def get_guestbook_subject_image(
     snapshot_id: int,
     w: MediaWidthParam = None,
+    claims: dict = Depends(require_auth_claims),
 ):
     """The pinned copy a guestbook entry is about (K1).
 
-    Public read, like the avatar. Immutable: a snapshot never changes and its URL carries
+    Read like the avatar: only by someone who shares a group with its player (L11). Immutable: a snapshot never changes and its URL carries
     its id, so the browser may keep it for a year — this is the one picture in the app
     that is *guaranteed* not to be replaced under its own URL. A `?w=` derivative of it is
     exactly as immutable, which is why it carries the same header (W1).
@@ -504,6 +529,7 @@ def get_guestbook_subject_image(
         snap = s.get(PlayerSubjectSnapshot, snapshot_id)
         if not snap or not snap.file_path:
             raise HTTPException(status_code=404, detail="Guestbook subject image not found")
+        ensure_shared_group(s, claims, int(snap.player_id))
         content_type = snap.content_type
         file_path = snap.file_path
         captured_at = snap.captured_at
@@ -596,6 +622,7 @@ def list_player_guestbook(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
     return list_guestbook_entries(s, player_id, claims)
 
 
@@ -604,10 +631,12 @@ def list_player_pokes(
     player_id: int,
     limit: int = 40,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
 ):
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     lim = max(1, min(int(limit), 250))
     rows = s.exec(
@@ -650,6 +679,7 @@ def list_player_guestbook_reads(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     viewer_player_id = int(claims.get("player_id"))
     rows = s.exec(
@@ -673,6 +703,7 @@ def list_player_poke_reads(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     viewer_player_id = int(claims.get("player_id"))
     rows = s.exec(
@@ -698,6 +729,7 @@ def create_player_guestbook_entry(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     text = str(body.body or "").strip()
     if not text:
@@ -849,6 +881,7 @@ def create_player_poke(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     claims_player_id = int(claims.get("player_id"))
     req_author_player_id = None if body is None or body.author_player_id in (None, "") else int(body.author_player_id)
@@ -908,6 +941,7 @@ def mark_player_guestbook_entry_read(
     row = s.get(PlayerGuestbookEntry, entry_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Guestbook entry not found")
+    ensure_shared_group(s, claims, int(row.profile_player_id))
     player_id = int(claims.get("player_id"))
     now = dt.datetime.utcnow()
     read_row = s.get(PlayerGuestbookRead, (player_id, int(entry_id)))
@@ -930,6 +964,7 @@ def vote_player_guestbook_entry(
     row = s.get(PlayerGuestbookEntry, entry_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Guestbook entry not found")
+    ensure_shared_group(s, claims, int(row.profile_player_id))
 
     player_id = int(claims.get("player_id"))
     raw = body.value
@@ -964,10 +999,15 @@ def vote_player_guestbook_entry(
 
 
 @router.get("/guestbook/{entry_id}/voters", response_model=VotersOut)
-def list_player_guestbook_entry_voters(entry_id: int, s: Session = Depends(get_session)) -> dict:
+def list_player_guestbook_entry_voters(
+    entry_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
     row = s.get(PlayerGuestbookEntry, entry_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Guestbook entry not found")
+    ensure_shared_group(s, claims, int(row.profile_player_id))
     votes = s.exec(
         select(PlayerGuestbookVote.value, Player.id, Player.display_name)
         .join(Player, Player.id == PlayerGuestbookVote.player_id)
@@ -994,6 +1034,7 @@ def mark_player_guestbook_read_all(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     viewer_player_id = int(claims.get("player_id"))
     entry_ids = [
@@ -1033,6 +1074,7 @@ def mark_player_poke_read_all(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     viewer_player_id = int(claims.get("player_id"))
     poke_ids = [

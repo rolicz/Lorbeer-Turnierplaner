@@ -28,12 +28,14 @@ __all__ = [
     "build_claims",
     "current_group",
     "effective_role",
+    "ensure_shared_group",
     "group_by_slug",
     "group_prefix_for_push",
     "is_member",
     "memberships_for",
     "roster_for",
     "set_member_role",
+    "shares_group",
 ]
 
 #: Membership roles, as stored in `GroupMembership.role`.
@@ -175,6 +177,39 @@ def roster_for(s: Session, claims: dict) -> list[Player]:
         return []
     member_ids = select(GroupMembership.player_id).where(GroupMembership.group_id.in_(group_ids))
     return list(s.exec(select(Player).where(Player.id.in_(member_ids)).order_by(Player.display_name)).all())
+
+
+def shares_group(s: Session, claims: dict, player_id: int) -> bool:
+    """Whether the caller may see this player's profile, wall and pokes: a site admin sees
+    everyone, anyone sees themselves, and otherwise the two must have at least one group in
+    common. The caller's groups come from the claims (the gate already resolved them); the
+    target's are one indexed lookup."""
+    if claims.get("site_admin"):
+        return True
+    if int(claims.get("player_id") or 0) == int(player_id):
+        return True
+    group_ids = [int(g["id"]) for g in claims.get("groups") or []]
+    if not group_ids:
+        return False
+    row = s.exec(
+        select(GroupMembership.group_id).where(
+            GroupMembership.player_id == int(player_id), GroupMembership.group_id.in_(group_ids)
+        )
+    ).first()
+    return row is not None
+
+
+def ensure_shared_group(s: Session, claims: dict, player_id: int) -> None:
+    """403 "Not in your group" unless the caller shares a group with this player (L11).
+
+    The server half of the one rule `PlayerLink` answers in the browser: a profile — and
+    everything hung off it (the wall, the pokes, the avatar and header image) — is openable
+    only by someone who shares a group with its player, the site admin excepted. A player
+    that does not exist is let through, so the endpoint's own 404 still answers it."""
+    if s.get(Player, int(player_id)) is None:
+        return
+    if not shares_group(s, claims, player_id):
+        forbidden("Not in your group")
 
 
 def group_prefix_for_push(s: Session, player_id: int, group_id: int | None = None) -> str:

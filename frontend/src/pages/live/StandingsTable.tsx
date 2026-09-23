@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import type { Match, Player } from "../../api/types";
 import { sideBy } from "../../helpers";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import CupOwnerBadge from "../../ui/primitives/CupOwnerBadge";
 import RecordLine, { recordWidths } from "../../ui/primitives/RecordLine";
 import { getCup, listCupDefs } from "../../api/cup.api";
@@ -134,7 +134,6 @@ export default function StandingsTable({
   players: Player[];
   tournamentStatus?: "draft" | "live" | "done";
 }) {
-  const navigate = useNavigate();
   const baseRows = useMemo(() => computeStandings(matches, players, "finished"), [matches, players]);
   const liveRows = useMemo(() => computeStandings(matches, players, "live"), [matches, players]);
   // One set of column widths for the whole table, so every meta line lines up (T14).
@@ -324,21 +323,15 @@ export default function StandingsTable({
         const cupMarks = cupMarksByPlayerId.get(r.playerId) ?? [];
         const streaks = streaksByPlayerId.get(r.playerId) ?? [];
         return (
-          <div
-            key={r.playerId}
-            className="row row-tap relative cursor-pointer"
-            title={`Open ${r.name}'s profile`}
-            onClick={() => navigate(`/profiles/${r.playerId}`)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                navigate(`/profiles/${r.playerId}`);
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            {isLeader ? <span className="absolute inset-y-1 left-0 w-0.5 rounded bg-status-bar-green" aria-hidden="true" /> : null}
+          <div key={r.playerId} className="row row-tap relative">
+            {/* The row is the door to the profile: a stretched `PlayerLink` (the `ListRow`
+                pattern, DESIGN.md §7) under the content, so it is a real `<a>` — middle-click,
+                open in a new tab, Enter — and `PlayerLink` decides whether it is a door at all
+                (L11). The content sits above it and lets the tap through — all but the crown
+                and the streak patches, which keep their hover explanation. */}
+            <PlayerLink stretched playerId={r.playerId} name={r.name} />
+            {isLeader ? <span className="pointer-events-none absolute inset-y-1 left-0 w-0.5 rounded bg-status-bar-green" aria-hidden="true" /> : null}
+            <div className="pointer-events-none relative z-10 flex w-full items-center gap-3">
             <span className="w-4 shrink-0 text-right text-xs tabular-nums text-text-muted">{idx + 1}</span>
             <span className="w-3 shrink-0 text-center text-micro leading-none"><Arrow delta={delta} /></span>
             <AvatarCircle
@@ -351,10 +344,10 @@ export default function StandingsTable({
               <div className="flex items-center gap-1.5">
                 <span className="min-w-0 truncate font-medium text-text-normal">{r.name}</span>
                 {cupMarks.slice(0, 2).map((c) => (
-                  <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} title={`${c.name} owner (before tournament)`} />
+                  <CupOwnerBadge key={c.key} cupKey={c.key} cupName={c.name} title={`${c.name} owner (before tournament)`} className="pointer-events-auto" />
                 ))}
                 {streaks.slice(0, 2).map((s, i) => (
-                  <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact" />
+                  <StreakPatch key={s.key + "-" + i} streak={s} className="streak-compact pointer-events-auto" />
                 ))}
               </div>
               <RecordLine
@@ -366,6 +359,7 @@ export default function StandingsTable({
             <div className="shrink-0 text-right">
               <div className="text-base font-bold tabular-nums text-text-normal">{r.pts}</div>
               <div className="text-micro leading-none text-text-muted">pts</div>
+            </div>
             </div>
           </div>
         );
