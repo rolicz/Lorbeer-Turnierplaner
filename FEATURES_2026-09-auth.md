@@ -62,6 +62,51 @@ Four facts about the code shape the whole plan:
    not a migration — and, for the URL, it does so with react-router's `basename`, so that not one
    of the **737 literal route strings in 88 frontend files** has to change.
 
+## Roli's answers, 2026-09-23 — these supersede anything below that disagrees
+
+Read this section first. The rest of the file was written before Roli answered the plan's five
+questions; where a later sentence contradicts this section, **this section wins**.
+
+1. **One deploy, not two.** Roli, verbatim: *"one deploy, why would i want 2?"* So:
+   - **L14 is dropped.** L15 is the single documentation pass and covers everything L14 would
+     have (the gate, sessions, registration, admin, groups skeleton) **and** passkeys, and it writes
+     `AGENTS.md` §7 for one deploy.
+   - Wherever this file says **deploy A** or **deploy B**, read **the deploy**. Nothing waits for a
+     first deploy; L8 and L9 are part of the same branch head that ships.
+   - "After deploy B has been proven" (e.g. removing `player_accounts[]` from `secrets.json`) now
+     means **after the deploy has been proven on Roli's phone** — still a later, separate step.
+   - The escape hatch is unchanged: `secrets.json` is not edited by the deploy, and
+     `git checkout cfc1669 && docker compose up -d --build` restores the old login.
+2. **The order** (it moves L8, and the reason is file ownership, not preference):
+
+   **A** {L0 ∥ L1} → **L2** alone → **B** {L3 ∥ L4} → **C** {L5 ∥ L6 ∥ L7 ∥ L10 ∥ L12} →
+   **D** {L8 ∥ L11} → **L9** → **L13** → **L15** → *(the deploy, on Roli's go)*
+
+   L8 shares `backend/app/routers/auth.py`, `backend/app/schemas/*.py` and
+   `frontend/src/api/generated/schema.d.ts` with L3, and `backend/requirements.txt` with L1, so it
+   cannot run beside either; group D is the first place its file set is disjoint from its
+   neighbours (L11 touches `routers/players.py` and `services/groups.py`, not the auth router or the
+   schemas — **if L11 finds it must touch a response model, it stops and reports**, because two
+   workers regenerating `schema.d.ts` at once is the fight this plan exists to avoid). **L13 now
+   rehearses the whole branch, passkeys included**, so it runs after L9.
+3. **Hash eagerly at migration** — yes (the plan's disagreement 2 is accepted).
+4. **The group's display name is `Altherren`**, slug `altherren`.
+5. **The "secure your account" strip is non-dismissible** — confirmed, and it ships with passkeys
+   (L9), as disagreement 8 proposed.
+6. **`/api/health` answers 401 from outside** — accepted; Docker reaches it on loopback. The §7
+   smoke line changes accordingly (L15).
+7. **Where the work happens.** The batch runs in the git worktree
+   **`/home/roli/projects/turnierplaner-auth`** (branch `feature/2026-09-auth`), with
+   `frontend/node_modules` and `backend/.venv` symlinked from the main checkout. **Never touch the
+   main checkout at `/home/roli/projects/turnierplaner-reloaded`** — it is on `main` and Roli's dev
+   servers on 8000/8001 serve it to his phone. In particular **never edit its
+   `frontend/.env.local`**: L0 *documents* the new relative content for when the batch lands, it
+   does not apply it to his running setup. Dependency installs (`pip install -r
+   backend/requirements.txt`, `npm install` for L9) go through the symlinks into the shared
+   environments; that is additive and expected — say so in your Deviations when you do it.
+
+---
+
 ## Decisions (Roli, 2026-09-23 — do not relitigate)
 
 - **Scope.** Part 1: close public reads, replace auth, add passkeys, add registration by invite,
@@ -1649,6 +1694,8 @@ the real thing).
 
 ## L14 — Documentation pass A (everything but passkeys; runs before deploy A)  ☐
 
+> **Dropped** (Roli, 2026-09-23: one deploy). Its whole job moves to L15 — see "Roli's answers" at the top of this file.
+
 **The gap.** `AGENTS.md` describes readers, JWTs, `player_accounts[]` as the login source,
 `/health` as a smoke check and `cups.json` as the runtime config; `README.md` says "Reader: no
 login"; `DESIGN.md` has no auth screens; `secrets.json.example` shows the old shape.
@@ -1810,6 +1857,8 @@ not where passkeys live — `api/passkeys.api.ts` is), §10 (the one dependency 
 **Deviations.** —
 
 ## L15 — Documentation pass B (passkeys; runs before deploy B)  ☐
+
+> **Now the only documentation pass** (Roli, 2026-09-23: one deploy). It absorbs L14's entire section below as well as its own, and describes one deploy.
 
 L8's and L9's Canon lines into `AGENTS.md` (§5, §6, §10, §11 — the deploy-B smoke and what only
 the phone can prove), `DESIGN.md` §7, `README.md` (passkeys, "one way in"), and this file's
