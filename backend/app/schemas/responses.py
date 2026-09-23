@@ -54,8 +54,9 @@ class MeGroupOut(BaseModel):
 
 class MeOut(BaseModel):
     """Who the caller is on this device — answered by `GET /me`, `POST /auth/login` and
-    `POST /auth/exchange` alike (L2). `role` is the effective role in the current group
-    (`none` | `editor` | `owner` | `admin`). `has_passkey` is False until L8 writes a row."""
+    `POST /auth/exchange` and `POST /auth/passkeys/login/verify` alike (L2, L8). `role` is
+    the effective role in the current group (`none` | `editor` | `owner` | `admin`).
+    `has_passkey` reads the `Passkey` table (L8)."""
 
     role: str
     player_id: int
@@ -81,6 +82,20 @@ class SessionOut(BaseModel):
 
 class RevokedOut(BaseModel):
     revoked: int
+
+
+class PasskeyOut(BaseModel):
+    """One of the caller's passkeys (`GET /auth/passkeys`, `POST /auth/passkeys/register/verify`,
+    L8). `device_type` is `single_device` | `multi_device` (the authenticator's backup
+    eligibility — a synced passkey is `multi_device`); `backed_up` is its current backup
+    state, refreshed on every sign-in. Never the credential id or the public key."""
+
+    id: int
+    label: str
+    device_type: str
+    backed_up: bool
+    created_at: datetime
+    last_used_at: datetime | None
 
 
 # ---- accounts, invites, admin (L3) --------------------------------------

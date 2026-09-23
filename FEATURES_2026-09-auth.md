@@ -2545,7 +2545,7 @@ boot, cups live in the DB".
   global); NULL `group_id` on `clubstarrating` is global and never backfilled; §7 step 3 — editing
   `/data/cups.json` by hand only matters before the first boot of this code.
 
-## L11 — `PlayerLink` decides who may open a profile; three surfaces route through it; the server enforces it  ☐
+## L11 — `PlayerLink` decides who may open a profile; three surfaces route through it; the server enforces it  ☑
 
 **The gap.** `StandingsTable.tsx:331-339` is a `div role="button"` that `navigate`s to a
 profile; `stats/PlayerProfile.tsx:100-106` a `<button onClick={nav}>`; `PlayersAdminPage.tsx:197`
@@ -2591,26 +2591,116 @@ grep -n "useProfileAccess" -r frontend/src                                # → 
    `GET /players/avatars` / `/headers` (the roster's metadata, already filtered by `roster_for`).
 
 **Definition of done.**
-- ☐ Tests: `playerLink.test.tsx` (in roster → link; not in roster → span + mark; site admin →
+- ☑ Tests: `playerLink.test.tsx` (in roster → link; not in roster → span + mark; site admin →
   link + mark; `stretched` renders no children and the overlay class); the three surfaces
   render `a a` count 0 and each has exactly one `<a>` to `/profiles/<id>`; backend
   `test_player_profiles_auth.py` gains the 403 for a no-group account's profile and the site
   admin's pass.
-- ☐ Browser: standings row → profile via keyboard (`Tab`, `Enter`) and tap; register a
+- ☑ Browser: standings row → profile via keyboard (`Tab`, `Enter`) and tap; register a
   no-group account on the copy, open `/profiles/<its id>` as Berni → the empty state; as Roli
   (site admin) → the profile with the mark on the name.
-- ☐ `document.querySelectorAll('[role="button"]').length` on a live tournament page → 0 (the
+- ☑ `document.querySelectorAll('[role="button"]').length` on a live tournament page → 0 (the
   Standings was the last one; `grep -rn 'role="button"' frontend/src --include='*.tsx' | grep -v
   "^.*//"` → 0 code sites).
-- ☐ `make test`, `make lint`, `npm run check`.
-- ☐ Deviations filled in.
+- ☑ `make test`, `make lint`, `npm run check`.
+- ☑ Deviations filled in.
 
 **Canon.** `DESIGN.md` §7: `PlayerLink`'s `stretched` variant and the rule "who may open a
 profile is answered inside `PlayerLink`, from the roster; a foreign author wears the `Users`
 mark; the server refuses independently"; §11: the last `role="button"` is gone.
 `AGENTS.md` §9's "Identity is a link" paragraph gains the access rule.
 
-**Deviations.** —
+**Deviations.**
+- **The site admin's mark does not come from the roster, because the roster cannot give it.**
+  L3's `roster_for` answers a site admin with *every* player, so "not in my roster" can never
+  mark anyone for Roli, and the plan's own definition of done ("site admin → link + mark", "as
+  Roli → the profile with the mark on the name") was unreachable as specified. Without touching
+  a response model (Roli's item 2), `useProfileAccess` reads, **for the site admin only**,
+  `qk.admin.accounts()` — the admin page's own list, which the site admin is allowed to read —
+  and marks a player whose role in the current group is `none` (a site-admin target is never
+  marked: a site admin is everywhere). Everyone else is answered from `qk.players()` exactly as
+  the task says. Part 1 has one group, so "role in the current group" *is* "shares a group"; the
+  real part-2 answer is a `shares_group` flag on the roster, i.e. a response-model change, and
+  it is written at the top of `hooks/useProfileAccess.ts` as that. One mechanism still: the hook
+  is the only place, `PlayerLink` its only caller.
+- **The hook does not require its providers.** `PlayerLink` sits inside dozens of components that
+  are tested alone under a bare router (46 tests in 9 files failed on `useAuth`'s deliberate
+  throw), so `useProfileAccess` reads `AuthContext` and `QueryClientContext` with `useContext`,
+  passes an inert `QueryClient` to `useQuery` when there is none (the hooks stay unconditional),
+  and a tree without a session answers "a door, unmarked". The same optimistic answer covers a
+  roster that has not arrived: a name must not flash to plain text and back on every cold load —
+  and the server refuses independently, into the profile page's own empty state. Your own name
+  is always a door. An invalid id (`≤ 0`) is not.
+- **`/players/avatars` and `/players/headers` are now filtered by `roster_for`.** The plan said
+  they were "already filtered" — they were not (both returned every row, no claims). With the
+  avatar GET guarded, the browser was told a stranger had an avatar, asked for it, got the 403 and
+  drew a **broken image** beside a foreign author (seen in the browser, Berni's wall). Filtering
+  the two metadata lists makes the plan's sentence true and puts the monogram back; the pictures
+  themselves stay behind `ensure_shared_group`. Still not guarded: the list endpoints
+  (`/profiles`, `/guestbook-summary`, `/pokes-summary`, the read maps) — metadata only, out of
+  this task; part 2 should filter them by the roster the same way.
+- **Guarded beyond the plan's list, the same guard:** the pinned subject copy
+  (`/guestbook-subjects/{sid}/image`, by its snapshot's player — "media of a stranger stays
+  private" covers it), and the three entry-keyed wall endpoints that read or write a stranger's
+  wall without a player id in the path (`PUT /guestbook/{eid}/read`, `PUT …/vote`, `GET …/voters`,
+  by the entry's wall owner). An author's own `PATCH`/`DELETE` of their entry is **not** guarded —
+  someone who left the group can still take back what they wrote. `ensure_shared_group` lets a
+  missing player through so every endpoint's own 404 still answers (asserted), and anyone passes
+  for their own id. `services/groups.py` also gained `shares_group` (the boolean under it).
+- **Standings: the crown and the streak patches keep `pointer-events-auto`.** The content layer is
+  `pointer-events-none` (the `MatchList` shape), which would have silently removed the only hover
+  explanation the crown has ("… owner (before tournament)", `DESIGN.md` §7 — it is the crown's
+  only site). Consequence: a tap exactly on a 24px badge no longer opens the profile; the rest of
+  the row does. The leader bar is `pointer-events-none`. The row body is wrapped in one
+  `flex w-full items-center gap-3` div so the layout is byte-for-byte the old flex row.
+- **Players admin**: `openProfile`'s "scroll to `#profile-section-main`" is kept as the stretched
+  link's `onClick` (`scrollToProfileMain`, which runs before the navigation, exactly as before);
+  the two unread pills keep `openProfile`. **Profile page**: the 403 state also stops the query's
+  one retry (a 403 cannot change on asking again).
+- **Server guard, measured on the copy** (`verify-l11.db`, a second group `zweite` with one member
+  `Fremder` (7) and a no-group `Uneingeladen` (8), both created through `POST /players` and moved
+  by SQL; push rows deleted before boot): as **Berni** (member) → 7 and 8: `profile`, `guestbook`,
+  `pokes`, `avatar`, `guestbook/read`, `pokes/read`, `guestbook/read-all` all **403** `{"detail":
+  "Not in your group"}`; → Rumpi (3, shared) all **200**. As **Roli** (site admin) → 7, 8, 3 all
+  **200** (8's avatar 404: it has none). Tests: `test_player_profiles_auth.py` +6 (a member
+  refused every one of 14 endpoints on a player in another group, and not told of their avatar or
+  header; a no-group account refused; the site admin opens all 14; a shared player opens all 14;
+  one shared group is enough; your own profile, and a missing player keeps its 404).
+- **Browser** (isolated stack 8242/8262, Chromium, 390×844 and 1280×900, `blue` and `light`,
+  66/66 checks): all three surfaces carry a real `href`; middle-click opens `/g/altherren/profiles/<id>`
+  in a new tab on each; the standings row is reached with `Tab` and opened with `Enter`, and by a
+  tap; the stats card and the Players row open with `Enter`. As Berni, the foreign author on his
+  wall is a `<span title="Not in your group">` with the `Users` mark and **no** link to
+  `/profiles/7`, while the other authors on the page stay links and carry no mark; `/profiles/7`
+  and `/profiles/8` render "This profile is in another group." with the back chevron. As Roli the
+  same author is a link **with** the mark and `/profiles/7` opens. The guestbook's two meanings
+  hold: Roli tapping the (foreign, linked) name lands on `/profiles/7` and the message stays
+  unread; tapping the body marks it read. **Row heights, before (`5c77313`'s frontend via `git
+  archive`) and after, identical in all four viewport × theme runs**: standings 72/73/73/73px,
+  stats identity card 86 (390) / 82 (1280), Players rows 64/66/66/64/64/66/66/64, guestbook
+  entries 180/116/174/180/180/124, comment cards 128, cup reign rows 60/77/77/77/77/60.
+  `[role="button"]` on a live tournament **4 → 0**; `document.querySelectorAll("a a")` **0** on
+  26 routes × 4 runs, before and after. `grep 'role="button"'` in `frontend/src` code → 0 (three
+  comments remain, each saying *not* to use one).
+- **A caution for whoever runs vite next**: the plan's stack recipe (`npx vite` in the worktree)
+  writes vite's dependency cache through the `node_modules` symlink into **the main checkout's**
+  `frontend/node_modules/.vite/deps` — the directory Roli's running dev server on 8000 serves
+  from. My first start re-optimised it (18:47, same dependency versions, so the chunks are the
+  same content); every later start used a wrapper config with `cacheDir` in the scratch dir. Every
+  earlier task that followed the recipe did the same; L15 should put `cacheDir` into the recipe.
+- **Gates**: `make lint` clean; `cd frontend && npm run check` **919 tests in 95 files** (baseline
+  909/94 at `5c77313` incl. L12's in-flight test; +7 in `playerLink.test.tsx`, +3 in the new
+  `profileAccessSurfaces.test.tsx`); `npm run build` green (`index-*.js` 759.87 kB, the
+  pre-existing >500 kB hint); `make test` MAKETEST. No response model touched, `schema.d.ts`
+  untouched.
+- **Canon for L15** (as the task says, plus): `DESIGN.md` §7 — `PlayerLink stretched`; "who may
+  open a profile is answered inside `PlayerLink`, from the roster; a foreign author wears the
+  `Users` mark (12px, muted, after the name, never on the decorative avatar duplicate); a name
+  that may not be opened is plain text titled *Not in your group*; the server refuses
+  independently"; `ListRow`'s `overlay` slot and `LIST_ROW_OVERLAY_CLASS`; §11 — the last
+  `role="button"` is gone. `AGENTS.md` §9 "Identity is a link" — the access rule, the site-admin
+  refinement, and that the three "known exceptions" are closed; §5/§6 — the guard's endpoint list
+  and that the avatar/header metadata lists follow the roster.
 
 ## L13 — The dress rehearsal on a copy of production: migrate, log in, roll back, roll forward  ☐
 
@@ -2688,7 +2778,7 @@ and the counts written into §11.
 
 **Deviations.** —
 
-## L8 — Passkeys, server side  ☐
+## L8 — Passkeys, server side  ☑
 
 **The gap.** `Passkey` and `WebAuthnChallenge` tables exist (L1) and nothing writes them;
 `has_passkey` is a constant `False` in `MeOut`; `webauthn` is not installed.
@@ -2749,17 +2839,160 @@ grep -n "passkeys" backend/app/routers/auth.py                 # → 0
 6. `make gen-types` (`PasskeyOut`, `MeOut` unchanged in shape) and `schema.d.ts` committed.
 
 **Definition of done.**
-- ☐ `make test` (the ≈25), `make lint`, `make gen-types` committed.
-- ☐ A registration and a login against the stack with `curl` and the soft authenticator (a
+- ☑ `make test` (the ≈25), `make lint`, `make gen-types` committed.
+- ☑ A registration and a login against the stack with `curl` and the soft authenticator (a
   five-line Python driver in Deviations) succeed; the same assertion posted twice → 401.
-- ☐ Deviations filled in, including the pip resolve output's last line for the venv and (if
+- ☑ Deviations filled in, including the pip resolve output's last line for the venv and (if
   run) the image.
 
 **Canon.** `AGENTS.md` §5 (`Passkey`, `WebAuthnChallenge` — consumed by delete), §6 (the six
 routes, the rpID rule, one-way-in, removal ends sessions), §10 ("`webauthn` is pinned to 2.7.1
 because of `cryptography<46`").
 
-**Deviations.** —
+**Deviations.**
+- **`relying_party_for(settings, *, origin)` takes the `Origin` header's value, not the
+  `Request`** — the one place rpID and origin are decided is a pure function, so the
+  pinned/derived matrix is one test with no app behind it; the router's `_relying_party(request)`
+  is the only caller and hands it `request.headers.get("origin")`. Everything else in the
+  section's step 2 is as named: `registration_options`, `verify_registration`,
+  `authentication_options`, `verify_authentication`, `list_passkeys`, `remove_passkey`,
+  `sweep_expired_challenges`, plus `passkey_out` (the `PasskeyOut` shape, spelled once, the
+  `session_out` precedent) and two exceptions the router translates — `PasskeyRefused`
+  (carries the real reason **for the log only**) and `PasskeyConflict` (409).
+- **Dependencies: wheels on both targets, nothing compiles.** `pip install -r` into the shared
+  venv (through the symlink, additive) ended `Successfully installed cbor2-6.1.4 pyOpenSSL-25.1.0
+  pyasn1-0.6.4 webauthn-2.7.1`; `cryptography` stayed at the already-installed **45.0.7** (inside
+  the `<46` pin, untouched). The one binary wheel is
+  `cbor2-6.1.4-cp311-cp311-manylinux_2_28_aarch64.whl`; the other three are `py3-none-any`. For
+  production, `pip download --only-binary=:all: --platform manylinux_2_28_x86_64
+  --python-version 3.11` fetched `cbor2-6.1.4-cp311-cp311-manylinux_2_28_x86_64.whl` (464 kB),
+  `cryptography-45.0.7-cp311-abi3-manylinux_2_28_x86_64.whl` (4.5 MB) and the three pure wheels —
+  so `python:3.11-slim` (Debian 12, glibc 2.36 ≥ 2.28) installs without build tooling.
+  **`docker compose build` was not run** (an arm64 build on this Pi would prove nothing about the
+  x86 image; the download above is the proof for that target). `cryptography<46` was not lifted.
+- **What the library checks and what this code adds.** `webauthn` 2.7.1 does the origin, rpID
+  hash, UP/UV flags, signature and counter; the code around it owns the challenge (minted per
+  `options` call, `expires_at = +5 min`, **consumed by a conditional `DELETE` + commit before
+  `verify_*` runs**, refused-and-consumed when expired, of the other ceremony, or a registration
+  challenge minted for another account), the credential lookup by `rawId`, the user-handle
+  cross-check (an assertion's `userHandle`, when present, must be the credential's account's —
+  an absent handle is accepted), the store of `sign_count` / `backed_up` / `last_used_at`, and
+  `excludeCredentials` from the stored rows. **The counter rule is the library's, which is
+  stricter than the section's**: an assertion whose counter is not *greater* than the stored one
+  is refused whenever either is above zero — so a counter that goes backwards *or stays equal* is
+  a refusal, while an authenticator that always reports 0 (iCloud Keychain, Google Password
+  Manager — i.e. Roli's phone) signs in every time; both are tested. The `clone?` marker is
+  appended to the log line when the library's message names the sign count.
+- **Wire shapes L9 codes against.** `POST /auth/passkeys/register/options` → the creation
+  options JSON as `@simplewebauthn/browser`'s `startRegistration({ optionsJSON })` takes it
+  (`rp`, `user`, `challenge`, `pubKeyCredParams`, `timeout`, `excludeCredentials`,
+  `authenticatorSelection{residentKey: "required", requireResidentKey: true, userVerification:
+  "required"}`, `attestation: "none"`) — typed as a plain `object` in `schema.d.ts`, because it
+  is the browser API's own dictionary and simplewebauthn types it; `POST
+  /auth/passkeys/register/verify {credential, label?}` → `PasskeyOut` (400 `"That passkey could
+  not be registered"` for every failure, 409 `"That passkey is already registered"`, 400
+  `"Passkeys are not available from this origin"` when the relying-party rule refuses);
+  `GET /auth/passkeys` → `PasskeyOut[]` oldest first; `DELETE /auth/passkeys/{id}` → `{ok}` **and
+  `Set-Cookie … Max-Age=0`** (the caller's own session is among the ended ones — the UI must go to
+  `/login`), 404 for an id that is not the caller's (an admin's included: ownership, not role),
+  409 `"Set a password before removing your last passkey — an account needs one way in"`;
+  `POST /auth/passkeys/login/options` → the request options JSON (`challenge`, `timeout`,
+  `rpId`, `userVerification: "required"` and **no `allowCredentials` key at all** — the library
+  spells "none" as `[]` and the router drops it); `POST /auth/passkeys/login/verify {credential}`
+  → `MeOut` + the cookie, `kind="passkey"`, through `_start_session` like every other way in;
+  **every** refusal there is 401 `"That passkey could not be used to log in"` (unknown credential,
+  replay, wrong origin, bad signature, backwards counter, UV clear, malformed body, an origin the
+  rule refuses, a missing `Origin` in dev mode) with the reason in the server log. `MeOut`'s
+  shape did not move (`has_passkey` was already read from the table). `types.ts` gained the one
+  reserved line, `export type Passkey = S["PasskeyOut"]`.
+- **Rate limits: every mint counts.** The public pair shares the `passkey` family (30 / 10 min
+  per IP, 300 global). A minted sign-in challenge is recorded as an attempt, not only a failed
+  verify — the challenge table is the one thing an anonymous caller can grow, and a mint-only
+  loop would otherwise never meet the limiter. The 31st mint from one IP is a 429 with
+  `Retry-After` (tested); the sweep on every `options` call keeps the table to the last five
+  minutes. The register pair is an account path and is not limited (a session is the cost).
+- **`PUBLIC_PATHS`** gained exactly `/auth/passkeys/login/options` and
+  `/auth/passkeys/login/verify` (L2's handoff); the register pair, the list and the delete are
+  account paths by construction. L2's audit walked the six new route × method pairs unchanged
+  and stayed green (**14 passed**) — with a no-membership session the account paths answer 400 /
+  200 / 404 (never 401 or 403) and the public pair answers the route's own 401 / 422, which the
+  audit tells from the gate's by its spelled-once `detail`.
+- **`Makefile`** (L1's leftover, done here): `backend` / `backend-lan` run with
+  `AUTH_DEV_ORIGIN=1 APP_ENV=development`, so `make dev` derives the relying party from the
+  request — and, as a side effect worth knowing, the cookie's `Secure` flag follows the request
+  scheme instead of the pinned `https://` origin, which is what lets the phone on
+  `http://192.168.178.78:8000` keep a session at all once the main checkout moves onto this
+  branch. `docker-compose.yml` never sets the flag and the boot guard refuses it in production.
+- **The soft authenticator** (`tests/soft_authenticator.py`): a real P-256 key, a CBOR
+  `fmt="none"` attestation object, authenticator data with real UP/UV/BE/BS/AT bits and a
+  4-byte counter, a `clientDataJSON` with `type`/`challenge`/`origin`; `create(options, origin,
+  *, rp_id, challenge, user_present, user_verified)` and `get(options, origin, *, rp_id,
+  challenge, counter, user_present, user_verified, user_handle, credential_id, signer)` — every
+  knob a negative needs. It reports BE+BS by default (a synced passkey, `multi_device`), so the
+  tests exercise the `parse_backup_flags` path a real phone will take.
+- **Every negative was proven to bite**, not assumed: a throwaway pytest plugin (kept in the
+  session scratchpad, never in the repo) weakened **one** check per run — trust the client's
+  origin; accept any rpID; `require_user_verification=False`; forget the stored counter; stub the
+  library's `verify_signature`; look the challenge up without deleting it; delete it without
+  checking expiry; ignore the challenge's kind; ignore which account minted it; drop the user
+  handle; answer an unknown id with the first stored row *and* stub the signature; delete a
+  passkey by bare id; drop the last-way-in rule; leave sessions alone on removal; admit plain
+  http on any host in dev mode; ignore a disagreeing `Origin` in pinned mode; send
+  `allowCredentials`; drop `residentKey`/`userVerification` from the options — and the test
+  guarding each one **failed** (18 of 18; `1 failed, 29 deselected` each), while the same
+  three tests unweakened pass. Two sabotages had to be corrected before they bit, which is the
+  point of running them: comparing the handle against `None` refuses everything (so the test
+  stayed green for the wrong reason), and an unknown credential cannot be *accepted* while the
+  signature still verifies against the substituted row — the lookup and the signature are two
+  checks, and "an unknown credential is refused" rests on both.
+- **Verified against the isolated stack** (backend **8239**, vite **8259**, the main checkout's
+  `app.db` and `uploads/` copied to a `mktemp -d` outside the repo — **7 real push subscription
+  rows and their 7 preferences deleted from the copy before the first boot**, no VAPID key in the
+  throwaway secrets — every PID killed by number, the directory removed): first boot logged
+  `Auth migrated: 3 accounts, 1 group, 6 memberships …` and `Cups imported: 2`. **Through
+  vite, logged out**: `POST /api/auth/passkeys/login/options` with no `Origin` → 401 (dev mode,
+  no relying party), with `Origin: http://localhost:8259` → 200 and options with `rpId:
+  "localhost"`, with a LAN `http://192.168.178.78:8000` origin → 401, `register/options` → the
+  gate's 401, HEAD → 405 as documented. **The plan's driver** (httpx + `SoftAuthenticator`,
+  Berni): password login 200 → `register/verify` **200** (`multi_device`, `backed_up: true`) →
+  jar cleared → `login/verify` **200** as Berni with `has_passkey: true` → the same assertion
+  again **401**. **A real ceremony in Chromium** (Playwright + CDP `WebAuthn.addVirtualAuthenticator`,
+  ctap2 / internal / resident / UV, a page on `http://localhost:8259/g/altherren/` — `isSecureContext`
+  true): Roli's password login → `navigator.credentials.create()` on the served options →
+  `register/verify` **200** (`label: "CDP virtual"`, `single_device`, `backed_up: false` — the
+  virtual authenticator sets no BE/BS), `WebAuthn.getCredentials` shows **one resident credential
+  for `localhost`, signCount 1, with a user handle**; `/me` `has_passkey: true`; logout → `/me`
+  401; `login/options` carries **no `allowCredentials`**; `navigator.credentials.get()` with no
+  identifier → `login/verify` **200** as Roli, `/auth/sessions` = `[passkey · "Linux · Safari" ·
+  current]`, `/tournaments` 200 on that session; **the same assertion posted again → 401**; a
+  second `get()` → 200 with the authenticator's counter at 3; `DELETE /auth/passkeys/1` → `{ok}`
+  and `/me` **401** on the very next request (this session was among the ones ended); a further
+  `get()` + verify → **401** (`unknown credential` in the log). The script is the shape L9's
+  `scripts/passkey_e2e.mjs` should take; it lived in the scratchpad for L8 because the plan
+  gives that file to L9.
+- **What only Roli's iPhone can prove**, stated plainly: that Safari offers a passkey on
+  `https://lorbeerkranz.xyz` at all; that Face ID sets the UV bit (the server *requires* it, so a
+  device that does not would be refused at verification rather than let through); that iCloud
+  Keychain syncs the credential and reports it `multi_device` / `backed_up` (the soft
+  authenticator does, the virtual one does not); that a synced credential's counter is 0 forever
+  (tested here as the accepted case, unverified on the device); that the installed PWA's own
+  cookie jar takes the session the `login/verify` sets (the same jar fact P5 lives with); and
+  that `device_label` reads the standalone app's UA as `iPhone · Safari` (L3's rule, exercised by
+  a test, not by a phone). None of it can be reached from this machine (the LAN is plain http and
+  not a secure context off `localhost`).
+- **`schema.d.ts` was generated from *this commit's* tree, not from the working tree.** L11
+  runs beside this task and its in-flight `routers/players.py` carries three docstring edits
+  (avatar meta, header meta, the guestbook-subject image — descriptions only, no shape), which
+  a plain `make gen-types` on the shared tree pulled into the file as comment hunks. Committing
+  those under L8 would have made the file irreproducible from L8's commit, so the schema was
+  dumped from `git archive HEAD` plus L8's own six backend files (`dump_openapi.py` on that
+  tree, `openapi-typescript` on its output): **+348/−2, the six routes, `PasskeyOut`,
+  `PasskeyRegisterVerifyBody`, `PasskeyLoginVerifyBody`, the `MeOut` docstring, nothing else.**
+  Consequence for whoever commits after L11: `make gen-types` will show a **comment-only**
+  diff of L11's three descriptions — commit it with L11 or at the final gates; it changes no
+  type.
+- **Gates:** `make lint` clean; `make gen-types` committed as above; `make test`
+  **501 passed** in 51:37 on a loaded Pi (load average 12 — `npm run check`, the sabotage runs and Roli's dev servers shared the four cores; the plan's 34 min is the quiet number). That is the baseline **465** at `d699892` plus **30** in `tests/test_passkeys.py` plus **6** from L11's in-flight `tests/test_player_profiles_auth.py` on the shared tree (+6/−0 `def test_`, uncommitted, not L8's); nothing pre-existing moved. L2's gate audit is among the 501 and was also run alone against the two new public paths (14 passed); `cd frontend && npm run check` green — tsc, eslint and vitest **919 tests in 95 files** in 185 s on the *shared* tree (L11's in-flight frontend files and its new test file ride in that count; L8 adds no frontend test, only the one `types.ts` line).
 
 ## L9 — Passkeys in the browser; the "secure your account" strip  ☐
 

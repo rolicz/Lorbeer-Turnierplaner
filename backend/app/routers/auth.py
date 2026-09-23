@@ -4,7 +4,7 @@ Thin: the rules live in `services/sessions.py` (the row and the cookie),
 `services/rate_limit.py` (slowing an attacker down), `services/groups.py` (what the session
 means) and `services/passwords.py` (argon2id). L3 added register / redeem / reset /
 password over `services/accounts.py`, `services/invites.py` and `services/reset_links.py`;
-L8 adds the passkey ceremonies.
+L8 the six passkey routes over `services/passkeys.py`.
 """
 
 from __future__ import annotations
@@ -17,8 +17,17 @@ from sqlmodel import Session, select
 from ..auth import require_auth_claims
 from ..db import get_session
 from ..models import Account, Player
-from ..schemas import LoginBody, LogoutBody, PasswordChangeBody, RedeemBody, RegisterBody, ResetBody
-from ..schemas.responses import MeOut, OkResponse, RevokedOut, SessionOut
+from ..schemas import (
+    LoginBody,
+    LogoutBody,
+    PasskeyLoginVerifyBody,
+    PasskeyRegisterVerifyBody,
+    PasswordChangeBody,
+    RedeemBody,
+    RegisterBody,
+    ResetBody,
+)
+from ..schemas.responses import MeOut, OkResponse, PasskeyOut, RevokedOut, SessionOut
 from ..services.accounts import change_password, remove_password, session_out, set_password
 from ..services.accounts import register as register_account
 from ..services.auth_migration import name_key
@@ -27,6 +36,19 @@ from ..services.groups import build_claims
 from ..services.invites import redeem_invite
 from ..services.legacy_jwt import claims_from_legacy_token
 from ..services.notifications import disable_push_subscription
+from ..services.passkeys import (
+    PasskeyConflict,
+    PasskeyRefused,
+    authentication_options,
+    list_passkeys,
+    passkey_out,
+    registration_options,
+    relying_party_for,
+    remove_passkey,
+    sweep_expired_challenges,
+    verify_authentication,
+    verify_registration,
+)
 from ..services.passwords import hash_password, hasher_for, validate_new_password, verify_password
 from ..services.rate_limit import enforce, limits_for, record_failure, record_success
 from ..services.reset_links import consume_reset, find_live_reset
@@ -323,3 +345,136 @@ def remove_my_password(s: Session = Depends(get_session), claims: dict = Depends
     remove_password(s, _my_account(s, claims))
     s.commit()
     return me_payload(s, claims)
+
+
+# ---- passkeys (L8) ----------------------------------------------------------------------
+
+PASSKEY_LOGIN_REFUSED = "That passkey could not be used to log in"
+PASSKEY_REGISTER_REFUSED = "That passkey could not be registered"
+PASSKEY_ORIGIN_REFUSED = "Passkeys are not available from this origin"
+PASSKEY_LAST_WAY_IN = "Set a password before removing your last passkey — an account needs one way in"
+PASSKEY_ALREADY_REGISTERED = "That passkey is already registered"
+
+
+def _relying_party(request: Request):
+    """The one decision (`services/passkeys.relying_party_for`), from this request's
+    `Origin` header — never its `Host`."""
+    return relying_party_for(request.app.state.settings, origin=request.headers.get("origin"))
+
+
+@router.post("/passkeys/register/options")
+def passkey_register_options(request: Request, s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
+    """Options for `navigator.credentials.create()` — a session is all it takes (no
+    membership needed: `/auth/` is an account path). Refuses an origin the relying party
+    rule does not admit (400; the caller is logged in, so naming the reason leaks nothing)."""
+    rp = _relying_party(request)
+    if rp is None:
+        raise HTTPException(status_code=400, detail=PASSKEY_ORIGIN_REFUSED)
+    sweep_expired_challenges(s)
+    account = _my_account(s, claims)
+    player = s.get(Player, int(account.player_id))
+    if player is None:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    return registration_options(s, account, player, rp)
+
+
+@router.post("/passkeys/register/verify", response_model=PasskeyOut)
+def passkey_register_verify(
+    request: Request,
+    body: PasskeyRegisterVerifyBody,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    """Store the credential the browser made. 400 with the same sentence for every way a
+    ceremony can fail (the reason goes to the log), 409 for a credential id already stored."""
+    rp = _relying_party(request)
+    if rp is None:
+        raise HTTPException(status_code=400, detail=PASSKEY_ORIGIN_REFUSED)
+    account = _my_account(s, claims)
+    try:
+        row = verify_registration(
+            s,
+            account,
+            rp,
+            body.credential,
+            label=body.label,
+            user_agent_label=device_label(request.headers.get("user-agent", "")),
+        )
+    except PasskeyRefused as exc:
+        log.info("Passkey registration refused for player %s: %s", account.player_id, exc.reason)
+        raise HTTPException(status_code=400, detail=PASSKEY_REGISTER_REFUSED) from None
+    except PasskeyConflict:
+        raise HTTPException(status_code=409, detail=PASSKEY_ALREADY_REGISTERED) from None
+    return passkey_out(row)
+
+
+@router.get("/passkeys", response_model=list[PasskeyOut])
+def my_passkeys(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> list[dict]:
+    """The caller's own passkeys, oldest first."""
+    return [passkey_out(row) for row in list_passkeys(s, int(claims["player_id"]))]
+
+
+@router.delete("/passkeys/{passkey_id}", response_model=OkResponse)
+def remove_my_passkey(
+    passkey_id: int,
+    request: Request,
+    response: Response,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    """Remove one of my passkeys — found among *my* rows (404 otherwise) — and end every
+    session of mine, this one included, so a lost device holds nothing live. 409 when it is
+    the last passkey and there is no password: an account keeps one way in."""
+    account = _my_account(s, claims)
+    try:
+        if not remove_passkey(s, account, int(passkey_id)):
+            raise HTTPException(status_code=404, detail="Passkey not found")
+    except PasskeyConflict:
+        raise HTTPException(status_code=409, detail=PASSKEY_LAST_WAY_IN) from None
+    s.commit()
+    clear_session_cookie(response, secure=_cookie_secure(request))
+    return {"ok": True}
+
+
+@router.post("/passkeys/login/options")
+def passkey_login_options(request: Request, s: Session = Depends(get_session)) -> dict:
+    """Options for `navigator.credentials.get()`: public, no identifier asked for, no
+    `allowCredentials` sent. Every mint counts against the *passkey* buckets (per IP and
+    global), so the challenge table cannot be filled from one address; a bad origin is
+    the same generic 401 the verify step gives."""
+    limits = limits_for("passkey", ip=_client_ip(request))
+    enforce(request, limits)
+    rp = _relying_party(request)
+    if rp is None:
+        record_failure(request, limits)
+        raise HTTPException(status_code=401, detail=PASSKEY_LOGIN_REFUSED)
+    sweep_expired_challenges(s)
+    options = authentication_options(s, rp)
+    record_failure(request, limits)  # a minted challenge is an attempt; counted like one
+    return options
+
+
+@router.post("/passkeys/login/verify", response_model=MeOut)
+def passkey_login_verify(request: Request, response: Response, body: PasskeyLoginVerifyBody, s: Session = Depends(get_session)) -> dict:
+    """Sign in with the assertion: one generic 401 for every refusal (unknown credential,
+    replayed challenge, wrong origin, bad signature, backwards counter, no user
+    verification — each logged with its real reason), else a session `kind="passkey"`
+    through the same path every other login takes."""
+    limits = limits_for("passkey", ip=_client_ip(request))
+
+    def run() -> Player:
+        rp = _relying_party(request)
+        if rp is None:
+            raise HTTPException(status_code=401, detail=PASSKEY_LOGIN_REFUSED)
+        try:
+            account, _row = verify_authentication(s, rp, body.credential)
+        except PasskeyRefused as exc:
+            log.info("Passkey login refused from %s: %s", _client_ip(request) or "?", exc.reason)
+            raise HTTPException(status_code=401, detail=PASSKEY_LOGIN_REFUSED) from None
+        player = s.get(Player, int(account.player_id))
+        if player is None:
+            raise HTTPException(status_code=401, detail=PASSKEY_LOGIN_REFUSED)
+        return player
+
+    player = _counted(request, limits, run)
+    return _start_session(request, response, s, player=player, kind="passkey")

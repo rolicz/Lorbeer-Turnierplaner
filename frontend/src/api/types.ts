@@ -129,6 +129,8 @@ export type MeResponse = Omit<S["MeOut"], "role" | "groups"> & { role: Role; gro
 export type AuthSession = S["SessionOut"];
 /** `POST /auth/sessions/revoke-others` and the admin's revoke-all: how many rows went. */
 export type RevokedCount = S["RevokedOut"];
+/** One of my passkeys (`GET /auth/passkeys`, L8) — never the credential id or the public key. */
+export type Passkey = S["PasskeyOut"];
 /** Where an account's password came from: never set, the one migrated from `secrets.json`, or set by the person. */
 export type PasswordOrigin = "none" | "migrated" | "set";
 

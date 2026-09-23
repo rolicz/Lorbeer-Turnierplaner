@@ -27,11 +27,17 @@ help:
 	@echo "  make gen-types         Regenerate frontend TS types from OpenAPI schema"
 	@echo "  make clean             Clean backend artifacts"
 
+# Dev-origin mode (L1/L8): the WebAuthn relying party — and the cookie's `Secure` flag —
+# follow the request's own `Origin`, so `http://localhost:8000` can register a passkey and
+# the phone's `http://192.168.178.78:8000` keeps its session cookie. The boot guard refuses
+# this flag under APP_ENV=production; docker-compose.yml never sets it.
+DEV_AUTH_ENV := AUTH_DEV_ORIGIN=1 APP_ENV=development
+
 backend:
-	$(MAKE) -C $(BACKEND_DIR) run PY=$(BACKEND_PY)
+	$(DEV_AUTH_ENV) $(MAKE) -C $(BACKEND_DIR) run PY=$(BACKEND_PY)
 
 backend-lan:
-	$(MAKE) -C $(BACKEND_DIR) run-lan PY=$(BACKEND_PY)
+	$(DEV_AUTH_ENV) $(MAKE) -C $(BACKEND_DIR) run-lan PY=$(BACKEND_PY)
 
 test:
 	$(MAKE) -C $(BACKEND_DIR) test PY=$(BACKEND_PY)

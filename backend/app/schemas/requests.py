@@ -44,6 +44,23 @@ class PasswordChangeBody(BaseModel):
     new_password: str = ""
 
 
+class PasskeyRegisterVerifyBody(BaseModel):
+    """`POST /auth/passkeys/register/verify` (L8): `credential` is the JSON form of the
+    `PublicKeyCredential` `navigator.credentials.create()` returned (what
+    `@simplewebauthn/browser`'s `startRegistration` resolves to), passed through untouched;
+    `label` is what the list calls it (empty → the device's name)."""
+
+    credential: dict[str, Any] = Field(default_factory=dict)
+    label: str = ""
+
+
+class PasskeyLoginVerifyBody(BaseModel):
+    """`POST /auth/passkeys/login/verify` (L8): the JSON form of the assertion
+    `navigator.credentials.get()` returned. No identifier — the credential says who."""
+
+    credential: dict[str, Any] = Field(default_factory=dict)
+
+
 class InviteCreateBody(BaseModel):
     """`POST /admin/invites` (L3): an optional note — who the code is for."""
 

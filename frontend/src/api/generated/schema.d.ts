@@ -224,6 +224,137 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/passkeys/register/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Register Options
+         * @description Options for `navigator.credentials.create()` — a session is all it takes (no
+         *     membership needed: `/auth/` is an account path). Refuses an origin the relying party
+         *     rule does not admit (400; the caller is logged in, so naming the reason leaks nothing).
+         */
+        post: operations["passkey_register_options_auth_passkeys_register_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/register/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Register Verify
+         * @description Store the credential the browser made. 400 with the same sentence for every way a
+         *     ceremony can fail (the reason goes to the log), 409 for a credential id already stored.
+         */
+        post: operations["passkey_register_verify_auth_passkeys_register_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Passkeys
+         * @description The caller's own passkeys, oldest first.
+         */
+        get: operations["my_passkeys_auth_passkeys_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/{passkey_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove My Passkey
+         * @description Remove one of my passkeys — found among *my* rows (404 otherwise) — and end every
+         *     session of mine, this one included, so a lost device holds nothing live. 409 when it is
+         *     the last passkey and there is no password: an account keeps one way in.
+         */
+        delete: operations["remove_my_passkey_auth_passkeys__passkey_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/login/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Login Options
+         * @description Options for `navigator.credentials.get()`: public, no identifier asked for, no
+         *     `allowCredentials` sent. Every mint counts against the *passkey* buckets (per IP and
+         *     global), so the challenge table cannot be filled from one address; a bad origin is
+         *     the same generic 401 the verify step gives.
+         */
+        post: operations["passkey_login_options_auth_passkeys_login_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/login/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Login Verify
+         * @description Sign in with the assertion: one generic 401 for every refusal (unknown credential,
+         *     replayed challenge, wrong origin, bad signature, backwards counter, no user
+         *     verification — each logged with its real reason), else a session `kind="passkey"`
+         *     through the same path every other login takes.
+         */
+        post: operations["passkey_login_verify_auth_passkeys_login_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/accounts": {
         parameters: {
             query?: never;
@@ -2956,8 +3087,9 @@ export interface components {
         /**
          * MeOut
          * @description Who the caller is on this device — answered by `GET /me`, `POST /auth/login` and
-         *     `POST /auth/exchange` alike (L2). `role` is the effective role in the current group
-         *     (`none` | `editor` | `owner` | `admin`). `has_passkey` is False until L8 writes a row.
+         *     `POST /auth/exchange` and `POST /auth/passkeys/login/verify` alike (L2, L8). `role` is
+         *     the effective role in the current group (`none` | `editor` | `owner` | `admin`).
+         *     `has_passkey` reads the `Passkey` table (L8).
          */
         MeOut: {
             /** Role */
@@ -3064,6 +3196,59 @@ export interface components {
         OkResponse: {
             /** Ok */
             ok: boolean;
+        };
+        /**
+         * PasskeyLoginVerifyBody
+         * @description `POST /auth/passkeys/login/verify` (L8): the JSON form of the assertion
+         *     `navigator.credentials.get()` returned. No identifier — the credential says who.
+         */
+        PasskeyLoginVerifyBody: {
+            /** Credential */
+            credential?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * PasskeyOut
+         * @description One of the caller's passkeys (`GET /auth/passkeys`, `POST /auth/passkeys/register/verify`,
+         *     L8). `device_type` is `single_device` | `multi_device` (the authenticator's backup
+         *     eligibility — a synced passkey is `multi_device`); `backed_up` is its current backup
+         *     state, refreshed on every sign-in. Never the credential id or the public key.
+         */
+        PasskeyOut: {
+            /** Id */
+            id: number;
+            /** Label */
+            label: string;
+            /** Device Type */
+            device_type: string;
+            /** Backed Up */
+            backed_up: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Used At */
+            last_used_at: string | null;
+        };
+        /**
+         * PasskeyRegisterVerifyBody
+         * @description `POST /auth/passkeys/register/verify` (L8): `credential` is the JSON form of the
+         *     `PublicKeyCredential` `navigator.credentials.create()` returned (what
+         *     `@simplewebauthn/browser`'s `startRegistration` resolves to), passed through untouched;
+         *     `label` is what the list calls it (empty → the device's name).
+         */
+        PasskeyRegisterVerifyBody: {
+            /** Credential */
+            credential?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Label
+             * @default
+             */
+            label: string;
         };
         /**
          * PasswordChangeBody
@@ -4763,6 +4948,167 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    passkey_register_options_auth_passkeys_register_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    passkey_register_verify_auth_passkeys_register_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegisterVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_passkeys_auth_passkeys_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyOut"][];
+                };
+            };
+        };
+    };
+    remove_my_passkey_auth_passkeys__passkey_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                passkey_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    passkey_login_options_auth_passkeys_login_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    passkey_login_verify_auth_passkeys_login_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyLoginVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

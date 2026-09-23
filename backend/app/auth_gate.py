@@ -56,9 +56,10 @@ Send = Callable[[dict], Awaitable[None]]
 #: Answered only when the socket peer is loopback. Docker's healthcheck, and the API docs
 #: through vite's proxy in dev (which connects from 127.0.0.1).
 LOOPBACK_ONLY_PATHS: tuple[str, ...] = ("/health", "/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc")
-#: No session needed. Only paths that exist may be listed (the audit test asserts it), so
-#: L8 adds `/auth/passkeys/login/options` and `/auth/passkeys/login/verify` with its routes
-#: — until then a new `/auth/…` route is an account path (session required) by construction.
+#: No session needed. Only paths that exist may be listed (the audit test asserts it) — a
+#: new `/auth/…` route is an account path (session required) by construction until it is
+#: named here. The passkey sign-in pair (L8) is public because it *is* a way in; the
+#: register pair and `/auth/passkeys` are account paths, reached with a session.
 #: `/auth/redeem` is deliberately *not* here: redeeming a code as an existing account needs
 #: that account's session (a stranger registers instead).
 PUBLIC_PATHS: tuple[str, ...] = (
@@ -66,6 +67,8 @@ PUBLIC_PATHS: tuple[str, ...] = (
     "/auth/exchange",
     "/auth/register",
     "/auth/reset",
+    "/auth/passkeys/login/options",
+    "/auth/passkeys/login/verify",
 )
 #: A session, no membership needed.
 ACCOUNT_PATHS: tuple[str, ...] = ("/auth/", "/me", "/me/notifications", "/push/")
