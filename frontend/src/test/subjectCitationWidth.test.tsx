@@ -12,6 +12,7 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import GuestbookEntryCard, {
   GuestbookCardProvider,
@@ -92,9 +93,12 @@ function renderCitation(kind: GuestbookSubjectKind, over: Partial<PlayerGuestboo
     subject: subject(kind, over),
   };
   return render(
-    <GuestbookCardProvider value={context()}>
-      <GuestbookEntryCard entry={row} />
-    </GuestbookCardProvider>,
+    // The author's identity is a `PlayerLink` (Q-F), so the card needs a router.
+    <MemoryRouter>
+      <GuestbookCardProvider value={context()}>
+        <GuestbookEntryCard entry={row} />
+      </GuestbookCardProvider>
+    </MemoryRouter>,
   );
 }
 

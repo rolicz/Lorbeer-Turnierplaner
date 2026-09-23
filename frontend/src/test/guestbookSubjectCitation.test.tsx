@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import GuestbookEntryCard, {
   GuestbookCardProvider,
@@ -74,9 +75,12 @@ function context(over: Partial<GuestbookCardContextValue> = {}): GuestbookCardCo
 
 function renderCard(row: PlayerGuestbookEntry, ctx: GuestbookCardContextValue = context()) {
   return render(
-    <GuestbookCardProvider value={ctx}>
-      <GuestbookEntryCard entry={row} />
-    </GuestbookCardProvider>,
+    // The author's identity is a `PlayerLink` (Q-F), so the card needs a router.
+    <MemoryRouter>
+      <GuestbookCardProvider value={ctx}>
+        <GuestbookEntryCard entry={row} />
+      </GuestbookCardProvider>
+    </MemoryRouter>,
   );
 }
 

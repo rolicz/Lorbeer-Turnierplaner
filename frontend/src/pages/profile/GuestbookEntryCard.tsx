@@ -4,6 +4,7 @@ import { createContext, useContext, useState, type JSX } from "react";
 import Button from "../../ui/primitives/Button";
 import Textarea from "../../ui/primitives/Textarea";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import VoteButton from "../../ui/primitives/VoteButton";
 import { CommentSendRow } from "../live/comments/CommentComposer";
 import type { PlayerGuestbookEntry, PlayerGuestbookSubject } from "../../api/types";
@@ -211,7 +212,13 @@ export default function GuestbookEntryCard({
            the only way to reach it; the sibling comments feed has no such handler at all
            (`TournamentCommentParts`, where "Mark as read" is the button and nothing else).
            G2 left *when* a message is marked read untouched and did not dress this up as an
-           affordance; whether the shortcut should exist at all is a question for Roli. */
+           affordance; Roli kept the shortcut on 2026-09-23 when it was raised as an invisible
+           target.
+           **The author's identity is the one part of the row that does something else** (Q-F):
+           `PlayerLink` stops the click (and Enter) from reaching this handler, so tapping the
+           name or the avatar opens that profile instead of silently marking the message read
+           and staying put. Nothing else about the shortcut moved — every other pixel of the
+           row still marks it read, and the `Mail` button still does it deliberately. */
         onClick={() => {
           if (!isUnseen || ctx.readPending) return;
           ctx.markRead(entry.id);
@@ -219,15 +226,33 @@ export default function GuestbookEntryCard({
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex items-center gap-2">
-            <AvatarCircle
+            {/* Identity is a link (N4): the avatar is the same door as the name, so it is
+                `decorative` — one name in the accessibility tree, not two. The wrapper is
+                `inline-flex` because an `<a>` around an inline-level avatar would otherwise
+                open a line box and hand the row the font's descender space, which is height
+                this feed does not have to give (it is measured to the pixel). */}
+            <PlayerLink
               playerId={entry.author_player_id}
               name={entry.author_display_name}
-              updatedAt={authorAvatarUpdatedAt}
-              sizeClass="h-8 w-8"
-              fallbackClassName="text-xs font-semibold text-text-muted"
-            />
+              decorative
+              className="inline-flex shrink-0 rounded-full"
+            >
+              <AvatarCircle
+                playerId={entry.author_player_id}
+                name={entry.author_display_name}
+                updatedAt={authorAvatarUpdatedAt}
+                sizeClass="h-8 w-8"
+                fallbackClassName="text-xs font-semibold text-text-muted"
+              />
+            </PlayerLink>
             <div className="min-w-0">
-              <div className="truncate text-xs font-semibold text-text-normal">{entry.author_display_name}</div>
+              <PlayerLink
+                playerId={entry.author_player_id}
+                name={entry.author_display_name}
+                className="block truncate text-xs font-semibold text-text-normal"
+              >
+                {entry.author_display_name}
+              </PlayerLink>
               {/* The byline says *when* it was edited, exactly as the comments feed does
                   (`TournamentCommentParts`): "edited" on its own leaves the reader to guess
                   whether that happened a minute or a month after the message. */}

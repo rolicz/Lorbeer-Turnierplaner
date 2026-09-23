@@ -213,12 +213,40 @@ export default function CupDetail({ cupKey, cupName }: { cupKey: string; cupName
                         <ReignChip tournaments={r.tournaments} current={r.current} />
                         {r.current ? <span className="text-xs text-text-muted">current</span> : null}
                       </span>
+                      {/* The other two people in this line are names too (N4, Q-F): the
+                          holder above them is already a link, and "took it from Berni" was
+                          the same person spelled as plain text one line lower. Inline, so
+                          the line still truncates as one line, and `pointer-events-auto`
+                          above the stretched tournament link so the row keeps its own
+                          action everywhere else. */}
                       <span className="block truncate text-xs text-text-muted">
-                        {r.tookFrom ? `took it from ${r.tookFrom.display_name}` : "claimed it"} · {r.startName} · {fmtDate(r.startDate)}
+                        {r.tookFrom ? (
+                          <>
+                            took it from{" "}
+                            <PlayerLink
+                              playerId={r.tookFrom.id}
+                              name={r.tookFrom.display_name}
+                              className="pointer-events-auto"
+                            >
+                              {r.tookFrom.display_name}
+                            </PlayerLink>
+                          </>
+                        ) : (
+                          "claimed it"
+                        )}{" "}
+                        · {r.startName} · {fmtDate(r.startDate)}
                       </span>
                       {r.lostTo ? (
                         <span className="block truncate text-xs text-text-muted">
-                          ended by {r.lostTo.display_name} · {fmtDate(r.endDate)}
+                          ended by{" "}
+                          <PlayerLink
+                            playerId={r.lostTo.id}
+                            name={r.lostTo.display_name}
+                            className="pointer-events-auto"
+                          >
+                            {r.lostTo.display_name}
+                          </PlayerLink>{" "}
+                          · {fmtDate(r.endDate)}
                         </span>
                       ) : null}
                     </span>
