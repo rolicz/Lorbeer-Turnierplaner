@@ -76,7 +76,11 @@ questions; where a later sentence contradicts this section, **this section wins*
    - "After deploy B has been proven" (e.g. removing `player_accounts[]` from `secrets.json`) now
      means **after the deploy has been proven on Roli's phone** — still a later, separate step.
    - The escape hatch is unchanged: `secrets.json` is not edited by the deploy, and
-     `git checkout cfc1669 && docker compose up -d --build` restores the old login.
+     `git checkout ce55a53 && docker compose up -d --build` restores the old login. **(L13: the
+     target is `ce55a53`, not `cfc1669`** — production runs `ce55a53`, i.e. `cfc1669` plus Roli's
+     `deploy other sites`, which adds `import /etc/caddy/sites/*.caddy` to `deploy/Caddyfile` and a
+     sites volume to `docker-compose.yml`; this repo's Caddy fronts his other apps on the same
+     server, and a checkout of `cfc1669` would take them down with it.)
 2. **The order** (it moves L8, and the reason is file ownership, not preference):
 
    **A** {L0 ∥ L1} → **L2** alone → **B** {L3 ∥ L4} → **C** {L5 ∥ L6 ∥ L7 ∥ L10 ∥ L12} →
@@ -702,8 +706,12 @@ suite does not grow by three hashes × 303 tests ≈ 5 minutes.
 **13. The escape hatch — four rungs, all measured before deploy A.**
 1. **`secrets.json` is not edited by this deploy.** `player_accounts[]` and `jwt_secret` stay;
    old code reads them, new code reads them once (migration) and for the exchange. So
-   `git checkout cfc1669 && docker compose up -d --build` restores the JWT login **instantly**,
+   `git checkout ce55a53 && docker compose up -d --build` restores the JWT login **instantly**,
    and the tokens still in everyone's `localStorage` are still valid (180 days). L13 proves it.
+   (L13: `ce55a53`, not `cfc1669` — see "Roli's answers" 1. And "still in `localStorage`" holds
+   only for a phone that has not opened the new app yet: the new frontend deletes the JWT the
+   moment the exchange answers, so such a phone meets the old login screen once and logs in with
+   its `secrets.json` password — measured 200 for all six on the rolled-back code.)
 2. `docker compose exec backend python manage.py reset-link --player Roli` prints a one-hour link;
    `manage.py set-password --player Roli` prompts (no echo) and writes the hash;
    `manage.py make-admin --player Roli`; `manage.py invite --group altherren` prints a code;
@@ -2702,7 +2710,7 @@ mark; the server refuses independently"; §11: the last `role="button"` is gone.
   refinement, and that the three "known exceptions" are closed; §5/§6 — the guard's endpoint list
   and that the avatar/header metadata lists follow the roster.
 
-## L13 — The dress rehearsal on a copy of production: migrate, log in, roll back, roll forward  ☐
+## L13 — The dress rehearsal on a copy of production: migrate, log in, roll back, roll forward  ☑
 
 **The gap.** Every rollback drill so far ran against the dev database. The deploy that can
 lock Roli out must be rehearsed against **production's own data shape** — its names, its
@@ -2726,7 +2734,7 @@ real one — Rule 7); the names are what matter, because the migration matches o
    every migrated name with its throwaway password → 200; `GET /me` → the shape; `GET
    /tournaments` → the same count as `sqlite3 -readonly … "select count(*) from tournament"`;
    `/cup?key=default` → the same owner as before the boot (saved from the old code in step 0).
-3. **Roll back**: `git archive cfc1669` into the work dir, boot it on the **same** database file
+3. **Roll back**: `git archive ce55a53` (L13's correction: not `cfc1669`) into the work dir, boot it on the **same** database file
    (port 8245) with the secrets copy → `POST /auth/login` (JWT) 200 for the same names; `GET
    /tournaments` 200; create a tournament (`group_id NULL`); create a comment.
 4. **Roll forward**: boot the new code again → the backfill logs `1` for `tournament`; the
@@ -2738,15 +2746,143 @@ real one — Rule 7); the names are what matter, because the migration matches o
 Write the whole report into this task's Deviations, with the snapshot's timestamp.
 
 **Definition of done.**
-- ☐ The script exists, is idempotent (a second run on a fresh copy gives the same report), and
+- ☑ The script exists, is idempotent (a second run on a fresh copy gives the same report), and
   its report is in Deviations.
-- ☐ Nothing under `backup/` changed (`find backup -newer scripts/auth_rehearsal.sh | wc -l` → 0).
-- ☐ Deviations filled in.
+- ☑ Nothing under `backup/` changed (`find backup -newer scripts/auth_rehearsal.sh | wc -l` → 0).
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §7: the rehearsal as a deploy-checklist step (before step 2's backup on
 the real thing).
 
-**Deviations.** —
+**Deviations.**
+- **Snapshot `backup/deploy/20260920-151542`** (`snapshot.json` `"kind": "deploy"` — the latest of
+  the sixteen that say so; selected by kind, not name), rehearsed at tree **`3801260`** against
+  rollback target **`ce55a53`**. Secrets: a copy of Roli's
+  `~/.local/share/turnierplaner-rehearsal/secrets.rehearsal.json` (six real names, Roli admin,
+  throwaway passwords — Berni's is `Grüß Gott …` with a space — and a throwaway `jwt_secret`)
+  with `db_url` pointed at the copy; the original was not edited, `backend/secrets.json` never
+  opened. Everything ran in a `mktemp -d` in the session scratchpad; `backup/` was only read
+  (`find backup -newer scripts/auth_rehearsal.sh | wc -l` → **0**, and the script checks the
+  snapshot's `app.db` sha256 before and after).
+- **The rollback target is `ce55a53`, not `cfc1669`** (the caller's correction, applied here to
+  "Roli's answers" 1, decision 13, L13 step 3, deploy step 12 and "Rollback safety, measured").
+  Production runs `ce55a53` = `cfc1669` + `deploy other sites` (`import /etc/caddy/sites/*.caddy`
+  in `deploy/Caddyfile`, a sites volume in `docker-compose.yml` — this Caddy fronts Roli's other
+  apps). `ce55a53` **is an ancestor of the branch**, so the merge keeps those lines:
+  `git diff ce55a53 3801260 -- deploy/` is empty and `docker-compose.yml` differs by exactly the
+  five auth lines (`APP_ENV`, `TRUSTED_PROXY_HOPS` and their comment). **The rollback command:**
+  `git checkout ce55a53 && docker compose up -d --build` — it leaves the server on a detached
+  HEAD, so `git checkout main` before the next `git pull`.
+- **Three files, not one**: `scripts/auth_rehearsal.sh <snapshot-dir> <secrets-shape.json>
+  [--no-browser]` orchestrates (copies, boots, kills by exact PID, `git archive`, preflight, log
+  lines), `scripts/auth_rehearsal_checks.py` holds the API checks (httpx + PyJWT from the backend
+  venv; the DB only through `sqlite3 mode=ro`), `scripts/auth_rehearsal_browser.mjs` the three
+  Chromium steps (CDP virtual authenticator; `PLAYWRIGHT` defaults to the racer checkout's
+  `playwright-core` 1.62.1, as L0 found there is none in `frontend/node_modules`). Ports: new code
+  **8244**, old code **8245** (L14's row, free since L14 was dropped), vite **8264**. The script
+  refuses a snapshot whose kind is not `deploy`, a busy port, or a work dir inside the repo.
+  `KEEP_WORK=1` keeps the work dir. Additions beyond the section, each cheap: a **baseline** boot
+  of the old code on an untouched copy (what production serves today, so "unchanged" has
+  something to be compared with), a **third** boot (idempotency), and a boot with
+  **docker-compose's production environment**.
+- **Idempotent, measured**: two runs on fresh copies gave **131 PASS, 0 FAIL** each, and their
+  PASS/FAIL lines are identical once the work-dir name, the invite code, the expiry minute and
+  ids are masked (`diff` → empty). Only the timing INFO lines move. (A first run found three
+  things wrong **in the script**, none in the code: the preflight never prints the literal
+  `unmatched_names: []` the plan expects — see the deploy checklist below; `/stats/*` carries a
+  per-response `generated_at`; and a login from a deep link returns to that link, not to the
+  dashboard.)
+- **The report** (run 3; run 2 identical):
+  - **Step 0.** The snapshot holds 6 players, 17 tournaments, 23 friendlies, 262 comments — and
+    **8 real push subscriptions**, deleted from the copy before anything booted (→ 0); no VAPID
+    key anywhere.
+  - **Step 1, baseline** (`ce55a53` on an untouched copy): boot logs only `Cup defs validated`,
+    `DB initialized`; JWT login as Roli 200; 16 reads 200; 17 tournaments; cup owners
+    **Lorbeerkranz → Berni, Bauernkranz → Rumpi**.
+  - **Step 2, `auth-preflight`** before any boot: **exit 0**, `RESULT: OK`, no `PROBLEM:` line;
+    `group to create: altherren`, `memberships to create: 6`, `accounts with a password: 6 (Roli,
+    Flo, Rumpi, Berni, Atzi, Mike)`, `accounts without a password: 0`, `owners (site admins): 1
+    (Roli)`, `group_id backfill: tournament=17, friendlymatch=23, featurerequest=1`; the copy's
+    sha256 identical afterwards.
+  - **Step 3, first boot**: healthy in **3.1 s** (12.8 s once, on a busy Pi), migration and six
+    default-profile hashes included. Log, in order: `Cup defs validated` · `Auth migrated: 6
+    accounts, 1 group, 6 memberships — 0 players without a password, 1 owner, backfilled
+    tournament=17, friendlymatch=23, featurerequest=1` · `Cups imported: 2` · `DB initialized`.
+    **No `Record holders seeded` / `swept` line fires** — production already holds its records
+    and nothing is orphaned. DB: group `altherren` / `Altherren`; 6 memberships (1 owner, 5
+    members); 6 `$argon2id$` hashes; site admins `[Roli]`; no tournament / friendly / idea left
+    without a group; **657** `clubstarrating` rows still `group_id NULL` (global — L12's fix to
+    L1's backfill holds on production's data); cups `bauernkranz`, `default`. **All six log in**
+    (Roli admin/owner, the other five editor/member), `Berni` with his non-ASCII password
+    included, and `roli`, `flo`, `berni` in lower case; a wrong password 401. `/me` keys: `groups
+    has_passkey has_password password_migrated player_id player_name role session_id site_admin`.
+    Anonymous `/tournaments` 401; with the cookie **17 = 17** rows. **Identical to the old code's
+    answer** (after dropping `generated_at` and the `/g/altherren` prefix): `/cup/defs`, both
+    `/cup?key=`, `/tournaments`, `/stats/players`, `/stats/ratings`, `/friendlies` and
+    `/stats/records` for all 9 mode × scope pairs — the new code does not even add a field to any
+    of them. **The exchange**: a JWT minted exactly as the old `create_token` did (HS256, `sub`,
+    `role`, `player_id`, `player_name`, `iat`, `exp` +180 d) → **200** + cookie, `/me` 200; one
+    signed with another secret → 401. `GET /tournaments` with the cookie **p50 34.8–36.4 ms**
+    over three runs (L2 measured 35.5 on the dev copy). **Browser** (Chromium, 390 px): password
+    login as Roli through the login screen, Settings → Account → Add a passkey → `has_passkey`,
+    one resident credential, exported with its private key. **Deep links**: logged out,
+    `/live/19?comment=264` → `/g/altherren/login`, and the login returns to
+    `/g/altherren/live/19?comment=264`; logged in, `/live/19?comment=264` →
+    `/g/altherren/live/19?tab=comments` (the one-shot consumed), `/stats?view=h2h` →
+    `/g/altherren/stats?view=h2h`, `/profiles/3` → `/g/altherren/profiles/3`, `/ideas?idea=1` →
+    `/g/altherren/ideas`, `/dashboard` and a bare `/` → `/g/altherren/dashboard`.
+  - **Step 4, rollback** (`git archive ce55a53 backend`, **same file**): boots clean (`Cup defs
+    validated`, `DB initialized`); **old JWT login 200 for all six**, Berni included; `/me` admin;
+    `/tournaments` 200, 17 = 17; both cups and `/stats/records`, `/stats/players` identical to the
+    baseline; `/friendlies`, `/ideas`, `/players` 200; `POST /tournaments` 200 → id **20** with
+    `group_id NULL`; a comment on it 200 → id **265**. The old code left the new tables alone: 6
+    accounts, 6 memberships, 1 passkey, 12 sessions, 2 cups.
+  - **Step 5, roll forward**: `Auth migrated: 0 accounts, 0 groups, 0 memberships — 0 players
+    without a password, 0 owners, backfilled tournament=1`, no second cups import; tournament 20
+    → `group_id 1`; all six log in; `/tournaments` lists 18 with it; comment 265 is there; **the
+    JWT the old code minted during the rollback exchanges** → 200, `/me` 200; the cookie from the
+    first boot is **still live**; cups, ratings, players and all 9 records identical to the
+    baseline. **The passkey survives**: 1 row, and a *fresh* Chromium with that credential
+    imported into a new virtual authenticator signs in as Roli via "Use a passkey", nothing typed.
+  - **Step 6, a third boot** migrates nothing (no `Auth migrated`, no `Cups imported`). The five
+    escape hatches, against the running server as on deploy day: **`reset-link --player roli`** →
+    exit 0, `https://lorbeerkranz.xyz/g/altherren/reset#<token>  (Roli (id=1), single use,
+    expires …)`; `POST /auth/reset` → 200, still site admin; the session from before is ended;
+    the same token again 400; the new password 200, the old 401. **`set-password --player BERNI`**
+    (piped, `Grüß Gott wieder 2`) → exit 0, `Password set for Berni (id=4); existing sessions stay
+    signed in`, not echoed, login 200; two different entries → exit 1, nothing stored.
+    **`make-admin --player Flo`** → exit 0, `/me` admin + `site_admin`; `--revoke` → editor.
+    **`invite --group altherren --note …`** → exit 0, `XXXX-XXXX (group altherren, single use,
+    expires …)`; registering with it → 200, editor in `altherren`, `/tournaments` 200; `--group
+    nope` → exit 1. **`sessions --player Roli`** → `3 live session(s)`; **`--revoke-all`** →
+    `Revoked 3 session(s)`, Roli's cookie 401. `reset-link --player Nobody` → exit 1.
+  - **Step 7, docker-compose's environment** (`APP_ENV=production`, `TRUSTED_PROXY_HOPS=1`, no dev
+    origin, default `AUTH_ORIGIN`) on the migrated copy: the boot guard passes; `/health` from
+    loopback 200 (the healthcheck's path); anonymous `/tournaments` 401; login → `HttpOnly;
+    Max-Age=7776000; Path=/; SameSite=lax; Secure`.
+  - **Step 8**: `hash_password` (default profile) × 10 **median 114.0–115.5 ms** (L1: 123.7 on the
+    dev data — the same order, as expected); snapshot unchanged.
+- **For the deploy checklist (L15 carries these into `AGENTS.md` §7):**
+  1. **Run the rehearsal first**, after the fresh `backup-deploy-data` (so it rehearses *that*
+     snapshot): `scripts/auth_rehearsal.sh backup/deploy/<ts> <shape.json>` → `ALL PASSED`.
+     `<shape.json>` is Roli's own copy of the secrets' shape; the script never needs the real one.
+  2. **The preflight's success is `RESULT: OK` with no `PROBLEM:` line**, not literal
+     `unmatched_names: []` / `case_collisions: []` lines (the report has no such lines); step 6
+     above is corrected accordingly, with the expected counts.
+  3. The expected boot log on production is exactly step 3's four lines above; **no** `Record
+     holders seeded` is expected.
+  4. **The rollback is `ce55a53`**, and after it `git checkout main` before any later pull.
+  5. **"The tokens still in every phone's `localStorage` are valid" is true only for a phone that
+     has not opened the new app yet** — the new frontend deletes the JWT when the exchange
+     answers. After a rollback such a phone meets the old login screen once; its `secrets.json`
+     password works (measured for all six). A password changed or reset *on the new code* is not
+     in `secrets.json` and does **not** carry back.
+  6. The snapshot carries production's **8 push subscriptions**: any stack built from it must
+     delete them first (the script does) and must never be given a VAPID key.
+- **Not rehearsed here, and why:** the frontend was the vite dev server, not the production build
+  (`vite build` + nginx) — L10 measured the build's resume separately; `docker compose build` was
+  not run (an arm64 build proves nothing about the x86 image; L1/L8 proved the wheels by
+  download). Nothing in `backend/` or `frontend/` changed, so no gate beyond the rehearsal ran.
 
 ## L16 — The push dispatcher no longer holds the write lock across network calls  ☑
 
@@ -3305,8 +3441,12 @@ Backend, schema and two dependencies change → the **full** deploy, both times.
 5. `docker compose build backend frontend` (the new wheels resolve here; a failure here costs
    nothing — the old containers are still running).
 6. `docker compose run --rm --no-deps backend python manage.py auth-preflight --secrets
-   /app/secrets.json --db-url sqlite:////data/app.db` — read the report. It must say
-   `unmatched_names: []`, `case_collisions: []`, and the account count you expect. **A non-zero
+   /app/secrets.json --db-url sqlite:////data/app.db` — read the report. It must end
+   `RESULT: OK` with **no `PROBLEM:` line** (that is how an unmatched name or a case collision is
+   printed — L13: the report has no literal `unmatched_names: []` / `case_collisions: []` lines),
+   and read `accounts with a password:   6  (Roli, Flo, Rumpi, Berni, Atzi, Mike)`,
+   `owners (site admins): 1 (Roli)`, `group_id backfill: tournament=N, friendlymatch=M,
+   featurerequest=K` (the 2026-09-20 snapshot: 17 / 23 / 1). **A non-zero
    exit here means stop**: nothing has changed yet.
 7. `docker compose up -d --build`. `docker compose logs -f backend` → expect, in order:
    `Cup defs validated` · `Auth migrated: N accounts, 1 group, M memberships` ·
@@ -3333,7 +3473,11 @@ Backend, schema and two dependencies change → the **full** deploy, both times.
     the first such tap shows the login screen once — expected, say so in `README.md`.
 
 **If login is broken (the escape hatch, in the order to try it):**
-12. `git checkout cfc1669 && docker compose up -d --build` — restores the JWT login **instantly**:
+12. `git checkout ce55a53 && docker compose up -d --build` — restores the JWT login **instantly**
+    (**`ce55a53`, never `cfc1669`**: production runs `ce55a53`, whose `deploy/Caddyfile` imports
+    `/etc/caddy/sites/*.caddy` for Roli's other apps; `cfc1669` would take them down. The checkout
+    leaves the server on a detached HEAD — `git checkout main` before the next `git pull`.
+    Rehearsed by L13 against the production snapshot):
     `secrets.json` still holds `player_accounts[]` and `jwt_secret`, old code ignores every new
     table and column (measured in L1 and L13), and the tokens still in every phone's
     `localStorage` are valid. This is the reason `secrets.json` is not edited by this deploy.
@@ -3363,7 +3507,7 @@ Backend, schema and two dependencies change → the **full** deploy, both times.
 ## Rollback safety, measured (the technique, so nobody asserts it)
 
 ```bash
-OLD=$(mktemp -d) && git archive cfc1669 | tar -x -C "$OLD"
+OLD=$(mktemp -d) && git archive ce55a53 | tar -x -C "$OLD"   # L13: ce55a53, what production runs
 cp <a db the new code has booted> "$WORK/rb.db"
 cd "$OLD/backend" && ../../../backend/.venv/bin/python run.py --port 82xx --secrets "$WORK/secrets.json" --db-url "sqlite:///$WORK/rb.db"
 # → boots; POST /auth/login (JWT) 200; GET /tournaments 200; POST /tournaments 200
