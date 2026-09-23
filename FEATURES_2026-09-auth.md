@@ -1941,7 +1941,7 @@ destinations, the bar still five.
 
 **Deviations.** —
 
-## L7 — Settings → Account: my devices, my password  ☐
+## L7 — Settings → Account: my devices, my password  ☑
 
 **The gap.** A member cannot see where they are logged in, sign a lost phone out, change the
 password they were given, or join another group from inside the app.
@@ -1977,19 +1977,82 @@ grep -n "sessions\|password" frontend/src/pages/SettingsPage.tsx    # → 0 (aft
    `await auth.logout()` then `navigate("/login", {replace: true})`.
 
 **Definition of done.**
-- ☐ `securitySection.test.tsx` (≈8): the current device is marked and has no sign-out button;
+- ☑ `securitySection.test.tsx` (≈8): the current device is marked and has no sign-out button;
   the editor toggles; the migrated line shows iff migrated; "Join" posts the normalised code.
-- ☐ Browser, 390 / 1280, `blue` / `light`: two contexts, sign the other out from the first →
+- ☑ Browser, 390 / 1280, `blue` / `light`: two contexts, sign the other out from the first →
   the other lands on `/login` on its next request; change the password → log out → old
   password 401, new one in; the migrated line is gone after the change (`password_origin` is
   `set`).
-- ☐ `npm run check` green.
-- ☐ Deviations filled in.
+- ☑ `npm run check` green.
+- ☑ Deviations filled in.
 
 **Canon.** `DESIGN.md` §9b: the password editor is the in-place shape (read view or editor);
 §5b: `Devices`, `this device`, `Sign out other devices`, `Change password`.
 
-**Deviations.** —
+**Deviations.**
+- **Two files outside L7's row, one of them L5's.** `pages/auth/InviteCodeField.tsx` is built
+  here because L5 had not started when L7 needed it: the one code input, at the path L5's section
+  names, exporting **only** the component (a formatter export beside it would trip
+  `react-refresh/only-export-components`). Its `value` is the **raw** code and `onChange` hands back
+  the raw code; the field shows `ABCD-EFGH`. The formatter uppercases, drops everything outside the
+  server's alphabet (`CODE_ALPHABET`, so `O`/`0`/`I`/`1` are refused) and caps at 8. **L5 imports
+  it and must not write a second one.** Likewise `redeemCode` is implemented in `api/account.api.ts`
+  (L5's `registration.api.ts` does not exist) — **L5 re-exports it from there**, the reverse of the
+  plan's direction, still one implementation. And `pages/settings/SettingsSection.tsx` (new): the
+  card that `SettingsPage` defined inline, moved out so `SecuritySection` renders its three groups
+  in the same look without importing from a page; `SettingsPage` now imports it.
+- **Three `SettingsSection`s, not two** — "Devices", "Password", "Groups" (the section list itself
+  names three), placed directly under "Account" and above the admin's "View as".
+- **After a password change or a redeem the app calls `refresh()`, not `setSession`.** L4's
+  `setSession` is for a *new* session: it `qc.clear()`s the whole cache and drops the admin's "view
+  as" override — right on the login screen, wrong under a mounted Settings page (its own sessions
+  query would be orphaned). Both endpoints answer `MeOut`, and the one extra `GET /me` is the price
+  of not adding an `applyMe` to `AuthContext` (L4's file). The redeem's answer is still used: the
+  success line names the group that is new in it ("You joined Jungs.").
+- **Words, as shipped:** rows are `device_label` (falling back to "Unknown device") with
+  "Since <date> · last seen <date, time>"; **the current row drops "last seen"** — it is being used
+  now, and at 390px the `this device` pill truncated the line (measured, then fixed). The trailing
+  sign-out is a `size="sm" iconOnly` ghost `LogOut` labelled "Sign out <label>"; its dialog is
+  "Sign out <label>?" / "That device has to log in again with your name and password." / **Sign
+  out**, and "Sign out other devices" asks with a `fmtCount` of how many — **no red block** on either
+  (reversible: log in again, §7). The footer button appears only while another device exists. The
+  password block is a full-width ghost toggle "Change password" (or "Set a password" without one)
+  with a chevron and `aria-expanded`; the editor is the current field (only when `hasPassword`),
+  the new field with the eye toggle and "At least 10 characters" turning `text-text-normal` once
+  met, a full-width solid **Save**, the error line, `RetryCountdown`. Closing by the toggle discards
+  the draft; after a save the read view says "Password changed. Your other devices stay signed
+  in." The migrated line is exactly the plan's. Groups are `ListRow`s with the membership role as a
+  `pill-default` `Pill`; the join row is `InviteCodeField` + a ghost "Join" (`UserPlus`), the
+  server's sentence as the error line ("That code is not valid", "You are already in this group").
+- **Nothing for "Remove password"** — not the text action, not the promise line. `removePassword()`
+  is in `account.api.ts` and a comment in `PasswordSection` marks where L9 adds the passkey rows and
+  the `hasPasskey`-gated action.
+- **Timestamps are the app's naive-UTC shape**, printed with `fmtDateTime` like every comment and
+  idea byline, so "last seen" reads in UTC (15:29 at 17:29 CEST on the stack). Pre-existing and
+  app-wide; not a second convention to start here.
+- **Measured** on the stack (8238/8258, a DB copy and an empty uploads dir in the scratchpad, a
+  throwaway secrets file naming the copy), Playwright Chromium, two contexts per run — the second
+  with an iPhone Safari UA — at 390 `blue`, 1280 `light`, 390 `light`, 1280 `blue`: no horizontal
+  overflow, `a a` = 0, the four cards at x=16 / w=358 (390) and x=424 / w=672 (1280), the
+  `this device` pill 84×22 on the current row with **no button in that row**. Revoking the phone by
+  its row (390s) and "Sign out other devices" (1280s) each left **one** session in
+  `GET /auth/sessions`, the phone row gone from the list, and the phone's next navigation landed on
+  `/g/altherren/login`. Password (Berni): the migrated line showed; a wrong current password →
+  "The current password is wrong"; the right one → saved, the line gone, `/me` `password_migrated:
+  false`; the old password → **401** at `/auth/login`, the new one logs in. A 429 (Flo, ten wrong
+  current passwords) → "Too many attempts — try again in 594s" → 592s two seconds later, Save
+  disabled. Codes minted with `manage.py invite` against the copy (a second group `jungs` inserted
+  by SQL **on the copy**, since `altherren` is the only one): `zzzz zzzz` showed `ZZZZ-ZZZZ` → "That
+  code is not valid"; an `altherren` code typed in lower case → "You are already in this group";
+  the `jungs` code → "You joined Jungs." and a Jungs row with `member`. Stack PIDs killed by
+  number, the vite child included.
+- **Seen, not mine:** the headless Chromium UA (`HeadlessChrome/…`) is labelled `Linux · Safari` by
+  L3's `device_label` — `HeadlessChrome` is not matched as Chrome, so the `Safari/` token wins. A
+  real desktop Chrome says `Chrome`; noted for whoever next touches `device_label.py`.
+- **Tests:** `securitySection.test.tsx`, 12 (the plan's ≈8 plus the 403 line, the 429 countdown,
+  "Set a password" without a current field, and the group list). `npm run check` **881 in 91 files**
+  — L7's 12 in 1 file on the 855/89 baseline, the rest is L10's in-flight `basename.test.ts` in the
+  same tree.
 
 ## L10 — The group segment in the URL and in every deep link; `sw.js` registers its own subscription  ☐
 

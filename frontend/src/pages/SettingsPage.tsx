@@ -21,6 +21,8 @@ import Button, { buttonClass } from "../ui/primitives/Button";
 import ConfirmDialog from "../ui/primitives/ConfirmDialog";
 import { showErrorToast } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
+import SettingsSection from "./settings/SettingsSection";
+import SecuritySection from "./settings/SecuritySection";
 
 const THEME_SWATCHES: Record<string, string[]> = {
   blue: ["#0f172a", "#334155", "#fe6100"],
@@ -33,18 +35,6 @@ const FALLBACK_SWATCH = ["#334155", "#475569", "#fe6100"];
 
 type SettingsTab = "account" | "appearance" | "notifications" | "diagnostics";
 const SETTINGS_TAB_KEYS = ["account", "appearance", "notifications", "diagnostics"] as const satisfies readonly SettingsTab[];
-
-/** Card wrapper for a settings group. */
-function SettingsSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    // `min-w-0`: a grid item defaults to `min-width: auto`, so one unbreakable
-    // line inside (a crash message, a stack frame) would widen the whole page.
-    <section className="card min-w-0">
-      <h2 className="mb-3 text-sm font-semibold text-text-normal">{title}</h2>
-      {children}
-    </section>
-  );
-}
 
 export default function SettingsPage() {
   const pageEntered = useRouteEntryLoading();
@@ -171,6 +161,9 @@ export default function SettingsPage() {
             </Button>
           </div>
         </SettingsSection>
+
+        {/* Devices · Password · Groups (L7) */}
+        <SecuritySection />
 
         {/* View as (admin actor switch) */}
         {canSwitchActor ? (
