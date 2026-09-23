@@ -1804,7 +1804,7 @@ rows `auth`/`admin`; §10: the offline rule and the exchange.
   L9. The main checkout was not touched; the stack ran on 8235/8255 against copies under the
   scratchpad, and every PID was killed by number.
 
-## L5 — Register, reset and "not in a group yet"  ☐
+## L5 — Register, reset and "not in a group yet"  ☑
 
 **The gap.** After L4 the login screen links to `/register`, which renders "Coming in L5";
 `/reset#token` has no page; an account with no membership sees an `EmptyState`.
@@ -1849,11 +1849,11 @@ grep -n "NoGroupPage" frontend/src/auth/RequireAuth.tsx                         
    from `RegisterPage.tsx`'s sibling `pages/auth/InviteCodeField.tsx` so L7 imports it).
 
 **Definition of done.**
-- ☐ `registration.test.tsx` (≈10): the formatter (`abcd efgh` → shows `ABCD-EFGH`, posts
+- ☑ `registration.test.tsx` (≈10): the formatter (`abcd efgh` → shows `ABCD-EFGH`, posts
   `ABCDEFGH`; `O`/`0`/`I`/`1` refused by the formatter); the password hint state; the 429
   countdown; the reset page strips the fragment before the request (assert `history.replaceState`
   called before `fetch`); the no-token empty state.
-- ☐ Browser, 390 / 1280, `blue` / `light`: register with a code minted by
+- ☑ Browser, 390 / 1280, `blue` / `light`: register with a code minted by
   `manage.py invite --group altherren` → dashboard as the new player; that player is **absent**
   from `/players` on Roli's session until… no — a registered code *joins* them, so they are
   present; a second account registered with a **spent** code → the generic error. Log the new
@@ -1862,13 +1862,91 @@ grep -n "NoGroupPage" frontend/src/auth/RequireAuth.tsx                         
   reset-link` → open the URL → the bar shows bare `/g/altherren/reset` within the first frame
   (`performance.getEntriesByType("navigation")` shows no request carrying the token) → set a
   password → in.
-- ☐ `npm run check` green.
-- ☐ Deviations filled in.
+- ☑ `npm run check` green.
+- ☑ Deviations filled in.
 
 **Canon.** `DESIGN.md` §7: `InviteCodeField` (the one code input, its formatter), the reset page
 (no confirm field, the fragment rule); §5b: `Register`, `Join`, `Set password`, `Invite code`.
 
-**Deviations.** —
+**Deviations.**
+- **Four small files beside the three pages, all in `pages/auth/`, because the job already had
+  two copies or would have had three.** `inviteCode.ts` (`CODE_ALPHABET`, `normalizeInviteCode`,
+  `formatInviteCode`): the rule moved **out of L7's `InviteCodeField.tsx`**, which now imports it —
+  a `?code=` in a register link has to be read by the same function the field uses, and a `.tsx`
+  may export only a component. `PasswordField.tsx`: the eye-toggle field with the live
+  "At least 10 characters" hint (`data-password-hint="met|unmet"`, muted → `text-text-normal`),
+  used by register and reset. **It is the third hand-built copy in the tree** — `LoginPage` and
+  L7's private `PasswordField` in `SecuritySection.tsx` are the other two — and I did not edit
+  either (L4's and L7's files, both touched again by L9); **L9 should fold both into this one**.
+  `password.ts` holds `MIN_PASSWORD_LENGTH = 10` (the server's floor, mirrored so the button can
+  wait). `formError.ts::formErrorText` is the one error line of the three pages: the server's
+  sentence verbatim, else "Could not reach the server — …".
+- **`registration.api.ts` re-exports `redeemCode` from `account.api.ts`** (the reverse of the plan's
+  direction, as L7 left it); `register` and `resetPassword` live here.
+- **`NoGroupPage` hands the redeem's `MeOut` to `setSession`, not `refresh()`** — no second
+  `GET /me`, and the cache clear that made L7 avoid `setSession` is right here: nothing is mounted
+  under this screen. `RequireAuth` mounts the shell on the next render, on the URL the reader asked
+  for; no navigation. "Log out" is a ghost button in `AuthScreen`'s `below` slot; a logout that
+  never reached the server says "Could not reach the server — you are still logged in." as the
+  error line (L4's rule: a logout needs the server). `RequireAuth.tsx`: the placeholder and its two
+  imports gone, one element swapped, one comment line updated — nothing else.
+- **The reset page reads the token once (state initialiser, router location: fragment, else
+  `?token=`) and strips it in a `useLayoutEffect` with `navigate(…, {replace: true})`** — the
+  router's own `replaceState`, so router and address bar agree, and it runs before the first paint
+  and long before the only request (the submit). Other query params survive, `token` and the hash do
+  not. A reload afterwards finds no token and shows the "not complete" state — deliberate: the link
+  is used once and is kept nowhere (no `sessionStorage` either). The page is outside the shell, so
+  `useRememberLocation`'s breadcrumbs and `lastLocation` never see it. **The one place the token
+  survives is the browser's own `performance.getEntriesByType("navigation")[0].name`**, which is the
+  document URL *with* its fragment (measured: it contains the token). That is not a request — a
+  fragment never goes over the wire, and none of the 240 requests per run carried it in a URL or a
+  `Referer` (measured) — but the DoD's phrasing ("the navigation entry shows no request carrying the
+  token") is only true in that sense. A `?token=` link *is* sent with the page load; the server mints
+  `#` links only.
+- **An authed visitor to `/register` is sent to `/dashboard`** (an account in no group lands on
+  `NoGroupPage` there, where a code goes). `/reset` does **not** redirect an authed visitor: a reset
+  starts a fresh session and ends the others, which is right even when logged in.
+- **Words:** "Invite code", "Display name" (placeholder "The name the others will see",
+  `autoCapitalize="words"`), "Password" / "New password", **Register** (`UserPlus`), **Set password**
+  (`KeyRound`), **Join** (`UserPlus`), **Log out** (`LogOut`); under the cards "Already have an
+  account? Log in ›" (register) and "Know your password? Log in ›" (reset, both states); the
+  no-token state is the plan's sentence as an `EmptyState`. No confirm field (the comment says why).
+- **Tests: `registration.test.tsx`, 14** — the formatter (shown `ABCD-EFGH`, posted `ABCDEFGH`;
+  `O0I1` refused; overlong capped), `?code=` prefill, the hint and the held button, a 409 verbatim
+  with the code kept, the 429 countdown on fake timers, the reset page's `replaceState` asserted
+  **before** `fetch` by `invocationCallOrder` (real `fetch` stubbed, `BrowserRouter`), `?token=`
+  stripped, a spent link's line, the no-token state with no request, and the no-group page's join,
+  bad code and log out. `npm run check` **895 in 92 files** (881/91 + 14 in 1); `npm run build`
+  green (`index-*.js` 757 kB with L10's in-flight tree; the pre-existing >500 kB hint).
+- **Measured** on the stack (8236/8256, a `sqlite3` backup of the main checkout's `app.db` and an
+  empty uploads dir under the scratchpad; codes and links from `manage.py invite` / `reset-link`
+  against the copy), Playwright Chromium, a fresh context per step, at **390 blue, 1280 light,
+  390 light, 1280 blue** — every check passed in all four: no horizontal overflow, `a a` = 0, no
+  `#app-top-nav`, the card at x=16 / w=358 (390) and x=448 / w=384 (1280), centred to the pixel
+  (195 / 640). `?code=` lower case prefilled upper case; `ZZZZ-ZZZZ` → "That code is not valid";
+  `rOLI` → "That name is taken"; a short password holds the button with the hint muted
+  (`rgb(186,198,216)` blue / `rgb(74,70,66)` light) and it turns `text-text-normal` at ten, and
+  the server's own 400 ("The password must be at least 10 characters long") left the code usable —
+  **the same code then registered** `L5userN` → `/g/altherren/dashboard` with the shell, `/me` a
+  member of Altherren. A second context with that spent code → "That code is not valid".
+  `DELETE FROM groupmembership WHERE player_id=…` on the copy → reload → `NoGroupPage`; a bad code →
+  the line; a fresh code → the shell on `/g/altherren/dashboard`. Reset (Berni, Flo, Rumpi, Atzi):
+  on load the bar reads bare `/g/altherren/reset`, set password → dashboard as that player, the new
+  password logs in (200), the same link a second time → "That reset link is not valid"; `/reset`
+  with no token → the "not complete" line. **The limiter is real**: the third run's bad-code step
+  hit `redeem`'s 10-per-hour IP bucket (register + redeem share it) — "Too many attempts — try again
+  in 3521s" in `rgb(251,191,36)` with Register disabled — so the backend was restarted (by PID) to
+  empty the in-memory buckets for the last two runs.
+- **Seen, not mine:** the stack's first boot ran against a missing secrets file (my `cp` from the
+  worktree's absent `backend/app.db` failed and the heredoc after it never ran), so it migrated
+  **0 accounts** — every existing player passwordless — and the copy kept that shape; nothing here
+  needed a migrated password. The worktree has no `backend/app.db`; the copy came from the main
+  checkout, opened `mode=ro`. `backend/secrets.json` was never read.
+- **Push could not have left this stack**: its secrets file was missing and then `{}`, no
+  `PUSH_VAPID_*` in the environment and no `vapid_private_key.pem` in the worktree, so the dispatcher
+  had no key. The coordinator's later rule (empty `pushsubscription` and `pushsubscriptionpreference`
+  in the copy before booting, never a VAPID key in a throwaway secrets file) arrived after the stack
+  was already torn down and the copy deleted; any stack started for L5 from now on does both.
 
 ## L6 — The admin page  ☐
 

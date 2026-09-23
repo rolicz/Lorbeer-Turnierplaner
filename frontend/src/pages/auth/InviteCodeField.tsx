@@ -1,16 +1,12 @@
 import Input from "../../ui/primitives/Input";
-
-/** The server's alphabet (`services/invites.py::CODE_ALPHABET`): no `I`, `O`, `0` or `1`. */
-const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-const CODE_LENGTH = 8;
+import { formatInviteCode, normalizeInviteCode } from "./inviteCode";
 
 /**
  * The one invite-code input (built by L7, which needed it first; L5's register and
  * no-group pages use it too). `value` is the **raw** code — up to eight characters of the
  * server's alphabet, the only thing ever posted — and the field shows it as `ABCD-EFGH`.
- * Whatever is typed or pasted is uppercased and stripped of everything outside the
- * alphabet, so `abcd efgh`, `ABCD-EFGH` and a code pasted with a trailing newline all
- * become `ABCDEFGH`.
+ * Whatever is typed or pasted goes through `inviteCode.ts::normalizeInviteCode` (L5 moved
+ * the rule there so a `?code=` in a register link is read by the same function).
  */
 export default function InviteCodeField({
   value,
@@ -23,21 +19,14 @@ export default function InviteCodeField({
   label?: string;
   disabled?: boolean;
 }) {
-  const shown = value.length > 4 ? `${value.slice(0, 4)}-${value.slice(4)}` : value;
+  const shown = formatInviteCode(value);
   return (
     <Input
       label={label}
       type="text"
       name="invite-code"
       value={shown}
-      onChange={(e) =>
-        onChange(
-          [...e.target.value.toUpperCase()]
-            .filter((ch) => CODE_ALPHABET.includes(ch))
-            .join("")
-            .slice(0, CODE_LENGTH),
-        )
-      }
+      onChange={(e) => onChange(normalizeInviteCode(e.target.value))}
       autoCapitalize="characters"
       autoComplete="one-time-code"
       autoCorrect="off"

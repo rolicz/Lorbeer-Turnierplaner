@@ -2,8 +2,7 @@ import React from "react";
 import { RefreshCw, WifiOff } from "lucide-react";
 import { Navigate, useLocation } from "react-router-dom";
 
-import AuthScreen from "../pages/auth/AuthScreen";
-import EmptyState from "../ui/primitives/EmptyState";
+import NoGroupPage from "../pages/auth/NoGroupPage";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import { useAuth } from "./AuthContext";
 
@@ -14,7 +13,7 @@ import { useAuth } from "./AuthContext";
  * - `unknown`   → a loading screen that says whether the server can be reached. Never
  *   the login screen: the server has not rejected anything, we simply could not ask —
  *   and `AuthProvider` keeps asking (on `online`, on becoming visible, on a slow clock).
- * - `authed` with no membership → "not in a group yet" (L5's page; a placeholder here).
+ * - `authed` with no membership → "not in a group yet" (`NoGroupPage`: a code and a way out).
  * - `authed` with a membership → the shell.
  *
  * The shell — its global websocket, its prefetches, its bell — therefore mounts only
@@ -29,7 +28,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   }
   if (status === "unknown") return <BootScreen unreachable={serverUnreachable} />;
-  if (groups.length === 0) return <NoGroupPlaceholder />;
+  if (groups.length === 0) return <NoGroupPage />;
   return <>{children}</>;
 }
 
@@ -60,11 +59,3 @@ function BootScreen({ unreachable }: { unreachable: boolean }) {
   );
 }
 
-/** L5 replaces this one element with `NoGroupPage` (an invite-code field and a way out). */
-function NoGroupPlaceholder() {
-  return (
-    <AuthScreen>
-      <EmptyState title="You're not in a group yet." hint="Ask a member for an invite code." className="py-4" />
-    </AuthScreen>
-  );
-}
