@@ -54,3 +54,4 @@ frontend/.env.*
 frontend/tsconfig.tsbuildinfo
 
 backup/
+deploy/sites
