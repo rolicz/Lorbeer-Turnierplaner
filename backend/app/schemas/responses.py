@@ -82,6 +82,52 @@ class RevokedOut(BaseModel):
     revoked: int
 
 
+# ---- accounts, invites, admin (L3) --------------------------------------
+class AdminAccountOut(BaseModel):
+    """One account on the admin page (`GET /admin/accounts`). `role` is the effective role
+    in the current group (`none` | `editor` | `owner` | `admin`); `password_origin` is
+    `none` | `migrated` | `set`; `session_count` / `last_seen_at` cover live sessions only."""
+
+    player_id: int
+    display_name: str
+    site_admin: bool
+    role: str
+    password_origin: str
+    has_passkey: bool
+    session_count: int
+    last_seen_at: datetime | None
+
+
+class InviteCreatedOut(BaseModel):
+    """A fresh invite code — **the only time the code is readable**, formatted `ABCD-EFGH`."""
+
+    id: int
+    code: str
+    group_slug: str
+    note: str
+    expires_at: datetime
+
+
+class InviteOut(BaseModel):
+    """A live (unredeemed, unexpired) invite, without its code."""
+
+    id: int
+    group_slug: str
+    note: str
+    created_at: datetime
+    expires_at: datetime
+    created_by: PlayerRef | None
+
+
+class ResetLinkOut(BaseModel):
+    """A fresh one-hour reset link — the only time it is readable. The token rides in the
+    URL fragment (`…/g/<slug>/reset#<token>`)."""
+
+    player_id: int
+    url: str
+    expires_at: datetime
+
+
 class MyNotificationOut(BaseModel):
     """One item in the personal notification bell.
 

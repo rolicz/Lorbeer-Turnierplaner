@@ -15,8 +15,10 @@ about what a session means.
 
 from __future__ import annotations
 
+from fastapi import HTTPException
 from sqlmodel import Session, select
 
+from ..api_utils import conflict, forbidden
 from ..models import Account, Group, GroupMembership, Player
 from .auth_migration import DEFAULT_GROUP_NAME, DEFAULT_GROUP_SLUG
 
@@ -26,8 +28,12 @@ __all__ = [
     "build_claims",
     "current_group",
     "effective_role",
+    "group_by_slug",
+    "group_prefix_for_push",
     "is_member",
     "memberships_for",
+    "roster_for",
+    "set_member_role",
 ]
 
 #: Membership roles, as stored in `GroupMembership.role`.
@@ -121,3 +127,68 @@ def build_claims(s: Session, *, player_id: int, session_id: int | None) -> dict 
             for group, role in memberships
         ],
     }
+
+
+# ---- owner operations, the roster, push (L3) --------------------------------------------
+
+
+def group_by_slug(s: Session, slug: str) -> Group | None:
+    return s.exec(select(Group).where(Group.slug == str(slug or "").strip().lower())).first()
+
+
+def set_member_role(s: Session, *, group_id: int, player_id: int, role: str, actor_claims: dict) -> GroupMembership:
+    """Make a member an owner, or an owner a member. The actor must own **that** group or be
+    a site admin (403 otherwise); the target must be a member of it (404); the last owner
+    cannot be demoted by anyone (409) — a group always has someone who can invite. Several
+    owners are fine. The caller commits."""
+    if role not in MEMBERSHIP_ROLES:
+        raise ValueError(f"unknown membership role: {role!r}")
+    if not actor_claims.get("site_admin"):
+        actor = s.get(GroupMembership, (int(group_id), int(actor_claims.get("player_id") or 0)))
+        if actor is None or actor.role != "owner":
+            forbidden("Only an owner of this group can change roles")
+    membership = s.get(GroupMembership, (int(group_id), int(player_id)))
+    if membership is None:
+        raise HTTPException(status_code=404, detail="Not a member of this group")
+    if membership.role == role:
+        return membership
+    if membership.role == "owner" and role != "owner":
+        owners = s.exec(
+            select(GroupMembership.player_id).where(GroupMembership.group_id == int(group_id), GroupMembership.role == "owner")
+        ).all()
+        if len(owners) <= 1:
+            conflict("A group needs at least one owner — make someone else an owner first")
+    membership.role = role
+    s.add(membership)
+    s.flush()
+    return membership
+
+
+def roster_for(s: Session, claims: dict) -> list[Player]:
+    """The players this caller may see in rosters, pickers and stats: the members of every
+    group the caller is in; a site admin sees everyone. A registered account nobody has
+    invited yet is therefore in nobody's roster. Sorted by display name."""
+    if claims.get("site_admin"):
+        return list(s.exec(select(Player).order_by(Player.display_name)).all())
+    group_ids = [int(g["id"]) for g in claims.get("groups") or []]
+    if not group_ids:
+        return []
+    member_ids = select(GroupMembership.player_id).where(GroupMembership.group_id.in_(group_ids))
+    return list(s.exec(select(Player).where(Player.id.in_(member_ids)).order_by(Player.display_name)).all())
+
+
+def group_prefix_for_push(s: Session, player_id: int, group_id: int | None = None) -> str:
+    """`"<Group name> · "` when the recipient is in two or more groups, else `""` — a push
+    names its group only when the reader could not otherwise tell which one it is about.
+    `group_id` is the group the event belongs to; part 1 has one, so it defaults to the
+    current group."""
+    count = len(s.exec(select(GroupMembership.group_id).where(GroupMembership.player_id == int(player_id))).all())
+    if count < 2:
+        return ""
+    group = s.get(Group, int(group_id)) if group_id is not None else None
+    if group is None:
+        try:
+            group = current_group(s)
+        except LookupError:
+            return ""
+    return f"{group.name} · "

@@ -57,12 +57,15 @@ Send = Callable[[dict], Awaitable[None]]
 #: through vite's proxy in dev (which connects from 127.0.0.1).
 LOOPBACK_ONLY_PATHS: tuple[str, ...] = ("/health", "/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc")
 #: No session needed. Only paths that exist may be listed (the audit test asserts it), so
-#: L3 adds `/auth/register` and `/auth/reset` here with its routes, and L8 adds
-#: `/auth/passkeys/login/options` and `/auth/passkeys/login/verify` with its — until then a
-#: new `/auth/…` route is an account path (session required) by construction.
+#: L8 adds `/auth/passkeys/login/options` and `/auth/passkeys/login/verify` with its routes
+#: — until then a new `/auth/…` route is an account path (session required) by construction.
+#: `/auth/redeem` is deliberately *not* here: redeeming a code as an existing account needs
+#: that account's session (a stranger registers instead).
 PUBLIC_PATHS: tuple[str, ...] = (
     "/auth/login",
     "/auth/exchange",
+    "/auth/register",
+    "/auth/reset",
 )
 #: A session, no membership needed.
 ACCOUNT_PATHS: tuple[str, ...] = ("/auth/", "/me", "/me/notifications", "/push/")

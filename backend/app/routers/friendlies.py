@@ -24,6 +24,7 @@ from ..services.authorization import (
     friendly_creator_id,
     friendly_creator_map,
 )
+from ..services.groups import current_group
 from ..services.notifications import (
     push_friendly_created,
     push_friendly_finished,
@@ -110,6 +111,7 @@ def list_friendlies(
     claims: dict = Depends(require_auth_claims),
 ):
     mode_norm = str(mode or "").strip().lower()
+    # part 2: filter by group — part 1 has one, and every row carries its `group_id` (L3).
     stmt = (
         select(FriendlyMatch)
         .options(selectinload(FriendlyMatch.sides).selectinload(FriendlyMatchSide.players))
@@ -171,6 +173,7 @@ def create_friendly_match(
         state="finished",
         source="tools",
         date=dt.date.today(),
+        group_id=int(current_group(s).id),
         created_at=now,
         updated_at=now,
     )

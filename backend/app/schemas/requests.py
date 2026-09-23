@@ -16,6 +16,52 @@ class LogoutBody(BaseModel):
     push_endpoint: str | None = None
 
 
+class RegisterBody(BaseModel):
+    """`POST /auth/register` (L3): an invite code, the new display name, a password."""
+
+    code: str = ""
+    display_name: str = ""
+    password: str = ""
+
+
+class RedeemBody(BaseModel):
+    """`POST /auth/redeem` (L3): an invite code, redeemed by an existing account."""
+
+    code: str = ""
+
+
+class ResetBody(BaseModel):
+    """`POST /auth/reset` (L3): the long token from a reset link and the new password."""
+
+    token: str = ""
+    password: str = ""
+
+
+class PasswordChangeBody(BaseModel):
+    """`POST /auth/password` (L3). `current_password` is required when the account has one."""
+
+    current_password: str | None = None
+    new_password: str = ""
+
+
+class InviteCreateBody(BaseModel):
+    """`POST /admin/invites` (L3): an optional note — who the code is for."""
+
+    note: str = ""
+
+
+class ResetLinkCreateBody(BaseModel):
+    """`POST /admin/reset-links` (L3)."""
+
+    player_id: int
+
+
+class MemberRoleBody(BaseModel):
+    """`PUT /admin/groups/{slug}/members/{player_id}/role` (L3)."""
+
+    role: Literal["owner", "member"]
+
+
 class PlayerCreateBody(BaseModel):
     display_name: str
 

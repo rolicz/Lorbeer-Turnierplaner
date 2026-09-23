@@ -60,6 +60,7 @@ from ..services.file_storage import (
     read_media,
     upsert_media_row,
 )
+from ..services.groups import current_group
 from ..services.idea_events import (
     delete_idea_comments,
     delete_idea_events,
@@ -190,6 +191,7 @@ def list_all_ideas(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
 ) -> dict:
+    # part 2: filter by group — part 1 has one, and every row carries its `group_id` (L3).
     return list_ideas(s, claims)
 
 
@@ -256,6 +258,7 @@ def create_idea(
         status_note="",
         created_at=now,
         updated_at=now,
+        group_id=int(current_group(s).id),
     )
     s.add(fr)
     s.commit()

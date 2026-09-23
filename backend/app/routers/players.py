@@ -9,6 +9,8 @@ from ..api_utils import bad_request, conflict, forbidden
 from ..auth import require_admin, require_auth_claims, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
+    Account,
+    GroupMembership,
     Player,
     PlayerAvatarFile,
     PlayerGuestbookEntry,
@@ -49,6 +51,7 @@ from ..schemas.responses import (
     VoteResultOut,
     VotersOut,
 )
+from ..services.accounts import create_account_for, ensure_name_free, name_key
 from ..services.authorization import require_profile_owner, require_self_or_admin
 from ..services.file_storage import (
     delete_media,
@@ -56,6 +59,7 @@ from ..services.file_storage import (
     media_path_for_profile_header,
     upsert_media_row,
 )
+from ..services.groups import current_group, roster_for
 from ..services.guestbook import guestbook_can_edit, guestbook_entry_payload, list_guestbook_entries
 from ..services.guestbook_subjects import (
     SubjectUnavailable,
@@ -141,22 +145,29 @@ def _upsert_profile_header_file(
 
 
 @router.get("", response_model=list[PlayerRef])
-def list_players(s: Session = Depends(get_session)):
-    return s.exec(select(Player).order_by(Player.display_name)).all()
+def list_players(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)):
+    """The roster: members of the caller's groups (a site admin sees everyone), so an account
+    nobody has invited yet is in no picker and no stat (L3)."""
+    return roster_for(s, claims)
 
 
 @router.post("", response_model=PlayerRef, dependencies=[Depends(require_admin)])
 def create_player(body: PlayerCreateBody, s: Session = Depends(get_session)):
+    """An admin-created player: the `Player`, its passwordless `Account` and its membership
+    in the current group, in one transaction (a player committed without an account would be
+    swept into the group by the next boot's migration anyway — but a name that clashes by
+    case would stop that boot). 409 when the name is taken, compared case-insensitively.
+    The player gets a login through a reset link."""
     name = (body.display_name or "").strip()
     if not name:
         bad_request("Missing display_name")
-
-    existing = s.exec(select(Player).where(Player.display_name == name)).first()
-    if existing:
-        return existing
+    ensure_name_free(s, name)
 
     p = Player(display_name=name)
     s.add(p)
+    s.flush()
+    create_account_for(s, p)
+    s.add(GroupMembership(group_id=int(current_group(s).id), player_id=int(p.id), role="member"))
     s.commit()
     s.refresh(p)
     log.info("Created player '%s' (id=%s)", p.display_name, p.id)
@@ -185,13 +196,17 @@ def patch_player(
     if not new_name:
         bad_request("display_name cannot be empty")
 
-    # Avoid duplicate names (important if you treat names as “identity” in UI)
-    existing = s.exec(select(Player).where(Player.display_name == new_name, Player.id != player_id)).first()
-    if existing:
-        conflict("A player with this name already exists")
+    # The display name is the login name: unique case-insensitively, and the account's
+    # `name_key` follows a rename in the same transaction (L3).
+    ensure_name_free(s, new_name, except_player_id=player_id)
 
     p.display_name = new_name
     s.add(p)
+    account = s.get(Account, int(player_id))
+    if account is not None:
+        account.name_key = name_key(new_name)
+        account.updated_at = dt.datetime.utcnow()
+        s.add(account)
     s.commit()
     s.refresh(p)
 

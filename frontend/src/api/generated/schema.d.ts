@@ -127,6 +127,260 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register
+         * @description A new account from an invite code: the player, the account, the membership in the
+         *     code's group and the code spent in one transaction, then a session. Public.
+         *
+         *     Rate-limited as *redeem* (per IP and one global bucket, no account bucket — there is no
+         *     account yet). A code that is unknown, expired or spent is one generic 400; a taken name
+         *     is 409 "That name is taken", answered only once the code has proven valid.
+         */
+        post: operations["register_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redeem
+         * @description An existing account joins the code's group as a member (never as an owner). A session
+         *     is required, a membership is not — this is how a registered-but-uninvited account, or a
+         *     member of another group, gets in. Same *redeem* limits and the same generic refusal as
+         *     register; 409 when already a member (the code stays unspent).
+         */
+        post: operations["redeem_auth_redeem_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Redeem a reset link: set the new password, spend the token, end **every** session of
+         *     that player, and start a fresh one here. Public, rate-limited as *reset*. Unknown,
+         *     expired and used tokens are one generic 400; a password that is too short is refused
+         *     before the token is spent, so the link still works for a second try.
+         */
+        post: operations["reset_password_auth_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change My Password
+         * @description Set or change my password. With a password on the account the current one is
+         *     required (403 when wrong); rate-limited like login on my own account key, so a stolen
+         *     session cannot be used to guess the password behind it. Other devices stay signed in.
+         */
+        post: operations["change_my_password_auth_password_post"];
+        /**
+         * Remove My Password
+         * @description Drop my password — 409 unless a passkey keeps a way in.
+         */
+        delete: operations["remove_my_password_auth_password_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Accounts */
+        get: operations["list_accounts_admin_accounts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{player_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Account Sessions
+         * @description A player's live devices. `current` marks the caller's own session.
+         */
+        get: operations["list_account_sessions_admin_accounts__player_id__sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Any Session */
+        delete: operations["revoke_any_session_admin_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{player_id}/revoke-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Account Sessions
+         * @description Sign every device of this player out — the caller's own included, when it is theirs.
+         */
+        post: operations["revoke_account_sessions_admin_accounts__player_id__revoke_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invites
+         * @description The live codes of the current group — never the codes themselves.
+         */
+        get: operations["list_invites_admin_invites_get"];
+        put?: never;
+        /**
+         * Create Invite Code
+         * @description A one-hour, single-use code for the current group. **The only time it is readable.**
+         */
+        post: operations["create_invite_code_admin_invites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invites/{invite_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Invite */
+        delete: operations["delete_invite_admin_invites__invite_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/reset-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Reset Link
+         * @description A one-hour, single-use link that sets a new password — also how a player who never
+         *     had a login gets one. Site admin only: a reset takes the account over.
+         */
+        post: operations["create_reset_link_admin_reset_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/groups/{slug}/members/{player_id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Member Role
+         * @description Promote a member to owner or demote an owner to member. Several owners are fine; the
+         *     last one cannot be demoted (409).
+         */
+        put: operations["put_member_role_admin_groups__slug__members__player_id__role_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -604,10 +858,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Players */
+        /**
+         * List Players
+         * @description The roster: members of the caller's groups (a site admin sees everyone), so an account
+         *     nobody has invited yet is in no picker and no stat (L3).
+         */
         get: operations["list_players_players_get"];
         put?: never;
-        /** Create Player */
+        /**
+         * Create Player
+         * @description An admin-created player: the `Player`, its passwordless `Account` and its membership
+         *     in the current group, in one transaction (a player committed without an account would be
+         *     swept into the group by the next boot's migration anyway — but a name that clashes by
+         *     case would stop that boot). 409 when the name is taken, compared case-insensitively.
+         *     The player gets a login through a reset link.
+         */
         post: operations["create_player_players_post"];
         delete?: never;
         options?: never;
@@ -1748,6 +2013,30 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AdminAccountOut
+         * @description One account on the admin page (`GET /admin/accounts`). `role` is the effective role
+         *     in the current group (`none` | `editor` | `owner` | `admin`); `password_origin` is
+         *     `none` | `migrated` | `set`; `session_count` / `last_seen_at` cover live sessions only.
+         */
+        AdminAccountOut: {
+            /** Player Id */
+            player_id: number;
+            /** Display Name */
+            display_name: string;
+            /** Site Admin */
+            site_admin: boolean;
+            /** Role */
+            role: string;
+            /** Password Origin */
+            password_origin: string;
+            /** Has Passkey */
+            has_passkey: boolean;
+            /** Session Count */
+            session_count: number;
+            /** Last Seen At */
+            last_seen_at: string | null;
+        };
         /** Body_put_club_crest_clubs__club_id__crest_put */
         Body_put_club_crest_clubs__club_id__crest_put: {
             /**
@@ -2448,6 +2737,59 @@ export interface components {
              */
             value: number | string | null;
         };
+        /**
+         * InviteCreateBody
+         * @description `POST /admin/invites` (L3): an optional note — who the code is for.
+         */
+        InviteCreateBody: {
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /**
+         * InviteCreatedOut
+         * @description A fresh invite code — **the only time the code is readable**, formatted `ABCD-EFGH`.
+         */
+        InviteCreatedOut: {
+            /** Id */
+            id: number;
+            /** Code */
+            code: string;
+            /** Group Slug */
+            group_slug: string;
+            /** Note */
+            note: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /**
+         * InviteOut
+         * @description A live (unredeemed, unexpired) invite, without its code.
+         */
+        InviteOut: {
+            /** Id */
+            id: number;
+            /** Group Slug */
+            group_slug: string;
+            /** Note */
+            note: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            created_by: components["schemas"]["PlayerRef"] | null;
+        };
         /** KeyLabelOut */
         KeyLabelOut: {
             /** Key */
@@ -2602,6 +2944,17 @@ export interface components {
             session_id: number | null;
         };
         /**
+         * MemberRoleBody
+         * @description `PUT /admin/groups/{slug}/members/{player_id}/role` (L3).
+         */
+        MemberRoleBody: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "owner" | "member";
+        };
+        /**
          * MyNotificationOut
          * @description One item in the personal notification bell.
          *
@@ -2675,6 +3028,19 @@ export interface components {
         OkResponse: {
             /** Ok */
             ok: boolean;
+        };
+        /**
+         * PasswordChangeBody
+         * @description `POST /auth/password` (L3). `current_password` is required when the account has one.
+         */
+        PasswordChangeBody: {
+            /** Current Password */
+            current_password?: string | null;
+            /**
+             * New Password
+             * @default
+             */
+            new_password: string;
         };
         /** PinnedCommentOut */
         PinnedCommentOut: {
@@ -3028,6 +3394,78 @@ export interface components {
             /** Rank */
             rank: number;
             latest?: components["schemas"]["StatsRecordTournamentOut"] | null;
+        };
+        /**
+         * RedeemBody
+         * @description `POST /auth/redeem` (L3): an invite code, redeemed by an existing account.
+         */
+        RedeemBody: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+        };
+        /**
+         * RegisterBody
+         * @description `POST /auth/register` (L3): an invite code, the new display name, a password.
+         */
+        RegisterBody: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /**
+             * Password
+             * @default
+             */
+            password: string;
+        };
+        /**
+         * ResetBody
+         * @description `POST /auth/reset` (L3): the long token from a reset link and the new password.
+         */
+        ResetBody: {
+            /**
+             * Token
+             * @default
+             */
+            token: string;
+            /**
+             * Password
+             * @default
+             */
+            password: string;
+        };
+        /**
+         * ResetLinkCreateBody
+         * @description `POST /admin/reset-links` (L3).
+         */
+        ResetLinkCreateBody: {
+            /** Player Id */
+            player_id: number;
+        };
+        /**
+         * ResetLinkOut
+         * @description A fresh one-hour reset link — the only time it is readable. The token rides in the
+         *     URL fragment (`…/g/<slug>/reset#<token>`).
+         */
+        ResetLinkOut: {
+            /** Player Id */
+            player_id: number;
+            /** Url */
+            url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /** RevokedOut */
         RevokedOut: {
@@ -4135,6 +4573,424 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RevokedOut"];
+                };
+            };
+        };
+    };
+    register_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    redeem_auth_redeem_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RedeemBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_auth_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_my_password_auth_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_my_password_auth_password_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    list_accounts_admin_accounts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAccountOut"][];
+                };
+            };
+        };
+    };
+    list_account_sessions_admin_accounts__player_id__sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                player_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_any_session_admin_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_account_sessions_admin_accounts__player_id__revoke_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                player_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_invites_admin_invites_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteOut"][];
+                };
+            };
+        };
+    };
+    create_invite_code_admin_invites_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_invite_admin_invites__invite_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invite_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_reset_link_admin_reset_links_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetLinkCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetLinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_member_role_admin_groups__slug__members__player_id__role_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                player_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberRoleBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAccountOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

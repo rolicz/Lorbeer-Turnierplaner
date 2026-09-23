@@ -130,7 +130,7 @@ def test_a_revoked_session_is_401_on_its_next_request(client, anon):
     assert len(mine) == 2 and sum(1 for x in mine if x["current"]) == 1
     current = next(x for x in mine if x["current"])
     other_row = next(x for x in mine if not x["current"])
-    assert current["kind"] == "password" and current["device_label"] == ""
+    assert current["kind"] == "password" and current["device_label"] == "Unknown device"  # the test client's UA (L3 labels devices)
 
     r = anon.delete(f"/auth/sessions/{other_row['id']}", headers=cookie_headers(token))
     assert r.status_code == 200

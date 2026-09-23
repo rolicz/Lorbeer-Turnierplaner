@@ -13,6 +13,7 @@ from sqlmodel import Session, select
 
 from ..models import Account, Player, PushSubscription, PushSubscriptionPreference
 from ..settings import Settings
+from .groups import group_prefix_for_push
 from .idea_events import idea_event_audience
 from .notification_texts import (
     default_notification_language,
@@ -1056,6 +1057,17 @@ class NotificationDispatcher:
                 await self._deliver_one(s, row, item)
             s.commit()
 
+    @staticmethod
+    def _payload_for(s: Session, row: PushSubscription, message: PushMessage) -> dict[str, Any]:
+        """The payload in the recipient's language, its title prefixed with the group's name
+        when the recipient is in two or more groups (`groups.group_prefix_for_push`) — the
+        one place a push learns about groups, so no text key changes (L3)."""
+        payload = message.to_payload(push_subscription_language(s, row.id))
+        prefix = group_prefix_for_push(s, int(row.player_id))
+        if prefix:
+            payload["title"] = f"{prefix}{payload['title']}"
+        return payload
+
     async def _deliver_one(self, s: Session, row: PushSubscription, item: _QueuedPushMessage) -> None:
         message = item.message
         now = datetime.utcnow()
@@ -1082,7 +1094,7 @@ class NotificationDispatcher:
                     auth=row.auth,
                     content_encoding=row.content_encoding,
                 ),
-                message.to_payload(push_subscription_language(s, row.id)),
+                self._payload_for(s, row, message),
             )
             row.updated_at = now
             row.last_http_status = response.status_code

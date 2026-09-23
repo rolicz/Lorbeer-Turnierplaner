@@ -61,6 +61,7 @@ from ..services.events import (
     push_comment_deleted,
 )
 from ..services.file_storage import delete_media
+from ..services.groups import current_group
 from ..services.notifications import (
     push_schedule_generated,
     push_tournament_created,
@@ -393,6 +394,7 @@ def list_tournaments(
     s: Session = Depends(get_session),
     claims: dict = Depends(require_auth_claims),
 ):
+    # part 2: filter by group — part 1 has one, and every row carries its `group_id` (L3).
     return build_tournament_list(s, claims=claims)
 
 
@@ -500,7 +502,14 @@ async def create_tournament(
             bad_request("One or more player_ids do not exist")
 
     try:
-        t = Tournament(name=name, mode=mode, status="draft", settings_json=json.dumps(settings), date=t_date)
+        t = Tournament(
+            name=name,
+            mode=mode,
+            status="draft",
+            settings_json=json.dumps(settings),
+            date=t_date,
+            group_id=int(current_group(s).id),
+        )
         s.add(t)
         s.flush()
 

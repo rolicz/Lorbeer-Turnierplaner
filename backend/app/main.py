@@ -7,6 +7,7 @@ from .auth_gate import AuthGate
 from .cup_defs import load_cup_defs
 from .db import configure_db, get_engine, init_db
 from .logging_config import setup_logging
+from .routers.admin import router as admin_router
 from .routers.auth import router as auth_router
 from .routers.clubs import router as clubs_router
 from .routers.comments import router as comments_router
@@ -69,6 +70,7 @@ def create_app(settings: Settings) -> FastAPI:
     app.add_middleware(AuthGate)
 
     app.include_router(auth_router)
+    app.include_router(admin_router)
     app.include_router(me_router)
     app.include_router(tournaments_router)
     app.include_router(matches_router)

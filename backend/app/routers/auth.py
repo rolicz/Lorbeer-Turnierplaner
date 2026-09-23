@@ -2,8 +2,9 @@
 
 Thin: the rules live in `services/sessions.py` (the row and the cookie),
 `services/rate_limit.py` (slowing an attacker down), `services/groups.py` (what the session
-means) and `services/passwords.py` (argon2id). L3 adds register / redeem / reset / password
-here; L8 adds the passkey ceremonies.
+means) and `services/passwords.py` (argon2id). L3 added register / redeem / reset /
+password over `services/accounts.py`, `services/invites.py` and `services/reset_links.py`;
+L8 adds the passkey ceremonies.
 """
 
 from __future__ import annotations
@@ -16,14 +17,19 @@ from sqlmodel import Session, select
 from ..auth import require_auth_claims
 from ..db import get_session
 from ..models import Account, Player
-from ..schemas import LoginBody, LogoutBody
+from ..schemas import LoginBody, LogoutBody, PasswordChangeBody, RedeemBody, RegisterBody, ResetBody
 from ..schemas.responses import MeOut, OkResponse, RevokedOut, SessionOut
+from ..services.accounts import change_password, remove_password, session_out, set_password
+from ..services.accounts import register as register_account
 from ..services.auth_migration import name_key
+from ..services.device_label import device_label
 from ..services.groups import build_claims
+from ..services.invites import redeem_invite
 from ..services.legacy_jwt import claims_from_legacy_token
 from ..services.notifications import disable_push_subscription
-from ..services.passwords import hash_password, hasher_for, verify_password
+from ..services.passwords import hash_password, hasher_for, validate_new_password, verify_password
 from ..services.rate_limit import enforce, limits_for, record_failure, record_success
+from ..services.reset_links import consume_reset, find_live_reset
 from ..services.sessions import (
     clear_session_cookie,
     cookie_secure_for,
@@ -71,13 +77,15 @@ def _start_session(request: Request, response: Response, s: Session, *, player: 
         revoke_session(s, int(old["player_id"]), int(old["session_id"]))
 
     ttl = session_ttl(settings)
+    user_agent = request.headers.get("user-agent", "")
     row, token = create_session(
         s,
         player_id=int(player.id),
         kind=kind,
-        user_agent=request.headers.get("user-agent", ""),
+        user_agent=user_agent,
         ip=str(getattr(request.state, "client_ip", "") or ""),
         ttl=ttl,
+        device_label=device_label(user_agent),
     )
     s.commit()
     claims = build_claims(s, player_id=int(player.id), session_id=int(row.id))
@@ -176,22 +184,11 @@ def exchange(request: Request, response: Response, s: Session = Depends(get_sess
 # ---- my sessions -----------------------------------------------------------------------
 
 
-def _session_out(row, current_id: int | None) -> dict:
-    return {
-        "id": int(row.id),
-        "kind": row.kind,
-        "device_label": row.device_label or "",
-        "created_at": row.created_at,
-        "last_seen_at": row.last_seen_at,
-        "current": current_id is not None and int(row.id) == int(current_id),
-    }
-
-
 @router.get("/sessions", response_model=list[SessionOut])
 def my_sessions(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> list[dict]:
     """The caller's own live sessions, newest activity first."""
     current = claims.get("session_id")
-    return [_session_out(row, current) for row in list_sessions(s, int(claims["player_id"]))]
+    return [session_out(row, current) for row in list_sessions(s, int(claims["player_id"]))]
 
 
 @router.delete("/sessions/{session_id}", response_model=OkResponse)
@@ -215,3 +212,114 @@ def revoke_my_other_sessions(s: Session = Depends(get_session), claims: dict = D
     revoked = revoke_all_sessions(s, int(claims["player_id"]), keep=int(keep) if keep is not None else None)
     s.commit()
     return {"revoked": revoked}
+
+
+# ---- register, redeem, reset, password (L3) --------------------------------------------
+
+
+def _client_ip(request: Request) -> str:
+    return str(getattr(request.state, "client_ip", "") or "")
+
+
+def _counted(request: Request, limits, fn):
+    """Run `fn` under `limits`: a 429 before it runs, every 4xx it raises counted as a
+    failure, a success recorded. One wrapper, so no endpoint forgets a half."""
+    enforce(request, limits)
+    try:
+        result = fn()
+    except HTTPException as exc:
+        if 400 <= exc.status_code < 500:
+            record_failure(request, limits)
+        raise
+    record_success(request, limits)
+    return result
+
+
+@router.post("/register", response_model=MeOut)
+def register(request: Request, response: Response, body: RegisterBody, s: Session = Depends(get_session)) -> dict:
+    """A new account from an invite code: the player, the account, the membership in the
+    code's group and the code spent in one transaction, then a session. Public.
+
+    Rate-limited as *redeem* (per IP and one global bucket, no account bucket — there is no
+    account yet). A code that is unknown, expired or spent is one generic 400; a taken name
+    is 409 "That name is taken", answered only once the code has proven valid."""
+    ph = hasher_for(request.app.state.settings.password_hash_profile)
+    limits = limits_for("redeem", ip=_client_ip(request))
+    player = _counted(
+        request,
+        limits,
+        lambda: register_account(s, code=body.code, display_name=body.display_name, password=body.password, hasher=ph),
+    )
+    return _start_session(request, response, s, player=player, kind="register")
+
+
+@router.post("/redeem", response_model=MeOut)
+def redeem(request: Request, body: RedeemBody, s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
+    """An existing account joins the code's group as a member (never as an owner). A session
+    is required, a membership is not — this is how a registered-but-uninvited account, or a
+    member of another group, gets in. Same *redeem* limits and the same generic refusal as
+    register; 409 when already a member (the code stays unspent)."""
+    pid = int(claims["player_id"])
+    limits = limits_for("redeem", ip=_client_ip(request))
+    _counted(request, limits, lambda: redeem_invite(s, code=body.code, player_id=pid))
+    s.commit()
+    fresh = build_claims(s, player_id=pid, session_id=claims.get("session_id"))
+    return me_payload(s, fresh or claims)
+
+
+@router.post("/reset", response_model=MeOut)
+def reset_password(request: Request, response: Response, body: ResetBody, s: Session = Depends(get_session)) -> dict:
+    """Redeem a reset link: set the new password, spend the token, end **every** session of
+    that player, and start a fresh one here. Public, rate-limited as *reset*. Unknown,
+    expired and used tokens are one generic 400; a password that is too short is refused
+    before the token is spent, so the link still works for a second try."""
+    ph = hasher_for(request.app.state.settings.password_hash_profile)
+    limits = limits_for("reset", ip=_client_ip(request))
+
+    def run() -> Player:
+        find_live_reset(s, body.token)
+        validate_new_password(body.password)
+        account = consume_reset(s, body.token)
+        set_password(s, account, body.password, ph, origin="set")
+        revoke_all_sessions(s, int(account.player_id))
+        player = s.get(Player, int(account.player_id))
+        if player is None:  # an account without its player: nothing to log into
+            raise HTTPException(status_code=400, detail="That reset link is not valid")
+        return player
+
+    player = _counted(request, limits, run)
+    log.info("Password reset by link for player %s; every other session ended", player.id)
+    return _start_session(request, response, s, player=player, kind="reset")
+
+
+def _my_account(s: Session, claims: dict) -> Account:
+    account = s.get(Account, int(claims["player_id"]))
+    if account is None:  # unreachable behind the gate: a session always has an account
+        raise HTTPException(status_code=401, detail="Not logged in")
+    return account
+
+
+@router.post("/password", response_model=MeOut)
+def change_my_password(
+    request: Request,
+    body: PasswordChangeBody,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    """Set or change my password. With a password on the account the current one is
+    required (403 when wrong); rate-limited like login on my own account key, so a stolen
+    session cannot be used to guess the password behind it. Other devices stay signed in."""
+    ph = hasher_for(request.app.state.settings.password_hash_profile)
+    account = _my_account(s, claims)
+    limits = limits_for("login", ip=_client_ip(request), account=account.name_key)
+    _counted(request, limits, lambda: change_password(s, account, body.current_password, body.new_password, ph))
+    s.commit()
+    return me_payload(s, claims)
+
+
+@router.delete("/password", response_model=MeOut)
+def remove_my_password(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
+    """Drop my password — 409 unless a passkey keeps a way in."""
+    remove_password(s, _my_account(s, claims))
+    s.commit()
+    return me_payload(s, claims)
