@@ -225,7 +225,7 @@ def get_idea_image(idea_id: int):
     data = read_media(file_path)
     if data is None:
         raise HTTPException(status_code=404, detail="Idea image file missing")
-    return Response(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=604800"})
+    return Response(content=data, media_type=content_type, headers={"Cache-Control": "private, max-age=604800"})
 
 
 # ---- write --------------------------------------------------------------

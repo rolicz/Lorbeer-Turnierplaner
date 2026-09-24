@@ -34,8 +34,8 @@ from app.services.media_derivatives import (
     version_token,
 )
 
-AVATAR_CACHE = "public, max-age=604800"
-SNAPSHOT_CACHE = "public, max-age=31536000, immutable"
+AVATAR_CACHE = "private, max-age=604800"
+SNAPSHOT_CACHE = "private, max-age=31536000, immutable"
 
 
 def _png(width: int, height: int, color: tuple[int, int, int, int] = (200, 30, 60, 255)) -> bytes:

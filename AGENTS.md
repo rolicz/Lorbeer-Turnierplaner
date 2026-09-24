@@ -16,6 +16,8 @@
 > can prove). Until the merge, every sentence below that describes the auth batch describes the
 > branch, not the server; the sections this pass did not touch (the media, badges, guestbook and
 > composer batches) still describe both.
+> Touched since by **Q-G** (2026-09-24, same branch): media responses say `private`, not `public`
+> (§5, §11).
 > The pass before it was Q-E (2026-09-23, `fix/2026-09-bell-denied`, merged as `17ca1f4` and
 > deployed with `ce55a53`): §10's denied-permission bullet. Before that, the last full review was
 > 2026-09-20 at `f8ff0a4`. The header block is the first thing to distrust when it disagrees with
@@ -631,9 +633,17 @@ nothing but log the drift warning):
   `profile_headers/{player_id}.{ext}`, `comments/{comment_id}.{ext}`, `club_crests/{club_id}.{ext}`,
   `ideas/{request_id}.{ext}`, `guestbook_subjects/{snapshot_id}.{ext}` (the pinned copies, K1).
   Served by the backend with cache-busting `?v=<updated_at>` (`mediaUrl()`). A pinned copy is the
-  one picture in the app the backend serves `public, max-age=31536000, immutable` — a snapshot never
+  one picture in the app the backend serves `private, max-age=31536000, immutable` — a snapshot never
   changes and its path already carries its id, so the `?v=<captured_at>` its client URL still gets
   from `mediaUrl` is belt and braces rather than the mechanism.
+- **Every media response is `Cache-Control: private`, never `public`** (Q-G, 2026-09-24). All six
+  media GETs — avatar and header image (`max-age=604800`), the pinned snapshot (`max-age=31536000,
+  immutable`), comment and idea images (`604800`) and crests (`2592000`) — sit behind the gate
+  (L2), so a *shared* cache (a CDN, a proxy, anything ever put in front of Caddy) must not keep
+  them; `private` leaves the browser's own cache exactly as it was (measured, §11). Only the word
+  changed, never a `max-age` or the `immutable`, and a `?w=` derivative still carries its source's
+  header byte for byte (§6). `tests/test_media_cache_private.py` walks `app.routes` for every GET
+  with no `response_model`, so a media route added later is checked without being listed.
 - **The smaller sizes are a cache of files, not data** (W1, 2026-09-20). Every media GET takes
   an optional `?w=` (§6) and the answer lives at
   `uploads/derived/{source relative path}/{token}-{width}.webp`, e.g.
@@ -2341,7 +2351,8 @@ every past match simply keeps counting today's rating.
     never upscales; the header image goes 3,834,705 → 19,896 / 138,674 / 204,062 at 384 / 1152 /
     1536; comment 79's picture 4,412,874 → 10,784 / 29,488 / 50,892 at 384 / 768 / 1152.
     **`?w=137` answers 422**, which alone proves the new code is up, and a derivative carries
-    `Cache-Control: public, max-age=604800`, matching its source. The **guestbook-snapshot**
+    `Cache-Control: public, max-age=604800`, matching its source (that was the value then; since
+    Q-G on the auth branch every media response says `private` — §5). The **guestbook-snapshot**
     family is the one thing with nothing to show: production has no tagged entries yet, so
     nothing is served from it — an absence of data, not a failure.
   **What production still has not proven is iOS.** No push has ever gone over the wire from this
@@ -2668,15 +2679,18 @@ every past match simply keeps counting today's rating.
   removed by SQL today), showing a session's stored IP in the admin sheet (a privacy call), email
   (nothing makes it harder: `Account` has no email column on purpose), and session-token rotation
   (declined for now — every added state is a way to log someone out by mistake).
-- **Gated media still say `Cache-Control: public`** (found by L15, not changed — no task owned it).
-  Avatars, header images, comment and idea images and crests answer `public, max-age=…` and the
-  pinned subject copies `public, max-age=31536000, immutable`, from `routers/players.py`,
-  `comments.py`, `ideas.py` and `clubs.py`, although since L2 every one of them needs a session and
-  a player's pictures need a shared group. Nothing between the browser and the backend caches today
-  (Caddy has no cache configured), so nothing leaks through it; but `public` invites any shared
-  cache to keep an authenticated answer, and `private` says what the gate now means. It is one word
-  per call site, and every `?w=` derivative inherits its source's header byte for byte (§6) —
-  Roli's call whether it is worth a change before or after the deploy.
+- **Closed 2026-09-24 (Q-G): gated media say `Cache-Control: private`, not `public`.** L15 found
+  it; Roli's call was *"set it to private, make sure it does not break stuff"*. Six call sites in
+  `routers/players.py` (avatar, header image, pinned snapshot), `comments.py`, `ideas.py` and
+  `clubs.py`, one word each, every `max-age` and the snapshot's `immutable` kept (§5). Proof that
+  the browser still caches, in headless Chromium against an isolated stack at 390 (dpr 3, `blue`)
+  and 1280 (dpr 2, `light`): profile, guestbook, a tournament's comments and the Ideas board —
+  all six families, 14 of 17 requests a `?w=` derivative — were loaded, left for the dashboard and
+  revisited, then reloaded; CDP counted **0** media requests reaching the network on either the
+  revisit or the reload (every one `fromDiskCache` or `requestServedFromCache`), the backend's
+  access log showed each media URL exactly once per browser context, and every `<img>` rendered
+  (`naturalWidth > 0`) in every phase. `frontend/public/sw.js` has no `fetch` handler, so no service
+  worker caches media and nothing there changed. Nothing was found that should stay `public`.
 - **Two notices stacked were not measured** (L9). The "secure your account" strip costs the tab
   strip +78px at 390 and +70px at 1280; with P5's push notice above it the arithmetic says
   ≈+140–156px, but headless Chromium always reports `Notification.permission === "denied"`, so

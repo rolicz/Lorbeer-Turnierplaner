@@ -430,7 +430,7 @@ def get_player_avatar(
         content_type=content_type,
         token=version_token(updated_at),
         width=w,
-        cache_control="public, max-age=604800",
+        cache_control="private, max-age=604800",
         missing="Avatar file missing",
     )
 
@@ -507,7 +507,7 @@ def get_player_header_image(
         content_type=content_type,
         token=version_token(updated_at),
         width=w,
-        cache_control="public, max-age=604800",
+        cache_control="private, max-age=604800",
         missing="Header image file missing",
     )
 
@@ -539,7 +539,7 @@ def get_guestbook_subject_image(
         content_type=content_type,
         token=version_token(captured_at),
         width=w,
-        cache_control="public, max-age=31536000, immutable",
+        cache_control="private, max-age=31536000, immutable",
         missing="Guestbook subject image file missing",
     )
 

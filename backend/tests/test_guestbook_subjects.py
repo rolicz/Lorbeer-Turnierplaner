@@ -90,7 +90,7 @@ def test_a_subject_comment_pins_a_copy_of_the_current_header_image(
     r_img = client.get(f"/players/guestbook-subjects/{snapshot_id}/image")
     assert r_img.status_code == 200, r_img.text
     assert r_img.content == HEADER_A
-    assert r_img.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert r_img.headers["cache-control"] == "private, max-age=31536000, immutable"
     assert len(_subject_files(tmp_path)) == 1
 
     # The picture moves on; the entry does not.

@@ -127,7 +127,7 @@ def get_club_crest(club_id: int):
         raise HTTPException(status_code=404, detail="Crest file missing")
 
     # Crests change basically never; the frontend appends updated_at as a cache buster.
-    headers = {"Cache-Control": "public, max-age=2592000"}
+    headers = {"Cache-Control": "private, max-age=2592000"}
     return Response(content=data, media_type=content_type, headers=headers)
 
 

@@ -3652,3 +3652,48 @@ worker will otherwise take the default on.**
    dismissible per install in one line — say so then, not now.
 5. **`/api/health` from the outside is 401** and `AGENTS.md` §7's smoke line changes
    (disagreement 6). Default: accepted.
+
+## Q-G — gated media are `private`, not `public`
+
+Approved by Roli on 2026-09-24 (*"set it to private, make sure it does not break stuff"*),
+closing the item L15 left open in `AGENTS.md` §11.
+
+**Change.** Every media GET is behind the gate, so `Cache-Control: public` invited a shared cache
+(a CDN or proxy in front of Caddy, none today) to keep an authenticated picture and hand it to
+someone who never reached the gate. Six call sites, one word each, nothing else about caching:
+
+| Endpoint | Before | After |
+|---|---|---|
+| `GET /players/{id}/avatar` | `public, max-age=604800` | `private, max-age=604800` |
+| `GET /players/{id}/header-image` | `public, max-age=604800` | `private, max-age=604800` |
+| `GET /players/guestbook-subjects/{sid}/image` | `public, max-age=31536000, immutable` | `private, max-age=31536000, immutable` |
+| `GET /comments/{cid}/image` | `public, max-age=604800` | `private, max-age=604800` |
+| `GET /ideas/{id}/image` | `public, max-age=604800` | `private, max-age=604800` |
+| `GET /clubs/{id}/crest` | `public, max-age=2592000` | `private, max-age=2592000` |
+
+`services/media_derivatives.py::media_response` was not touched: a `?w=` derivative still carries
+its source's header byte for byte, so the four derivative families follow automatically. The
+static shell (`frontend/nginx.conf`) is not part of this.
+
+**Tests.** The two files that spelled the old value (`test_media_derivatives.py`,
+`test_guestbook_subjects.py`) now spell the new one. New `tests/test_media_cache_private.py`
+walks `app.routes` for every GET without a `response_model` (exactly the six today), creates one
+row per family, requests each original and `?w=128`, and asserts `private, max-age=` and no
+`public`; a route with an unknown path parameter fails instead of being skipped. Proven to catch a
+regression by flipping `ideas.py` back to `public` (fails with `/ideas/N/image says 'public, …'`).
+It also asserts every media route still 401s a caller with no session (the premise of `private`)
+and that every `max-age` and `immutable` is unchanged.
+
+**Browser proof.** Headless Chromium against an isolated stack (backend 8247, vite 8267 with a
+private `cacheDir`, a copy of the dev DB with the push tables emptied and a copy of the uploads),
+logged in, at 390×844 dpr 3 in `blue` and 1280×900 dpr 2 in `light`. Four views — a profile, its
+guestbook, a tournament's comments, the Ideas board — covering all six families, 14 of the 17
+media requests a `?w=` derivative. Each view was loaded, left for the dashboard and revisited,
+then reloaded. Over CDP (`Network.responseReceived.fromDiskCache`,
+`Network.requestServedFromCache`): the revisit and the reload sent **0** media requests to the
+network at both widths; the backend's access log showed each media URL once per browser context;
+every `<img>` had `naturalWidth > 0` in every phase. `frontend/public/sw.js` has no `fetch`
+handler (install, activate, push, notificationclick, pushsubscriptionchange only), so no service
+worker behaviour changes.
+
+**Nothing found that should stay `public`**: no route serves media to a logged-out caller.

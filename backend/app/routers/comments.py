@@ -701,7 +701,7 @@ def get_comment_image(
         content_type=content_type,
         token=version_token(updated_at),
         width=w,
-        cache_control="public, max-age=604800",
+        cache_control="private, max-age=604800",
         missing="Comment image file missing",
     )
 
