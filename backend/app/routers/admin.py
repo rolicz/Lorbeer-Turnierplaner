@@ -8,9 +8,9 @@ Thin, over `services/accounts.py`, `services/invites.py`, `services/reset_links.
 | `GET /admin/accounts` | owner+ (a site admin sees every player, an owner the members of their groups) |
 | `POST/GET/DELETE /admin/invites…` | owner+ of the current group |
 | `PUT /admin/groups/{slug}/members/{pid}/role` | an owner of *that* group, or a site admin |
-| `GET /admin/accounts/{pid}/sessions`, `DELETE /admin/sessions/{sid}`, `POST /admin/accounts/{pid}/revoke-sessions`, `POST /admin/reset-links` | **site admin only** — other people's devices, and a reset link takes an account over |
+| `GET /admin/accounts/{pid}/sessions`, `DELETE /admin/sessions/{sid}`, `POST /admin/accounts/{pid}/revoke-sessions`, `POST /admin/reset-links`, `GET /admin/mail-status` | **site admin only** — other people's devices, and a reset link takes an account over |
 
-The whole router sits behind `require_owner`; the four site-admin routes add
+The whole router sits behind `require_owner`; the five site-admin routes add
 `require_admin`. Behind the gate every `/admin/…` path also needs a membership in the
 current group (or site admin).
 """
@@ -30,15 +30,17 @@ from ..schemas.responses import (
     AdminAccountOut,
     InviteCreatedOut,
     InviteOut,
+    MailStatusOut,
     OkResponse,
     ResetLinkOut,
     RevokedOut,
     SessionOut,
 )
+from ..services.account_email import email_states
 from ..services.accounts import live_session_stats, session_out
 from ..services.groups import current_group, effective_role, group_by_slug, set_member_role
 from ..services.invites import create_invite, list_live_invites, revoke_invite
-from ..services.reset_links import create_reset, reset_url
+from ..services.reset_links import create_reset, link_origin, reset_url
 from ..services.sessions import list_sessions, revoke_all_sessions
 
 log = logging.getLogger(__name__)
@@ -55,6 +57,7 @@ def _account_rows(s: Session, player_ids: list[int] | None) -> list[dict]:
         ).all()
     }
     passkey_ids = {int(pid) for pid in s.exec(select(Passkey.player_id)).all()}
+    email_by_player = email_states(s)
     stats = live_session_stats(s)
     stmt = select(Player, Account).join(Account, Account.player_id == Player.id).order_by(Player.display_name)
     if player_ids is not None:
@@ -71,6 +74,8 @@ def _account_rows(s: Session, player_ids: list[int] | None) -> list[dict]:
                 "role": effective_role(site_admin=bool(account.site_admin), membership_role=roles.get(pid)),
                 "password_origin": account.password_origin,
                 "has_passkey": pid in passkey_ids,
+                "email_state": email_by_player.get(pid, "none"),
+                "login_secure": pid in passkey_ids or account.password_origin == "set",
                 "session_count": count,
                 "last_seen_at": last_seen,
             }
@@ -129,6 +134,14 @@ def revoke_account_sessions(player_id: int, s: Session = Depends(get_session)) -
     return {"revoked": revoked}
 
 
+@router.get("/mail-status", response_model=MailStatusOut, dependencies=[Depends(require_admin)])
+def mail_status(request: Request) -> dict:
+    """Whether this server can send email, and how — the boot line's words (host and
+    sender, never the login mailbox or the password). Site admin only."""
+    transport = request.app.state.mail
+    return {"configured": bool(transport.configured), "description": str(transport.description)}
+
+
 # ---- invites -----------------------------------------------------------------------------
 
 
@@ -171,16 +184,6 @@ def delete_invite(invite_id: int, s: Session = Depends(get_session)) -> dict:
 
 
 # ---- reset links -------------------------------------------------------------------------
-
-
-def link_origin(request: Request) -> str:
-    """Where a reset link points: the pinned `auth_origin` in production; in dev-origin mode
-    the request's own `Origin` when it sent one (the admin page on the phone's LAN address)."""
-    settings = request.app.state.settings
-    origin = str(request.headers.get("origin") or "").strip()
-    if settings.auth_dev_origin and origin:
-        return origin
-    return settings.auth_origin
 
 
 @router.post("/reset-links", response_model=ResetLinkOut, dependencies=[Depends(require_admin)])

@@ -48,6 +48,8 @@ const account = (over: Partial<AdminAccount>): AdminAccount => ({
   has_passkey: false,
   session_count: 0,
   last_seen_at: null,
+  email_state: "none",
+  login_secure: true,
   ...over,
 });
 

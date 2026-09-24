@@ -11,13 +11,15 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from sqlmodel import Session, select
 
 from ..auth import require_auth_claims
 from ..db import get_session
 from ..models import Account, Player
 from ..schemas import (
+    EmailBody,
+    EmailVerifyBody,
     LoginBody,
     LogoutBody,
     PasskeyLoginVerifyBody,
@@ -27,14 +29,34 @@ from ..schemas import (
     RegisterBody,
     ResetBody,
 )
-from ..schemas.responses import MeOut, OkResponse, PasskeyOut, RevokedOut, SessionOut
+from ..schemas.responses import EmailStatusOut, EmailVerifiedOut, MeOut, OkResponse, PasskeyOut, RevokedOut, SessionOut
+from ..services.account_email import (
+    MAIL_OFF,
+    NOTHING_TO_SEND,
+    SEND_FAILED,
+    cancel_pending,
+    consume_verification,
+    discard_verification,
+    email_key,
+    email_status,
+    ensure_email_free,
+    pending_email_for,
+    remove_email,
+    request_verification,
+    sweep_expired_verifications,
+    validate_email,
+    verification_url,
+    verified_email_for,
+)
 from ..services.accounts import change_password, remove_password, session_out, set_password
 from ..services.accounts import register as register_account
 from ..services.auth_migration import name_key
 from ..services.device_label import device_label
-from ..services.groups import build_claims
+from ..services.groups import build_claims, current_group
 from ..services.invites import redeem_invite
 from ..services.legacy_jwt import claims_from_legacy_token
+from ..services.mail import MailMessage, MailNotConfigured, MailSendError, MailTransport, mask_address
+from ..services.mail_texts import email_changed_message, verify_email_message
 from ..services.notifications import disable_push_subscription
 from ..services.passkeys import (
     PasskeyConflict,
@@ -51,7 +73,7 @@ from ..services.passkeys import (
 )
 from ..services.passwords import hash_password, hasher_for, validate_new_password, verify_password
 from ..services.rate_limit import enforce, limits_for, record_failure, record_success
-from ..services.reset_links import consume_reset, find_live_reset
+from ..services.reset_links import consume_reset, find_live_reset, link_origin
 from ..services.sessions import (
     clear_session_cookie,
     cookie_secure_for,
@@ -87,6 +109,12 @@ def _cookie_secure(request: Request) -> bool:
     return cookie_secure_for(request.app.state.settings, origin=request.headers.get("origin"), scheme=request.url.scheme)
 
 
+def _me(request: Request, s: Session, claims: dict) -> dict:
+    """`MeOut` for this request — `me_payload` with this server's answer to "can it send
+    mail" (`app.state.mail.configured`, never the transport's kind)."""
+    return me_payload(s, claims, email_available=bool(request.app.state.mail.configured))
+
+
 def _start_session(request: Request, response: Response, s: Session, *, player: Player, kind: str) -> dict:
     """Mint the session, set the cookie, answer `MeOut`. One path for every way in.
 
@@ -114,7 +142,7 @@ def _start_session(request: Request, response: Response, s: Session, *, player: 
     if claims is None:  # the account vanished between the check and the mint — not a login
         raise HTTPException(status_code=401, detail=WRONG_LOGIN)
     set_session_cookie(response, token, secure=_cookie_secure(request), max_age=int(ttl.total_seconds()))
-    return me_payload(s, claims)
+    return _me(request, s, claims)
 
 
 @router.post("/login", response_model=MeOut)
@@ -286,7 +314,7 @@ def redeem(request: Request, body: RedeemBody, s: Session = Depends(get_session)
     _counted(request, limits, lambda: redeem_invite(s, code=body.code, player_id=pid))
     s.commit()
     fresh = build_claims(s, player_id=pid, session_id=claims.get("session_id"))
-    return me_payload(s, fresh or claims)
+    return _me(request, s, fresh or claims)
 
 
 @router.post("/reset", response_model=MeOut)
@@ -336,15 +364,15 @@ def change_my_password(
     limits = limits_for("login", ip=_client_ip(request), account=account.name_key)
     _counted(request, limits, lambda: change_password(s, account, body.current_password, body.new_password, ph))
     s.commit()
-    return me_payload(s, claims)
+    return _me(request, s, claims)
 
 
 @router.delete("/password", response_model=MeOut)
-def remove_my_password(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
+def remove_my_password(request: Request, s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
     """Drop my password — 409 unless a passkey keeps a way in."""
     remove_password(s, _my_account(s, claims))
     s.commit()
-    return me_payload(s, claims)
+    return _me(request, s, claims)
 
 
 # ---- passkeys (L8) ----------------------------------------------------------------------
@@ -478,3 +506,153 @@ def passkey_login_verify(request: Request, response: Response, body: PasskeyLogi
 
     player = _counted(request, limits, run)
     return _start_session(request, response, s, player=player, kind="passkey")
+
+
+# ---- the account's email (E1) -----------------------------------------------------------
+#
+# The order in every sending route is the L16 rule: mint the token row, build the message
+# (plain strings), **commit**, and only then send — no transaction is open across the
+# network call. These handlers are sync, so FastAPI already runs them in the threadpool and
+# the blocking `send` never touches the event loop (`send_off_loop` is for async callers).
+# Background notices close over a built `MailMessage` and the transport, never the session
+# or the request.
+
+
+def _send_quietly(transport: MailTransport, message: MailMessage) -> None:
+    """A background notice: a failure is logged (masked recipient, kind, class) and
+    swallowed — the answer has already gone out."""
+    try:
+        transport.send(message)
+    except (MailSendError, MailNotConfigured) as exc:
+        log.warning("Notice to %s (%s) not sent: %s", mask_address(message.to), message.kind, type(exc).__name__)
+
+
+def _player_name(s: Session, player_id: int) -> str:
+    player = s.get(Player, int(player_id))
+    return player.display_name if player is not None else ""
+
+
+def _email_limits(request: Request, account: Account):
+    return limits_for("email", ip=_client_ip(request), account=account.name_key)
+
+
+def _mail_or_409(request: Request) -> MailTransport:
+    transport = request.app.state.mail
+    if not transport.configured:
+        raise HTTPException(status_code=409, detail=MAIL_OFF)
+    return transport
+
+
+def _mint_and_send(request: Request, s: Session, account: Account, email: str, limits) -> dict:
+    """Mint the token, commit, send. A send that fails takes its token row with it (a fresh
+    short transaction) and answers 502 — no live link is left behind for a mail that never
+    left. Every call that reaches the send counts against the *email* buckets."""
+    transport = request.app.state.mail
+    pid = int(account.player_id)
+    sweep_expired_verifications(s)
+    row, token = request_verification(s, account, email)
+    row_id = int(row.id)
+    url = verification_url(link_origin(request), token, group_slug=current_group(s).slug)
+    message = verify_email_message(to=email, name=_player_name(s, pid), url=url)
+    s.commit()
+
+    record_failure(request, limits)  # a send is an attempt, whatever happens next
+    try:
+        transport.send(message)
+    except (MailSendError, MailNotConfigured) as exc:
+        discard_verification(s, row_id)
+        s.commit()
+        log.warning("Verification mail for player %s not sent (%s); its token was discarded", pid, type(exc).__name__)
+        raise HTTPException(status_code=502, detail=SEND_FAILED) from None
+    log.info("Verification link sent for player %s to %s", pid, mask_address(email))
+    return email_status(s, pid)
+
+
+@router.put("/email", response_model=EmailStatusOut)
+def set_my_email(request: Request, body: EmailBody, s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
+    """Ask to use an address: a 24-hour link goes to it, and the address becomes the
+    account's only once that link is opened (the verified one, if any, stays until then).
+
+    409 when this server cannot send, 400 for something that is not an address, 409 when
+    the address is verified or pending on another account; the account's own verified
+    address answers 200 and sends nothing (a pending change is given up). 502 when the
+    send fails — and then no token is left. Rate-limited as *email* on my account key."""
+    account = _my_account(s, claims)
+    pid = int(account.player_id)
+    limits = _email_limits(request, account)
+    enforce(request, limits)
+    _mail_or_409(request)
+    try:
+        email = validate_email(body.email)
+        key = email_key(email)
+        current = verified_email_for(s, pid)
+        if current is not None and email_key(current) == key:
+            cancel_pending(s, pid)
+            s.commit()
+            return email_status(s, pid)
+        ensure_email_free(s, key, except_player_id=pid)
+    except HTTPException:
+        record_failure(request, limits)
+        raise
+    return _mint_and_send(request, s, account, email, limits)
+
+
+@router.post("/email/resend", response_model=EmailStatusOut)
+def resend_my_email(request: Request, s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
+    """A fresh link for the pending address (the old link stops working). 409 "Nothing to
+    send" when no address is pending; the same limits as `PUT /auth/email`."""
+    account = _my_account(s, claims)
+    pid = int(account.player_id)
+    limits = _email_limits(request, account)
+    enforce(request, limits)
+    _mail_or_409(request)
+    pending = pending_email_for(s, pid)
+    if pending is None:
+        raise HTTPException(status_code=409, detail=NOTHING_TO_SEND)
+    try:
+        ensure_email_free(s, email_key(pending), except_player_id=pid)
+    except HTTPException:
+        record_failure(request, limits)
+        raise
+    return _mint_and_send(request, s, account, pending, limits)
+
+
+@router.delete("/email", response_model=EmailStatusOut)
+def remove_my_email(
+    request: Request,
+    background: BackgroundTasks,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
+    """Forget my address — the verified one and any pending one. The removed verified
+    address is told, after the answer, with no link in the message."""
+    account = _my_account(s, claims)
+    pid = int(account.player_id)
+    removed = remove_email(s, account)
+    notice = email_changed_message(to=removed, name=_player_name(s, pid)) if removed else None
+    s.commit()
+    if notice is not None:
+        log.info("Email removed for player %s; telling %s", pid, mask_address(notice.to))
+        background.add_task(_send_quietly, request.app.state.mail, notice)
+    return email_status(s, pid)
+
+
+@router.post("/email/verify", response_model=EmailVerifiedOut)
+def verify_email(request: Request, body: EmailVerifyBody, background: BackgroundTasks, s: Session = Depends(get_session)) -> dict:
+    """Open a verification link: **public** (the link opens in a mail app's browser, with
+    no session), and a POST — the page asks for a tap, because a mail scanner follows
+    links and a GET that confirmed would be confirmed by the scanner. The token proves the
+    mailbox: it verifies the address for the account it was minted for, whoever is logged
+    in here. Unknown, used, expired and lost-the-race tokens are one generic 400. Rate-
+    limited as *reset*. When a different verified address is replaced, it is told, with
+    no link."""
+    limits = limits_for("reset", ip=_client_ip(request))
+    account, previous = _counted(request, limits, lambda: consume_verification(s, body.token))
+    pid = int(account.player_id)
+    email = verified_email_for(s, pid) or ""
+    notice = email_changed_message(to=previous, name=_player_name(s, pid)) if previous else None
+    s.commit()
+    if notice is not None:
+        log.info("Email changed for player %s; telling the previous address %s", pid, mask_address(notice.to))
+        background.add_task(_send_quietly, request.app.state.mail, notice)
+    return {"ok": True, "email": email}

@@ -471,11 +471,24 @@ def parse_args() -> argparse.Namespace:
     sessions = _hatch("sessions", "List a player's live sessions, or revoke them all")
     sessions.add_argument("--player", required=True)
     sessions.add_argument("--revoke-all", action="store_true")
+    verify_email = _hatch("verify-email", "Mark an email address verified for a player by hand (the DNS-is-broken hatch)")
+    verify_email.add_argument("--player", required=True)
+    verify_email.add_argument("--email", required=True)
+
+    # The deliverability gate (E1). With --host, the four flags replace the configured SMTP
+    # settings and the password is prompted (never a flag), so the gate can run before the
+    # app is configured; the boot guard still decides whether this server may send at all.
+    mail_test = _hatch("mail-test", "Send one test email through the configured (or given) transport")
+    mail_test.add_argument("--to", required=True, help="Where to send it (a Gmail address shows SPF/DKIM/DMARC)")
+    mail_test.add_argument("--host", help="SMTP host (then --user and --from are needed; the password is prompted)")
+    mail_test.add_argument("--port", type=int, help="SMTP port (default 465, implicit TLS)")
+    mail_test.add_argument("--user", help="SMTP login mailbox")
+    mail_test.add_argument("--from", dest="from_addr", help="Sender address, e.g. no-reply@lorbeerkranz.xyz")
 
     return p.parse_args()
 
 
-ESCAPE_HATCH_COMMANDS = {"reset-link", "set-password", "make-admin", "invite", "sessions"}
+ESCAPE_HATCH_COMMANDS = {"reset-link", "set-password", "make-admin", "invite", "sessions", "verify-email"}
 
 
 def _hatch_player(s, name: str):
@@ -545,6 +558,21 @@ def _run_escape_hatch(args, settings) -> int:
             print(f"Password set for {who}; existing sessions stay signed in")
             return 0
 
+        if args.cmd == "verify-email":
+            from app.services.account_email import email_key, ensure_email_free, mark_verified_by_hand, validate_email
+
+            try:
+                email = validate_email(args.email)
+                ensure_email_free(s, email_key(email), except_player_id=int(player.id))
+            except HTTPException as exc:
+                print(f"verify-email: {exc.detail} — nothing stored", file=sys.stderr)
+                return 1
+            previous = mark_verified_by_hand(s, account, email)
+            s.commit()
+            replaced = f" (replacing {previous}; no notice was sent)" if previous else ""
+            print(f"Email {email} verified by hand for {who}{replaced}")
+            return 0
+
         if args.cmd == "make-admin":
             account.site_admin = not args.revoke
             account.updated_at = dt.datetime.utcnow()
@@ -569,6 +597,52 @@ def _run_escape_hatch(args, settings) -> int:
             return 0
 
     raise AssertionError(f"unhandled escape-hatch command {args.cmd!r}")  # pragma: no cover
+
+
+def _run_mail_test(args, settings) -> int:
+    """`mail-test`: send one `test_message` and say what to read in Gmail. Exit 0 sent,
+    1 refused or failed. Never prints the password or the message body."""
+    import dataclasses
+    import getpass
+
+    from app.services.mail import MailNotConfigured, MailSendError, mail_transport_for
+    from app.services.mail_texts import test_message
+    from app.settings import AuthConfigError, assert_auth_config_safe
+
+    if args.host:
+        if sys.stdin.isatty():
+            password = getpass.getpass(f"SMTP password for {args.user or '(no --user)'}: ")
+        else:  # piped: one line on stdin, never echoed back
+            password = sys.stdin.readline().rstrip("\r\n")
+        settings = dataclasses.replace(
+            settings,
+            smtp_host=str(args.host).strip().lower(),
+            smtp_port=int(args.port or 465),
+            smtp_user=str(args.user or "").strip(),
+            smtp_pass=password,
+            smtp_from=str(args.from_addr or "").strip(),
+        )
+    try:
+        assert_auth_config_safe(settings)
+    except AuthConfigError as exc:
+        print(f"mail-test: refused — {exc}", file=sys.stderr)
+        return 1
+    transport = mail_transport_for(settings)
+    print(f"Mail: {transport.description}")
+    if not transport.configured:
+        print("mail-test: this server has no way to send mail — nothing sent", file=sys.stderr)
+        return 1
+    to = str(args.to or "").strip()
+    try:
+        transport.send(test_message(to=to, description=transport.description))
+    except (MailSendError, MailNotConfigured) as exc:
+        print(f"mail-test: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"Sent to {to} via {transport.description}. Open it in Gmail → ⋮ → Show original and read the "
+        "SPF, DKIM and DMARC lines: all three must say PASS (DMARC once its record is published)."
+    )
+    return 0
 
 
 def _read_only_engine(db_path: Path):
@@ -630,6 +704,9 @@ def main() -> None:
     if args.cmd in db_commands:
         configure_db(settings.db_url)
         init_db(settings)
+
+    if args.cmd == "mail-test":
+        raise SystemExit(_run_mail_test(args, settings))
 
     if args.cmd in ESCAPE_HATCH_COMMANDS:
         configure_db(settings.db_url)

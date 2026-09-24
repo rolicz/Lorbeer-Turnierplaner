@@ -814,7 +814,7 @@ nodemailer's cousin was not needed); `DESIGN.md` §5b: "A password hint is `At l
   `gen-types`. `cd frontend && npm run check` **932 tests in 96 files** (unchanged count — the only
   frontend test edit adds assertions inside an existing test), `npm run build` green.
 
-## E1 — The account's email: set, verify, resend, remove; the texts; `MeOut`; `mail-test` and `verify-email`  ☐
+## E1 — The account's email: set, verify, resend, remove; the texts; `MeOut`; `mail-test` and `verify-email`  ☑
 
 **The gap.** The tables exist and nothing writes them; `MeOut` cannot say whether an account can be
 recovered; no email has words; the CLI cannot test the transport or mark an address verified by
@@ -909,7 +909,7 @@ grep -n "mail-test\|verify-email" backend/manage.py      # → 0
     message's `To`, `Subject`, URL with `--all`); exit 1 when the directory is empty.
 
 **Definition of done.**
-- ☐ `tests/test_account_email.py` (≈24): set → a token row, a captured message to that address whose
+- ☑ `tests/test_account_email.py` (≈24): set → a token row, a captured message to that address whose
   body carries the fragment URL and nothing else clickable, `MeOut.email_pending`; verify → the
   `AccountEmail` row, `email_verified`, the token used, a second use 400; expired 400 (monkeypatch
   `_now`); a taken verified address → 409 at `PUT`; a pending address on another account → 409;
@@ -923,17 +923,17 @@ grep -n "mail-test\|verify-email" backend/manage.py      # → 0
   `mask_address` in the log line; `login_secure` for the four `password_origin` × passkey cases;
   `mark_verified_by_hand` through `manage.py verify-email` (subprocess); `mail-test` against the
   stack's file sink (subprocess, `MAIL_SINK_DIR`) writes a file and prints the Gmail line.
-- ☐ `tests/test_admin.py` +2: `mail-status` for a site admin, 403 for an owner; `email_state` in
+- ☑ `tests/test_admin.py` +2: `mail-status` for a site admin, 403 for an owner; `email_state` in
   the rows.
-- ☐ `tests/test_auth_gate.py` walks the new routes unchanged (the audit is the proof that
+- ☑ `tests/test_auth_gate.py` walks the new routes unchanged (the audit is the proof that
   `/auth/email/verify` is listed and the two others are not).
-- ☐ `make test`, `make lint`, `make gen-types` committed with `schema.d.ts`; `npm run check` green
+- ☑ `make test`, `make lint`, `make gen-types` committed with `schema.d.ts`; `npm run check` green
   (the fixture edit).
-- ☐ The stack (8272/8282, the recipe): `PUT /auth/email` → `Mail sent to r***@example.test (verify)`
+- ☑ The stack (8272/8282, the recipe): `PUT /auth/email` → `Mail sent to r***@example.test (verify)`
   in the log, a `.eml` in the sink, `mail_sink_link.py` prints the URL, `POST /auth/email/verify`
   with its token → 200, `/me` → `email_verified: true`; the log contains neither the token nor the
   body (`grep -c` → 0 for both).
-- ☐ Deviations filled in.
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §6 (the four endpoints, the refusals verbatim, the limits, the public path,
 `MeOut`'s five fields and that the frontend never re-derives them), §8 (`mail-test`, `verify-email`,
@@ -941,7 +941,97 @@ grep -n "mail-test\|verify-email" backend/manage.py      # → 0
 not look like an email address*, *Could not send the email — try again in a moment*.
 
 **Deviations.**
--
+- **One file outside E1's set: `services/reset_links.py`.** The spec builds the verification URL
+  from `reset_links.link_origin(request)`, but the function still lived in `routers/admin.py` and
+  the table gives the move to E2. It is moved **now** (verbatim, docstring widened to "a link the
+  app hands out"), and `routers/admin.py` imports it from the service — so `routers/auth.py` never
+  imports a router. **E2 has nothing left to move**; it adds `recovery_url` beside it.
+- **One more test file outside the set: `frontend/src/test/adminPage.test.tsx`** — its `account()`
+  fixture gained `email_state: "none", login_secure: true`, the two required `AdminAccountOut`
+  fields, or `tsc` fails. Nothing else in the file was touched; E4 owns it from here.
+- **`types.ts`**: `EmailStatus`, `EmailVerified`, `MailStatus`, and one narrowing the plan did not
+  spell — `EmailState = "none" | "pending" | "verified"`, applied inside `AdminAccount`'s existing
+  `Omit` exactly as `password_origin` is (the wire type is `string`). `authFixtures.sessionFixture`
+  carries the plan's five defaults verbatim (`email_verified: false`, `email_available: true`,
+  `login_secure: true`) — note for E4: under the new strip condition those defaults mean
+  *needsEmail*, so a strip-free test has to say `email_verified: true` or `email_available: false`.
+- **Sending from a sync handler, not `send_off_loop`.** The four routes are `def` handlers like
+  every other auth route (their DB work must not run on the event loop), and FastAPI already runs
+  a `def` handler in the threadpool — so the blocking `transport.send` is called directly there,
+  after `s.commit()`, and never touches the loop. `send_off_loop` stays the one wrapper for an
+  **async** caller; E1 has none. The order in `_mint_and_send` is the L16 rule to the letter:
+  sweep + mint + flush, build the `MailMessage` from plain strings, **commit**, then send; only
+  after the send is the session read again (for the answer). Background notices
+  (`BackgroundTasks`) close over a built `MailMessage` and the transport, never the session or the
+  request; a failing notice is logged (masked recipient, kind, exception class) and swallowed.
+- **Counting.** `PUT /auth/email` and `/resend` count every call that reaches the send (as
+  specified) **and** every refused address (400 not-an-address, 409 taken) — the 409 is a member's
+  oracle, so it is throttled with the sends. The account's own verified address (200, nothing
+  sent) and `MAIL_OFF` do not count. Verify is `_counted` under `reset` (10 / h per IP, measured:
+  the 11th bad token is a 429).
+- **Decided where the spec was silent, each pinned by a test:** (1) `PUT` with the account's own
+  verified address (any case) answers 200, sends nothing, **and gives up a pending change** (its
+  link stops working) — "set it back to what it was" means exactly that. (2) A change of *case*
+  only is not a change: no send, no notice. (3) The re-check at verify looks at **verified**
+  addresses only (`email_taken_reason(include_pending=False)`) — counting the other account's
+  pending row would let two pending claims block each other for 24 h; the first tap wins, the
+  second is the generic 400. It runs *before* the conditional `UPDATE`, so a lost race does not
+  spend the loser's token (and the unique index on `email_key` is the backstop — with the check
+  mutated away the race test fails on it). (4) `DELETE /auth/email` also deletes a pending
+  address; with only a pending one there is no verified address to tell, so no notice.
+  (5) `resend` re-runs `ensure_email_free` on the pending address (someone may have verified it
+  meanwhile). (6) `/resend` on a server with mail off is the same 409 `MAIL_OFF` as `PUT`.
+- **`services/account_email.py`** has everything item 1 lists plus four small helpers the routes
+  and the admin page needed, all in the module that owns the tables: `email_taken_reason` (the
+  logged reason behind `ensure_email_free`'s 409), `discard_verification` (the 502's cleanup),
+  `cancel_pending`, `pending_email_for`, and `email_states(s)` — the admin page's one query pair
+  (live-verification player ids, then `AccountEmail` player ids; verified wins). The refusal
+  strings `SEND_FAILED` and `NOTHING_TO_SEND` live there beside the four the spec named.
+- **`me_payload(s, claims, *, email_available)`** — the keyword is **required**, so a caller cannot
+  forget it; `routers/auth.py::_me(request, s, claims)` is the one wrapper (4 call sites + E2's),
+  `routers/me.py` passes it directly. `login_secure` is computed in `me_payload` and, the same
+  rule, in `_account_rows`.
+- **`mail_texts.py`**: `test_message` carries `__test__ = False` — pytest would otherwise collect
+  it from any test module that imports it by name. The changed notice says "changed or removed",
+  because it serves both routes.
+- **`manage.py`**: `mail-test` and `verify-email` both take `--secrets`/`--db-url` after the
+  subcommand (`_hatch`). `mail-test` needs no database; with `--host` it builds the settings with
+  `dataclasses.replace` and runs `assert_auth_config_safe` on them, so on this box (development)
+  it is refused before anything connects — measured in a test, the piped password appearing 0
+  times in stdout+stderr; `--host` without `--user` is the half-configured refusal naming
+  `smtp_user`. It prints `Mail: <description>` first. Tested only against the file sink
+  (`MAIL_SINK_DIR`) and the off transport — **no test, and nothing in this task, ever built an
+  `SmtpTransport` against a real host.** `verify-email` sends nothing (not even the changed notice
+  when it replaces an address — it says so in its one line) and refuses an address verified *or
+  pending* on another account.
+- **`scripts/mail_sink_link.py`**: standard library only; `--to` and `--all` as specified, a
+  message with no link prints `-` (the changed notice), exit 1 on an empty directory or no match.
+- **Proven, not asserted** (mutations, each restored and byte-compared): logging the URL, logging
+  the body, or logging the unmasked address in the route → `test_no_token_and_no_body_ever_reaches_a_log`
+  fails each time; dropping `discard_verification` → the 502 test fails; dropping the verify-time
+  re-check → the race test fails.
+- **The stack (8272, backend only — E1 has no UI; vite not started).** Dev DB copy in the session
+  scratchpad, `pushsubscription` / `pushsubscriptionpreference` emptied first (0 / 0), no VAPID,
+  no `smtp_*` key, `MAIL_SINK_DIR` set. Boot: `Auth migrated: 3 accounts, 1 group, 6 memberships …`,
+  `Cups imported: 2`, **`Mail: file sink at …/e1/mail (never delivers)`**, `SMTP via` **0** times.
+  Login as Roli → `login_secure: false, email_available: true`; `PUT /auth/email` →
+  `{email: null, email_pending: "roli@example.test"}`, log `Mail to r***@example.test (verify)
+  written to …-1.eml`; `mail_sink_link.py` → `http://localhost:8282/g/altherren/verify-email#…`;
+  **`GET /auth/email/verify?token=…` → 405** and nothing verified; `POST` with the token → 200
+  `{ok, email}`, again → 400 "That link is not valid"; `/me` → `email_verified: true`;
+  `/admin/mail-status` → `{configured: true, description: "file sink at … (never delivers)"}`;
+  `/admin/accounts` → Roli `verified`, the other five `none`. Then a change (verify → the old
+  address got the `changed` notice) and `DELETE` (the new one got it); `--all` lists the four
+  messages, both notices with no link. **Log grep:** each real token 0 hits — the one hit is the
+  uvicorn access line of my own deliberate `GET ?token=` probe, a URL the app never builds (its
+  links carry the token in the fragment); every body line of all four messages **0** hits; each
+  full address **0** hits (only `r***@example.test`). Stack stopped by exact PID, work dir removed.
+- **Gates.** `make test` **640 passed** in 31:45 (baseline 586 at `37563af`; +54 = 51
+  `test_account_email` + 2 `test_admin` + 1 `test_rate_limit`); `make lint` clean;
+  `test_auth_gate.py` unchanged and green (it walks `PUT/DELETE /auth/email`, `POST
+  /auth/email/resend` as account paths and `POST /auth/email/verify` as public, and checks the
+  tuple entry names a real route); `make gen-types` → `schema.d.ts` +295 lines, committed here;
+  `cd frontend && npm run check` **932 tests in 96 files** (unchanged count), `npm run build` green.
 
 ## E2 — Recovery by email; a passkey from a reset token; the atomic passkey-only registration  ☐
 

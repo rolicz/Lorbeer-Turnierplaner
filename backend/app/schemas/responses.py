@@ -67,6 +67,14 @@ class MeOut(BaseModel):
     has_passkey: bool
     password_migrated: bool
     session_id: int | None
+    #: E1 — whether the account can be recovered, and what is still missing. Built by
+    #: `services/sessions.py::me_payload`; the strip, Settings and the admin page read
+    #: these and never re-derive them.
+    email: str | None  # the verified address
+    email_pending: str | None  # an address waiting for its link to be opened
+    email_verified: bool
+    email_available: bool  # this server can send mail (the transport is configured)
+    login_secure: bool  # a passkey, or a password set on this code (≥ 15 characters)
 
 
 class SessionOut(BaseModel):
@@ -112,6 +120,32 @@ class AdminAccountOut(BaseModel):
     has_passkey: bool
     session_count: int
     last_seen_at: datetime | None
+    email_state: str  # "none" | "pending" | "verified" (E1)
+    login_secure: bool  # the same rule as `MeOut.login_secure` (E1)
+
+
+class EmailStatusOut(BaseModel):
+    """`PUT/DELETE /auth/email`, `POST /auth/email/resend` (E1): the verified address, the
+    pending one (a link sent and not yet opened), and whether an address is verified."""
+
+    email: str | None
+    email_pending: str | None
+    email_verified: bool
+
+
+class EmailVerifiedOut(BaseModel):
+    """`POST /auth/email/verify` (E1): the address that is now verified."""
+
+    ok: bool
+    email: str
+
+
+class MailStatusOut(BaseModel):
+    """`GET /admin/mail-status` (E1): whether this server can send, and the transport's
+    one-line description (host and sender — never the login mailbox or the password)."""
+
+    configured: bool
+    description: str
 
 
 class InviteCreatedOut(BaseModel):

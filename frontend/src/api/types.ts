@@ -133,12 +133,21 @@ export type RevokedCount = S["RevokedOut"];
 export type Passkey = S["PasskeyOut"];
 /** Where an account's password came from: never set, the one migrated from `secrets.json`, or set by the person. */
 export type PasswordOrigin = "none" | "migrated" | "set";
+/** An account's email (E1): `PUT`/`DELETE /auth/email`, `POST /auth/email/resend`. */
+export type EmailStatus = S["EmailStatusOut"];
+/** `POST /auth/email/verify` (E1): the address that is now verified. */
+export type EmailVerified = S["EmailVerifiedOut"];
+/** `GET /admin/mail-status` (E1): whether this server can send, and how (host and sender only). */
+export type MailStatus = S["MailStatusOut"];
+/** An account's email as the admin page sees it (E1): none, a link sent and not opened, or verified. */
+export type EmailState = "none" | "pending" | "verified";
 
 // The admin page (L3's `*Out`s, aliased here so L6 imports types and never `S[...]`).
 /** One row of `GET /admin/accounts`; `role` is the effective role in the current group. */
-export type AdminAccount = Omit<S["AdminAccountOut"], "role" | "password_origin"> & {
+export type AdminAccount = Omit<S["AdminAccountOut"], "role" | "password_origin" | "email_state"> & {
   role: Role;
   password_origin: PasswordOrigin;
+  email_state: EmailState;
 };
 /** `POST /admin/invites` — the only time the code itself is readable. */
 export type InviteCreated = S["InviteCreatedOut"];

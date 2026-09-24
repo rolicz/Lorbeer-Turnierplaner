@@ -59,6 +59,18 @@ def create_reset(s: Session, *, player_id: int, created_by: int | None) -> tuple
     return row, token
 
 
+def link_origin(request) -> str:
+    """Where a link the app hands out points — a reset link, an email verification link:
+    the pinned `auth_origin` in production; in dev-origin mode the request's own `Origin`
+    when it sent one (the admin page on the phone's LAN address). Moved here from
+    `routers/admin.py` by E1, so the auth router does not import a router."""
+    settings = request.app.state.settings
+    origin = str(request.headers.get("origin") or "").strip()
+    if settings.auth_dev_origin and origin:
+        return origin
+    return settings.auth_origin
+
+
 def reset_url(origin: str, token: str, *, group_slug: str = DEFAULT_GROUP_SLUG) -> str:
     """`{origin}/g/<slug>/reset#<token>` — the page L5 builds reads the fragment."""
     return f"{str(origin or '').rstrip('/')}/g/{group_slug}/reset#{token}"

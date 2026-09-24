@@ -22,6 +22,7 @@ from fastapi import Response
 from sqlmodel import Session, select
 
 from ..models import Account, AuthSession, Passkey
+from .account_email import email_status
 
 if TYPE_CHECKING:
     from ..settings import Settings
@@ -201,13 +202,21 @@ def session_cookie_header(token: str, *, secure: bool, max_age: int) -> tuple[by
 # ---- what /me says ----------------------------------------------------------------------
 
 
-def me_payload(s: Session, claims: dict) -> dict:
-    """`MeOut`: the claims plus the three account facts the shell needs (`has_password`,
-    `has_passkey`, `password_migrated`). Login, exchange and `GET /me` all answer with this,
-    so a fresh login and a reload describe the same person the same way."""
+def me_payload(s: Session, claims: dict, *, email_available: bool) -> dict:
+    """`MeOut`: the claims plus the account facts the shell needs (`has_password`,
+    `has_passkey`, `password_migrated`) and, since E1, whether the account can be recovered
+    (`email`, `email_pending`, `email_verified`, `email_available`, `login_secure`). Login,
+    exchange and `GET /me` all answer with this, so a fresh login and a reload describe the
+    same person the same way — and the frontend reads these, never re-derives them.
+
+    `email_available` is the caller's `request.app.state.mail.configured`: whether this
+    server can send at all. `login_secure` is `has_passkey or password_origin == "set"` —
+    a way in that is not the password `secrets.json` handed out (the 15-character floor
+    ships with the first `set` password production will hold, so "set" implies ≥ 15)."""
     pid = int(claims["player_id"])
     account = s.get(Account, pid)
     has_passkey = s.exec(select(Passkey.id).where(Passkey.player_id == pid).limit(1)).first() is not None
+    origin = account.password_origin if account is not None else "none"
     return {
         "role": claims.get("role"),
         "player_id": pid,
@@ -216,6 +225,9 @@ def me_payload(s: Session, claims: dict) -> dict:
         "groups": list(claims.get("groups") or []),
         "has_password": bool(account is not None and account.password_hash),
         "has_passkey": has_passkey,
-        "password_migrated": bool(account is not None and account.password_origin == "migrated"),
+        "password_migrated": origin == "migrated",
         "session_id": claims.get("session_id"),
+        **email_status(s, pid),
+        "email_available": bool(email_available),
+        "login_secure": bool(has_passkey or origin == "set"),
     }

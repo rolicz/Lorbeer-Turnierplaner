@@ -355,6 +355,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set My Email
+         * @description Ask to use an address: a 24-hour link goes to it, and the address becomes the
+         *     account's only once that link is opened (the verified one, if any, stays until then).
+         *
+         *     409 when this server cannot send, 400 for something that is not an address, 409 when
+         *     the address is verified or pending on another account; the account's own verified
+         *     address answers 200 and sends nothing (a pending change is given up). 502 when the
+         *     send fails — and then no token is left. Rate-limited as *email* on my account key.
+         */
+        put: operations["set_my_email_auth_email_put"];
+        post?: never;
+        /**
+         * Remove My Email
+         * @description Forget my address — the verified one and any pending one. The removed verified
+         *     address is told, after the answer, with no link in the message.
+         */
+        delete: operations["remove_my_email_auth_email_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend My Email
+         * @description A fresh link for the pending address (the old link stops working). 409 "Nothing to
+         *     send" when no address is pending; the same limits as `PUT /auth/email`.
+         */
+        post: operations["resend_my_email_auth_email_resend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email
+         * @description Open a verification link: **public** (the link opens in a mail app's browser, with
+         *     no session), and a POST — the page asks for a tap, because a mail scanner follows
+         *     links and a GET that confirmed would be confirmed by the scanner. The token proves the
+         *     mailbox: it verifies the address for the account it was minted for, whoever is logged
+         *     in here. Unknown, used, expired and lost-the-race tokens are one generic 400. Rate-
+         *     limited as *reset*. When a different verified address is replaced, it is told, with
+         *     no link.
+         */
+        post: operations["verify_email_auth_email_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/accounts": {
         parameters: {
             query?: never;
@@ -423,6 +501,27 @@ export interface paths {
          * @description Sign every device of this player out — the caller's own included, when it is theirs.
          */
         post: operations["revoke_account_sessions_admin_accounts__player_id__revoke_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/mail-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mail Status
+         * @description Whether this server can send email, and how — the boot line's words (host and
+         *     sender, never the login mailbox or the password). Site admin only.
+         */
+        get: operations["mail_status_admin_mail_status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2198,6 +2297,10 @@ export interface components {
             session_count: number;
             /** Last Seen At */
             last_seen_at: string | null;
+            /** Email State */
+            email_state: string;
+            /** Login Secure */
+            login_secure: boolean;
         };
         /** Body_put_club_crest_clubs__club_id__crest_put */
         Body_put_club_crest_clubs__club_id__crest_put: {
@@ -2562,6 +2665,51 @@ export interface components {
             decider_winner_goals: number | null;
             /** Decider Loser Goals */
             decider_loser_goals: number | null;
+        };
+        /**
+         * EmailBody
+         * @description `PUT /auth/email` (E1): the address to verify.
+         */
+        EmailBody: {
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+        };
+        /**
+         * EmailStatusOut
+         * @description `PUT/DELETE /auth/email`, `POST /auth/email/resend` (E1): the verified address, the
+         *     pending one (a link sent and not yet opened), and whether an address is verified.
+         */
+        EmailStatusOut: {
+            /** Email */
+            email: string | null;
+            /** Email Pending */
+            email_pending: string | null;
+            /** Email Verified */
+            email_verified: boolean;
+        };
+        /**
+         * EmailVerifiedOut
+         * @description `POST /auth/email/verify` (E1): the address that is now verified.
+         */
+        EmailVerifiedOut: {
+            /** Ok */
+            ok: boolean;
+            /** Email */
+            email: string;
+        };
+        /**
+         * EmailVerifyBody
+         * @description `POST /auth/email/verify` (E1): the token from the link's fragment.
+         */
+        EmailVerifyBody: {
+            /**
+             * Token
+             * @default
+             */
+            token: string;
         };
         /** EntryIdsOut */
         EntryIdsOut: {
@@ -3007,6 +3155,17 @@ export interface components {
             /** Push Endpoint */
             push_endpoint?: string | null;
         };
+        /**
+         * MailStatusOut
+         * @description `GET /admin/mail-status` (E1): whether this server can send, and the transport's
+         *     one-line description (host and sender — never the login mailbox or the password).
+         */
+        MailStatusOut: {
+            /** Configured */
+            configured: boolean;
+            /** Description */
+            description: string;
+        };
         /** MarkedResponse */
         MarkedResponse: {
             /** Ok */
@@ -3116,6 +3275,16 @@ export interface components {
             password_migrated: boolean;
             /** Session Id */
             session_id: number | null;
+            /** Email */
+            email: string | null;
+            /** Email Pending */
+            email_pending: string | null;
+            /** Email Verified */
+            email_verified: boolean;
+            /** Email Available */
+            email_available: boolean;
+            /** Login Secure */
+            login_secure: boolean;
         };
         /**
          * MemberRoleBody
@@ -5119,6 +5288,112 @@ export interface operations {
             };
         };
     };
+    set_my_email_auth_email_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_my_email_auth_email_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailStatusOut"];
+                };
+            };
+        };
+    };
+    resend_my_email_auth_email_resend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailStatusOut"];
+                };
+            };
+        };
+    };
+    verify_email_auth_email_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailVerifiedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_accounts_admin_accounts_get: {
         parameters: {
             query?: never;
@@ -5228,6 +5503,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mail_status_admin_mail_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailStatusOut"];
                 };
             };
         };

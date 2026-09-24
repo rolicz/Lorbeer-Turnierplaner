@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlmodel import Session, select
 
 from ..auth import require_auth_claims
@@ -37,8 +37,8 @@ _IDEA_EVENT_KIND: dict[str, str] = {
 
 
 @router.get("/me", response_model=MeOut)
-def me(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
-    return me_payload(s, claims)
+def me(request: Request, s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
+    return me_payload(s, claims, email_available=bool(request.app.state.mail.configured))
 
 
 def _snippet(body: str | None) -> str:

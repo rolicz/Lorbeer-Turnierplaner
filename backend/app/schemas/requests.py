@@ -37,6 +37,18 @@ class ResetBody(BaseModel):
     password: str = ""
 
 
+class EmailBody(BaseModel):
+    """`PUT /auth/email` (E1): the address to verify."""
+
+    email: str = ""
+
+
+class EmailVerifyBody(BaseModel):
+    """`POST /auth/email/verify` (E1): the token from the link's fragment."""
+
+    token: str = ""
+
+
 class PasswordChangeBody(BaseModel):
     """`POST /auth/password` (L3). `current_password` is required when the account has one."""
 

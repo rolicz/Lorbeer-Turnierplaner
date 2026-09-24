@@ -19,6 +19,8 @@ from tests.conftest import (
     cookie_headers,
     create_nogroup_account,
     login,
+    mail_off,
+    mail_sent,
     mint_session,
 )
 
@@ -373,3 +375,31 @@ def test_register_mints_a_session_the_admin_list_counts(client, anon, admin_head
     assert _cookie_from_response(r)
     rows = {row["display_name"]: row for row in client.get("/admin/accounts", headers=admin_headers).json()}
     assert rows["Counted"]["session_count"] == 1 and rows["Counted"]["role"] == "editor"
+
+
+# ---- email (E1) ----------------------------------------------------------------------------
+
+
+def test_mail_status_is_the_site_admins_alone(client, admin_headers, owner_headers, editor_headers):
+    r = client.get("/admin/mail-status", headers=admin_headers)
+    assert r.status_code == 200
+    assert r.json() == {"configured": True, "description": client.app.state.mail.description}
+    assert client.get("/admin/mail-status", headers=owner_headers).status_code == 403
+    assert client.get("/admin/mail-status", headers=editor_headers).status_code == 403
+    mail_off(client)
+    off = client.get("/admin/mail-status", headers=admin_headers).json()
+    assert off["configured"] is False and off["description"].startswith("off — recovery by email is disabled")
+
+
+def test_the_rows_carry_the_email_state(client, anon, admin_headers):
+    def states() -> dict[str, str]:
+        return {row["display_name"]: row["email_state"] for row in client.get("/admin/accounts", headers=admin_headers).json()}
+
+    assert set(states().values()) == {"none"}
+    client.put("/auth/email", json={"email": "editor@example.test"})  # Editor, the client's own session
+    assert states()["Editor"] == "pending" and states()["Admin"] == "none"
+    token = mail_sent(client)[-1].text.split("#", 1)[1].split()[0]
+    assert anon.post("/auth/email/verify", json={"token": token}).status_code == 200
+    assert states()["Editor"] == "verified"
+    client.put("/auth/email", json={"email": "other@example.test"})  # a pending change: still verified
+    assert states()["Editor"] == "verified"

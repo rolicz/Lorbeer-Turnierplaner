@@ -44,6 +44,9 @@ LIMITS: dict[str, tuple[tuple[int, int] | None, tuple[int, int], tuple[int, int]
     "reset": (None, (10, 3600), (40, 3600)),
     # POST /auth/passkeys/login/* (L8)
     "passkey": (None, (30, 600), (300, 600)),
+    # PUT /auth/email, POST /auth/email/resend (E1) — per account: every send counts, so one
+    # member cannot mail-bomb an address; the global bucket guards the domain's reputation.
+    "email": ((5, 3600), (10, 3600), (60, 3600)),
 }
 
 #: The longest window in `LIMITS`; the sweep drops anything older than this.

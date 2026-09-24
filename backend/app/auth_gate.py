@@ -8,7 +8,8 @@ decides by path, longest match first:
 
 - `LOOPBACK_ONLY_PATHS` — answered only to a loopback peer (Docker's healthcheck calls
   `/health` from inside the container; Caddy's forwarded request is not loopback), else 401.
-- `PUBLIC_PATHS` — no session needed (login, the exchange, register, reset, passkey sign-in).
+- `PUBLIC_PATHS` — no session needed (login, the exchange, register, reset, passkey sign-in,
+  opening an email verification link).
 - `ACCOUNT_PATHS` — a session, no membership needed (logout, my sessions, my password, my
   passkeys, redeem a code, this device's push).
 - **everything else** — a session *and* a membership in the current group: 401 with no
@@ -69,6 +70,8 @@ PUBLIC_PATHS: tuple[str, ...] = (
     "/auth/reset",
     "/auth/passkeys/login/options",
     "/auth/passkeys/login/verify",
+    # E1: the link from a verification mail opens in a browser with no session.
+    "/auth/email/verify",
 )
 #: A session, no membership needed.
 ACCOUNT_PATHS: tuple[str, ...] = ("/auth/", "/me", "/me/notifications", "/push/")

@@ -15,6 +15,12 @@ export function sessionFixture(over: Partial<MeResponse> = {}): MeResponse {
     has_passkey: false,
     password_migrated: false,
     session_id: 1,
+    // E1: whether the account can be recovered (`MeOut`'s five fields; the plan's defaults).
+    email: null,
+    email_pending: null,
+    email_verified: false,
+    email_available: true,
+    login_secure: true,
     ...over,
   };
 }

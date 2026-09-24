@@ -62,6 +62,13 @@ def test_limits_for_builds_the_three_keys():
     assert [k.key for k in limits_for("redeem", ip="10.0.0.9")] == ["redeem:ip:10.0.0.9", "redeem:global"]
 
 
+def test_the_email_family_counts_per_account_per_ip_and_globally():
+    """E1: five sends an hour per account, ten per IP, sixty for the whole server."""
+    assert LIMITS["email"] == ((5, 3600), (10, 3600), (60, 3600))
+    keys = limits_for("email", ip="10.0.0.9", account="roli")
+    assert [k.key for k in keys] == ["email:account:roli", "email:ip:10.0.0.9", "email:global"]
+
+
 # ---- on the login endpoint -------------------------------------------------------------------
 
 
