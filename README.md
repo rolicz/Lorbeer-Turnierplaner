@@ -81,9 +81,10 @@ Production / Docker:
 - Live match editing (goals, state, clubs per match side) + live updates via WebSocket
 - Second leg (all-or-none), reorder matches, swap sides
 - **Private by default**: nothing — no page, picture, stat or websocket — is readable without a
-  login (see "Authentication" below). Log in with your display name and a password, or with a
-  passkey (Face ID / Touch ID); new people join with a one-hour invite code; an admin page shows
-  who is logged in from which device
+  login (see "Authentication" below). Log in with a passkey (Face ID / Touch ID) or your display
+  name and a password; new people join with a one-hour invite code; a verified email address gets
+  you back in if you lose your passkey or forget your password; an admin page shows who is logged
+  in from which device
 - Player profiles: avatar + 16:9 header image + about text + guestbook (owner-editable, readable
   by everyone who shares a group with that player)
 - **Multiple cups** (configurable keys/names + optional start date), each with owner + history
@@ -157,6 +158,26 @@ Notes:
   a session once (`POST /auth/exchange`); empty means that exchange answers 410. It goes away with
   `player_accounts[]`.
 - `push_vapid_*` enables browser push delivery for the PWA.
+- **Email is optional and off by default.** Five keys turn it on — all five or none, a half-set
+  refuses to boot:
+
+  ```json
+  "smtp_host": "smtp.privateemail.com",
+  "smtp_port": 465,
+  "smtp_user": "<the login mailbox>",
+  "smtp_pass": "<its password — an application password if the mailbox has 2FA>",
+  "smtp_from": "no-reply@lorbeerkranz.xyz"
+  ```
+
+  `smtp_from` may be an alias of the `smtp_user` mailbox (production's is). **Put them in only on
+  the production server, and only after `manage.py mail-test` has landed a message in a Gmail
+  inbox with SPF and DKIM passing** (`AGENTS.md` §7): a development or test server with SMTP
+  credentials refuses to boot (unless `MAIL_DEV_SMTP=1`, which nothing here sets), because a dev
+  stack must never send real mail. For local work set `MAIL_SINK_DIR=<dir>` instead — every
+  message is written there as an `.eml` file and delivered nowhere
+  (`python3 scripts/mail_sink_link.py <dir>` prints the newest link); production refuses a sink.
+  The backend's startup log says which it is: `Mail: SMTP via …`, `Mail: file sink at …` or
+  `Mail: off …`. Mail is the standard library (`smtplib`) — no extra dependency.
 - New settings, all optional and all with safe defaults (env var or the lower-case key):
   `APP_ENV` (`production` | `development` | `test`; Docker sets `production`), `TRUSTED_PROXY_HOPS`
   (Docker sets `1` for Caddy), `AUTH_ORIGIN` / `AUTH_RP_ID` / `AUTH_RP_NAME` (the passkey relying
@@ -274,8 +295,12 @@ make dev            # both on LAN (0.0.0.0)
 
 **Passkeys in dev** work only in a browser on `http://localhost:8000` (a secure context). A phone
 on `http://192.168.178.78:8000` is plain HTTP off localhost, so its browser hides WebAuthn and the
-app hides "Use a passkey" — passkeys on a phone are production-only (HTTPS). The password login
-works everywhere.
+app hides "Use a passkey" and every "Create a passkey" — passkeys on a phone are production-only
+(HTTPS). The password login works everywhere.
+
+**Email in dev** is off (`Mail: off` in the backend log) unless you start the backend with
+`MAIL_SINK_DIR=<dir>`: then every mail is written there as a file and nothing is delivered. Never
+put `smtp_*` keys into a dev `secrets.json` — the backend refuses to boot with them.
 
 The frontend needs **Node ≥ 20.19 (or ≥ 22.12)** — Vite 7's floor. `.nvmrc` pins 24 and the
 `make frontend`, `make frontend-lan` and `make frontend-install` targets source
@@ -457,7 +482,8 @@ HEAD**, so every `/api` check is a GET; anything that reads data needs a session
 
 **Nothing is readable without a login.** Every API route, picture and websocket sits behind one
 default-deny gate; the only ways in without a session are logging in, registering with a code,
-using a reset link and signing in with a passkey. There is no read-only "reader" any more.
+using a reset link, asking for a recovery link, confirming an email address and signing in with a
+passkey. There is no read-only "reader" any more.
 
 Roles (per group; the app has one group today, **Altherren**, and every URL carries it —
 `/g/altherren/…`):
@@ -470,9 +496,13 @@ Roles (per group; the app has one group today, **Altherren**, and every URL carr
 - A logged-in account in **no group** sees only "You're not in a group yet" and a field for a code.
 
 Logging in:
-- With your **display name** (case-insensitive — "Flo" displays, "flo" logs in) and a password of
-  at least 10 characters, or with a **passkey** ("Use a passkey" — Face ID / Touch ID, no name
-  typed). Add a passkey under Settings → Account → Passkeys. An account always keeps **one way
+- With your **display name** (case-insensitive — "Flo" displays, "flo" logs in) and your
+  password, or with a **passkey** ("Use a passkey" — Face ID / Touch ID, no name typed). A passkey
+  that lives on your phone also logs you in on a computer: choose it in the browser's passkey
+  prompt and scan the QR code with the phone. Add a passkey under Settings → Account → Passkeys.
+  **Wherever you choose how to log in** — registering, a reset link, Settings — **the passkey is
+  offered first** and a password is the second option. **A new password needs at least 15
+  characters**; an existing shorter one keeps working (login never checks the length). An account always keeps **one way
   in**: the last passkey cannot be removed without a password, and the password cannot be removed
   without a passkey. Removing a passkey signs out every device of that account.
 - A login is a **session**: an `HttpOnly` cookie, 90 days, renewed as the app is used. Settings →
@@ -480,20 +510,34 @@ Logging in:
   the same for everyone.
 - **New people** register with an **invite code** (`ABCD-EFGH`, single use, valid one hour), which
   an owner or the site admin creates on the admin page (`/g/altherren/admin`) and sends however
-  they like; registering with it also joins the group. An existing account can redeem a code under
+  they like; registering with it also joins the group. Registering can create a passkey straight
+  away, with no password at all. An existing account can redeem a code under
   Settings → Account → Groups.
-- **A forgotten password** is fixed by a **reset link** the site admin creates on the admin page
-  (single use, one hour) — or, on the server, `docker compose exec -T backend python manage.py
-  reset-link --player <name>`. There is no email.
+- **An email address** (Settings → Account → Email) is confirmed by a link that works once, for 24
+  hours, on any device. A **verified** address is your way back in: **"Lost your passkey or
+  password?"** on the login screen mails a one-hour, single-use link that sets a new passkey or
+  password and signs out every other device (your passkeys stay). The page always answers the same
+  sentence, whether or not the address is known. Mail is English only, from
+  `no-reply@lorbeerkranz.xyz`; if it does not arrive, check the spam folder and press **Send
+  again**. Changing or removing the address tells the old one, with no link in that mail.
+- Until an account has **both** a verified email and a secure login (a passkey, or a password set
+  in this app), a "Secure your account" line at the top of every page says which of the two is
+  still missing. On a server with email off it asks only for the login.
+- **Without a verified email**, a lost login is fixed by a **reset link** the site admin creates on
+  the admin page (single use, one hour) — or, on the server, `docker compose exec -T backend python
+  manage.py reset-link --player <name>`. It opens the same "Set a new login" page as the emailed
+  link.
 - The installed iPhone app and Safari have **separate cookie jars**: a link opened from WhatsApp
-  opens Safari, which shows the login screen once even though the home-screen app is logged in.
-  Expected.
-- Login attempts, code redemptions and reset attempts are rate-limited (a countdown, never a
-  lockout).
+  or Mail opens Safari, which shows the login screen once even though the home-screen app is
+  logged in. Expected. A verification link needs no login at all — tap **Confirm**, go back to the
+  app, and it notices by itself.
+- Login attempts, code redemptions, reset attempts, verification mails and recovery requests are
+  rate-limited (a countdown, never a lockout).
 
 Accounts are created from `player_accounts[]` on the first boot (see Configuration); after that the
 database is the only source. Server-side escape hatches, if a login ever breaks:
-`manage.py reset-link`, `set-password`, `make-admin`, `invite`, `sessions` (details in `AGENTS.md`
+`manage.py reset-link`, `set-password`, `make-admin`, `invite`, `sessions`, `verify-email` (marks an
+address verified by hand when mail does not arrive) and `mail-test` (details in `AGENTS.md`
 §7–§8).
 
 ---
@@ -571,23 +615,28 @@ python3 backend/manage.py sync-local-from-deploy   # refresh the dev DB from pro
 Full, always-current list: `http://127.0.0.1:8001/docs`.
 
 - Me / notifications:
-  - `GET /me` (who this session is: role, player, groups, `has_password`, `has_passkey`)
+  - `GET /me` (who this session is: role, player, groups, `has_password`, `has_passkey`, and
+    `email`, `email_pending`, `email_verified`, `email_available`, `login_secure`)
   - `GET /me/notifications` (bell menu: unread comments, guestbook entries, pokes, idea events —
     each item carries the absolute in-app `path` to open, e.g.
     `/g/altherren/profiles/3?tab=guestbook&entry=17`)
-- Auth (public: `login`, `exchange`, `register`, `reset`, `passkeys/login/*`; everything else needs
-  a session):
+- Auth (public: `login`, `exchange`, `register`, `reset`, `passkeys/login/*`, `email/verify`,
+  `recover`, `reset/passkey/*`, `register/passkey/*`; everything else needs a session):
   - `POST /auth/login`, `POST /auth/logout`, `POST /auth/register`, `POST /auth/redeem`,
     `POST /auth/reset`, `POST /auth/exchange` (one-time: a pre-cookie token → a session)
   - `POST /auth/password`, `DELETE /auth/password`
   - `GET /auth/sessions`, `DELETE /auth/sessions/{id}`, `POST /auth/sessions/revoke-others`
   - `POST /auth/passkeys/register/options|verify`, `GET /auth/passkeys`,
     `DELETE /auth/passkeys/{id}`, `POST /auth/passkeys/login/options|verify`
+  - `PUT /auth/email`, `POST /auth/email/resend`, `DELETE /auth/email`, `POST /auth/email/verify`
+  - `POST /auth/recover` (always `{"ok": true}`), `POST /auth/reset/passkey/options|verify`,
+    `POST /auth/register/passkey/options|verify` (a passkey-only registration, atomic)
 - Admin (owner+; the four marked are site admin only):
   - `GET /admin/accounts`, `POST|GET /admin/invites`, `DELETE /admin/invites/{id}`,
     `PUT /admin/groups/{slug}/members/{pid}/role`
   - site admin: `GET /admin/accounts/{pid}/sessions`, `DELETE /admin/sessions/{sid}`,
-    `POST /admin/accounts/{pid}/revoke-sessions`, `POST /admin/reset-links`
+    `POST /admin/accounts/{pid}/revoke-sessions`, `POST /admin/reset-links`,
+    `GET /admin/mail-status`
 - Cups:
   - `GET /cup/defs`
   - `GET /cup?key=<cupKey>`

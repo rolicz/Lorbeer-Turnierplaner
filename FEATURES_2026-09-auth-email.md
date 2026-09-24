@@ -1829,7 +1829,7 @@ PASS count), §10 (the guard refuses a sink in production — seen).
   rather than swallow recovery links. **The rehearsal cannot prove Safari**: it opens and confirms the
   verify link in a cookie-less Chromium context, which is the phone's Safari only in shape.
 
-## E6 — Documentation pass  ☐
+## E6 — Documentation pass  ☑
 
 Every Canon line above into `AGENTS.md` (§2 the three modules; §4 the seven keys, the sink, the dev
 flag, the guard rules, "the five `smtp_*` keys are optional and go into `secrets.json` on the server
@@ -1846,12 +1846,61 @@ turn email on; put them here only after `manage.py mail-test` passed the Gmail c
 `FEATURES_2026-09-auth.md`'s Deployment section pointer if E5 changed what the rehearsal prints.
 The gates re-run on the final tree and the numbers written into §11.
 
-**Definition of done.** ☐ every Canon line reflected or declined in Deviations; ☐ `grep -n "At least
-10" README.md DESIGN.md AGENTS.md` → 0; ☐ `grep -n "no SPF\|no DKIM" *.md` → only the measured
-sentence in this file; ☐ the gates.
+**Definition of done.** ☑ every Canon line reflected or declined in Deviations; ☑ `grep -n "At least
+10" README.md DESIGN.md AGENTS.md` → 0; ☑ `grep -n "no SPF\|no DKIM" *.md` → only the measured
+sentence in this file (and this checklist's own line); ☑ the gates.
 
 **Deviations.**
--
+- **Files: exactly the five of the orchestrator's commit** (`AGENTS.md`, `DESIGN.md`, `README.md`,
+  `backend/secrets.json.example`, this file). `make gen-types` gave **no diff**, so `schema.d.ts` is
+  not in it. **`FEATURES_2026-09-auth.md` was not touched**: its Deployment section already says it is
+  superseded by `AGENTS.md` §7 and points at this file; §7 now carries both halves, and this file's
+  own Deployment section gained the pointer (with the step mapping) instead.
+- **Declined, with the reason: the `models.py` comment** E2 handed to E6 (`WebAuthnChallenge.kind`
+  still reads `"register" | "login"`, missing `"register-new"`). It is a code file outside this pass's
+  commit; written into `AGENTS.md` §11's open list as a one-word edit for whoever next touches
+  `models.py`.
+- **Where a Canon block (or this plan) and the code disagreed — the code is what shipped, and the
+  canon says the code's version:**
+  1. **`mail-test`'s output** (Deployment step 10 expects `Sent to r***@gmail.com via SMTP via …`):
+     the code prints `Mail: SMTP via smtp.privateemail.com:465 as no-reply@lorbeerkranz.xyz` first,
+     then `Sent to <the address as typed> via …` — unmasked, on the operator's own terminal; only the
+     logs mask. §7 step 13 says so.
+  2. **The rollback escape for a passkey-only account** (plan §2 and the escape-hatch paragraph:
+     "cannot log in on the old code until `manage.py set-password` gives it a password"): wrong. The
+     old code (`ce55a53`, `auth.resolve_player_login`) authenticates against `player_accounts[]` in
+     `secrets.json` only, so `set-password` — which writes an `Account` row — changes nothing while
+     rolled back. §5 and §7 step 19 say what is true: the account is out until the roll forward,
+     where its passkey still signs in (E5 measured that).
+  3. **The recovery log line** is `Recovery requested for r***@… but mail is off — nothing sent`, not
+     the plan's `recovery requested but mail is off`.
+  4. **The zsh trap's `set -- $combo`** is in the orchestrator's notes, not in E5's Deviations (E5
+     wrote only that the rehearsal must run under bash); §10 records it as a worker's loop in this
+     batch without pinning it to a task.
+  5. E3's and E4's canon lines, E0's four guard rules and texts, E1's refusal strings, E2's
+     endpoint order and limits, E4's strip condition and five sentences were each checked against
+     the source (`SecureAccountNotice.tsx`, `settings.py`, `account_email.py`, `routers/auth.py`,
+     `rate_limit.py`, `auth_gate.py`, the pages' strings) and match.
+- **`AGENTS.md` §7 is one merged deploy of 21 steps**: DNS (1), gates (2), backup (3), rehearsal (4,
+  237 checks, 8276/8277/8286, bash, `python3`, no `smtp_*` in the shape), pull/build/preflight/up
+  (5–8, `up -d --build backend frontend` so Caddy and Roli's other sites never restart, **five**
+  first-boot lines ending `Mail: off …`), health and smoke (9–10), **the phone walk split in two** —
+  step 11 with email still off (where the strip asks for the passkey alone and adding one clears it),
+  step 15 after the keys (the strip returns asking for the email) — Safari's jar (12), the
+  deliverability gate (13), the keys + `docker compose restart backend` (14), the escape hatches
+  cheapest first (16 `verify-email`, 17 the other five commands, 18 remove the keys, 19 rollback to
+  `ce55a53` then `git checkout main`, 20 data), and the later cleanup (21). Every cross-reference to
+  the old numbering in `AGENTS.md` was renumbered.
+- **§10 gained seven bullets** (the zsh word-splitting trap with the "run under bash" rule, the
+  verify link in Safari and the 2 s debounced re-ask, a recovery request voiding an admin link, the
+  WebAuthn sign-count replay and "save the credential back", the guard refusing a sink in production
+  as seen, the CA-store fallback, Namecheap's 553/535) and the `device_label` bullet learned E3's
+  sighting. **§11's strip item is closed** and the §11 lead bullet is rewritten for the whole branch.
+- **Gates on the final tree** (`c4a5f21` + this pass): `make test` **705 passed** in 36:22;
+  `make lint` clean; `make gen-types` **no diff**; `npm run check` **975 tests in 98 files**;
+  `npm run build` green, `index-*.js` **786.99 kB** (`AdminPage` 13.18 kB); L2's listing sabotage
+  re-tried once (phantom `/probe` → the audit fails; restored and byte-compared → 14 passed); the three
+  greps as expected. The rehearsal was not re-run (no code changed since E5's runs).
 
 ---
 
@@ -1859,23 +1908,33 @@ sentence in this file; ☐ the gates.
 
 Run on the final tree by E6 and written into `AGENTS.md` §11.
 
-- ☐ `make test` green — expected ≈507 + ≈86 (E0 26, E1 26, E2 36); the runtime written down.
-- ☐ `make lint` clean.
-- ☐ `make gen-types` **no diff** at the head.
-- ☐ `cd frontend && npm run check` green — expected 932 + ≈30; `npm run build` green, the
-  `index-*.js` size against 774.28 kB (no new dependency: expect a few kB for four pages).
-- ☐ `tests/test_auth_gate.py::test_every_route_is_gated_or_listed` green with the six new public
-  paths, and L2's two sabotages re-tried once on the final tree.
-- ☐ `grep -rn "smtp_pass\|SMTP_PASS" backend/app | grep -v "settings.py\|mail.py"` → 0 (nothing but
-  the two owners names the password); `grep -rn "simplewebauthn" frontend/src | grep -v
-  "passkeys.api.ts\|test/"` → 0.
-- ☐ `grep -rn "MIN_PASSWORD_LENGTH = " backend/app frontend/src` → exactly two lines, both 15.
-- ☐ The rehearsal's `ALL PASSED` (E5), and its "no `Mail: SMTP via`" assertion.
+- ☑ `make test` green — **705 passed** in 36:22 (expected ≈593; the suite grew by 198 over 507).
+- ☑ `make lint` clean.
+- ☑ `make gen-types` **no diff** at the head.
+- ☑ `cd frontend && npm run check` green — **975 tests in 98 files**; `npm run build` green,
+  `index-*.js` **786.99 kB** against 774.28 kB.
+- ☑ `tests/test_auth_gate.py::test_every_route_is_gated_or_listed` green with the six new public
+  paths; L2's listing sabotage re-tried on the final tree (bites); the unguarded-route one was last
+  tried by E2 and `auth_gate.py` is unchanged since `86f81bc`.
+- ☑ `grep -rn "smtp_pass\|SMTP_PASS" backend/app | grep -v "settings.py\|mail.py"` → 0;
+  `grep -rn "simplewebauthn" frontend/src | grep -v "passkeys.api.ts\|test/"` → one hit, a comment in
+  the generated `schema.d.ts` (a docstring naming the library), no import.
+- ☑ `grep -rn "MIN_PASSWORD_LENGTH = " backend/app frontend/src` → exactly two lines, both 15.
+- ☑ The rehearsal's `ALL PASSED` (E5, 237 PASS twice), and its "no `Mail: SMTP via`" assertion.
 - **Not a gate, not provable here:** a real message to Gmail and its headers (the deliverability
   gate is a production step, below); Face ID on the register and reset pages; the verification link
   opening in Safari on the phone and the PWA noticing on return.
 
 ## Deployment — how this half joins the single deploy
+
+> **Merged into `AGENTS.md` §7 by E6 (2026-09-24) — that list is the one to follow.** It numbers
+> both halves as one deploy: DNS is its step 1, the rehearsal step 4, the five-line first boot
+> step 8, the first-half phone walk (email still off) step 11, **this section's steps 10 / 11 / 12
+> are §7's 13 / 14 / 15**, and the escape hatches below are §7's 16–19 (rollback to `ce55a53`, then
+> `git checkout main`). The text below is the plan as written, kept as the record; where it and §7
+> differ, §7 was checked against the code (two corrections: `mail-test` prints the address as typed,
+> not masked, after a `Mail: SMTP via …` line; and a passkey-only account cannot be let in on the
+> old code by `set-password` — the old code reads only `player_accounts[]`).
 
 > The auth deploy is `AGENTS.md` §7's, step for step. This half adds **one step before it** (DNS),
 > **three after it** (the gate, the keys, the restart) and extends the phone walk. Nothing here is a
@@ -2004,6 +2063,8 @@ E0 does it against the dev DB, E5 against the production snapshot; both write th
 
 ## Decisions still needed from Roli
 
+**All six answered on 2026-09-24** — see "Roli's answers" at the top (the DMARC record carries no
+`rua=`; `no-reply@` is an alias of the login mailbox; the four defaults stand). Kept as asked.
 None block E0–E2. Each is a one-line answer a worker otherwise takes the default on.
 
 1. **The DMARC report address** (`rua=mailto:…`) — the one value only he can supply. Default: his

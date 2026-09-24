@@ -5,7 +5,19 @@
 > non-obvious about the project (deploy quirks, data semantics, decisions), **update this file**
 > so the knowledge survives model/tool switches. Keep the "Current state" section dated.
 >
-> Last full review: **2026-09-23** (L15, branch `feature/2026-09-auth`, code at `7e7d54b`) — the
+> Last pass: **2026-09-24** (E6, the email half's documentation pass, same branch, code at
+> `c4a5f21`) — `FEATURES_2026-09-auth-email.md`, E0–E5, which ships **in the same single deploy**
+> as the first half. Changed here: §1 (a verified email is the way back in), §2 (the three mail
+> modules, the four new pages), §3 (the gate numbers, the stack's mail rule), **§4** (the seven mail
+> settings and the four new guard rules), **§5** (three tables, the 15-character floor and that
+> login never checks length), **§6** (nine endpoints, six public paths, two rate-limit families,
+> `MeOut`'s five fields, recovery, the atomic passkey-only registration), **§7 rewritten as one
+> merged deploy** (DMARC, the rehearsal's 237 checks, the fifth boot line, the deliverability gate
+> *before* the `smtp_*` keys, the phone walk in two halves, the escape hatches renumbered), §8 (the
+> two mail commands, the sink reader), §9 (no new dependency), §10 (the zsh word-splitting trap and
+> five more) and **§11 rewritten for the whole branch** — the strip's open question is closed. The
+> first half's pass is described below and still stands wherever this one did not touch.
+> The full review before it: **2026-09-23** (L15, branch `feature/2026-09-auth`, code at `7e7d54b`) — the
 > auth batch's one documentation pass (`FEATURES_2026-09-auth.md`, L0–L13 + L16; L14 was dropped
 > when Roli chose one deploy). **§1, §4, §6 and §7 were rewritten at their core**: the app is no
 > longer public. Every route is default-deny behind `app/auth_gate.py`, a login is a row in
@@ -37,7 +49,11 @@ until Roli deploys it, §11) — **nothing in it is readable without a login**: 
 no stat, no websocket. There is no "reader" any more. A person logs in with their display name and a
 password, or with a passkey; a login is a revocable session row carried by an `HttpOnly` cookie;
 new people join by redeeming a one-hour invite code an owner or the site admin hands out; and an
-admin page shows who is logged in from which device.
+admin page shows who is logged in from which device. **The passkey is the credential the app
+offers first** wherever one is chosen (register, a reset link, Settings), and **an account can
+carry a verified email address**, which lets its owner get back in without Roli: "Lost your
+passkey or password?" mails a one-hour link that sets a new passkey or password (the email half,
+`FEATURES_2026-09-auth-email.md`, same branch, same deploy).
 
 **Groups are prepared, not built.** Every player belongs to one friend group, `Altherren` (slug
 `altherren`), and every in-app URL carries it (`/g/altherren/dashboard`). The tables, roles and URL
@@ -52,10 +68,10 @@ Players are a fixed small set (six on production: Roli, Flo, Rumpi, Berni, Atzi,
 
 | Part | Tech | Entry |
 |---|---|---|
-| `backend/` | Python 3.11, FastAPI 0.115, SQLModel 0.0.22 (SQLite), argon2-cffi (passwords), webauthn 2.7.1 (passkeys), PyJWT (the one-release JWT exchange only), httpx (web push), Pillow, uvicorn | `backend/run.py` → `app/main.py:create_app()` |
+| `backend/` | Python 3.11, FastAPI 0.115, SQLModel 0.0.22 (SQLite), argon2-cffi (passwords), webauthn 2.7.1 (passkeys), PyJWT (the one-release JWT exchange only), httpx (web push), Pillow, uvicorn; mail is the standard library's `smtplib` + `email` (no dependency) | `backend/run.py` → `app/main.py:create_app()` |
 | `frontend/` | React 18, Vite 7, TypeScript 5 (strict), Tailwind 3, TanStack Query 5, react-router 6, framer-motion, lucide-react, flag-icons, `@simplewebauthn/browser` 13.3.0 (passkeys) | `frontend/src/main.tsx` → `src/app/App.tsx` |
 | `deploy/` | Caddy 2 reverse proxy + auto-HTTPS | `deploy/Caddyfile` |
-| root | `docker-compose.yml` (backend + frontend/nginx + caddy), `Makefile`, `scripts/gen_types.sh`, `scripts/auth_rehearsal.sh` (+`_checks.py`, `_browser.mjs` — the deploy's dress rehearsal, §7), `scripts/passkey_e2e.mjs` | |
+| root | `docker-compose.yml` (backend + frontend/nginx + caddy), `Makefile`, `scripts/gen_types.sh`, `scripts/auth_rehearsal.sh` (+`_checks.py`, `_browser.mjs` — the deploy's dress rehearsal, §7), `scripts/passkey_e2e.mjs`, `scripts/email_e2e.mjs` (the email half's browser walk, E5), `scripts/mail_sink_link.py` (reads the link out of a stack's mail sink, §8) | |
 | `backup/` | git-ignored local + prod data snapshots (see §8) | |
 
 Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`), frontend
@@ -72,14 +88,31 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `assert_auth_config_safe`, the boot guard. In `app/services/`: `sessions.py` (mint, resolve,
   touch, list, revoke, the cookie, `me_payload`), `groups.py` (`current_group`, `effective_role`,
   `build_claims` — the one claims builder — `roster_for`, `ensure_shared_group`, owner roles, the
-  push prefix), `passwords.py` (argon2id, `MIN_PASSWORD_LENGTH = 10`), `accounts.py` (register,
-  password, `ensure_name_free`, `session_out`), `invites.py`, `reset_links.py`, `device_label.py`,
+  push prefix), `passwords.py` (argon2id, `MIN_PASSWORD_LENGTH = 15` for a **new** password — E0;
+  login never checks length), `accounts.py` (register, `register_with_passkey`, password,
+  `ensure_name_free`, `session_out`), `invites.py` (+`find_live_invite_by_id`, E2),
+  `reset_links.py` (+`link_origin`, `recovery_url` — one token, one consumer, one page),
+  `device_label.py`,
   `rate_limit.py` (`RateLimiter` + `LIMITS`), `passkeys.py` (`relying_party_for` — the one place
   rpID and origin are decided — and the two ceremonies), `auth_migration.py`
   (`migrate_from_settings`, the boot migration, and the only reader of `player_accounts[]` besides
   `auth-preflight`), `legacy_jwt.py` (the one JWT reader left, for `/auth/exchange`) and
   `paths.py` (`group_path` — every path the backend emits). `app/routers/admin.py` is the admin
   surface; `app/config.py` and `CORSMiddleware` are gone.
+- **The email half's modules** (E0–E2, §4/§6 carry the rules). `services/mail.py` — **the one
+  answer to "can this server send, and how"**: `MailMessage(to, subject, text, kind)`, the
+  `MailTransport` protocol (`kind`, `configured`, `description`, a blocking `send`) and its four
+  transports — `SmtpTransport` (stdlib `smtplib`, a fresh connection per send), `FileSinkTransport`
+  (writes `.eml` files, delivers nowhere), `CaptureTransport` (tests only, selectable by nothing),
+  `OffTransport` — `mail_transport_for(settings)`, `build_message`, `mask_address`,
+  `send_off_loop`; the transport lives on `app.state.mail`, and **routes ask `configured`, never
+  `kind`**. `services/mail_texts.py` — the four English plain-text builders (verify, recovery,
+  "your email changed", the test message). `services/account_email.py` — the only reader and
+  writer of `AccountEmail` / `EmailVerification`: normalise, validate, uniqueness, mint, consume,
+  remove, `email_status`, the admin page's `email_states`, `mark_verified_by_hand`.
+  `services/passkeys.py` gained the pieces the token-bound ceremonies order themselves
+  (`parse_registration`, `take_challenge`, `verified_registration`, `store_passkey` — flushes,
+  never commits), `new_registration_options` and `take_registration_intent`.
 - `app/services/` — `tournament_view.py` (serialization), `tournament_list.py`, `events.py`
   (WS broadcasts), `notifications.py` + `webpush.py` + `notification_texts.py` (push pipeline),
   `cup.py` (cup ownership fold), `file_storage.py` (media on disk), `media_derivatives.py`
@@ -137,8 +170,9 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
 - `app/seed.py`, `app/league_nations.py`, `app/validation.py`, `app/tools/sync_club_crests.py`,
   `app/tools/recover_club_star_history.py` (diffs the deploy snapshots, §8).
 - `manage.py` — CLI: seed, add-match, vacuum-db, generate-vapid, recover-club-star-history,
-  backups/sync, `auth-preflight` and the five escape-hatch commands (`reset-link`, `set-password`,
-  `make-admin`, `invite`, `sessions`) (§8).
+  backups/sync, `auth-preflight`, the six escape-hatch commands (`reset-link`, `set-password`,
+  `make-admin`, `invite`, `sessions`, and E1's `verify-email`) and E1's `mail-test`, the
+  deliverability gate (§8).
 
 ### Frontend modules
 - `src/api/` — `client.ts` (`apiFetch`, `apiUpload`, `mediaUrl`, central 401 → `api:unauthorized`
@@ -168,12 +202,16 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   `IdeasPage`, `IdeaCard`, `IdeaComposer`,
   `IdeaFields`, `IdeaComments.tsx` (the flat comment thread and the toggle that opens it, P4),
   `ideaMeta.ts`, `useIdeaMutations.ts`), settings (`settings/SecuritySection.tsx` — Devices,
-  Passkeys, Password, Groups — and `settings/SettingsSection.tsx`, the card every settings group
+  Passkeys, Password, Email, Groups — `settings/EmailSection.tsx` (E4) and
+  `settings/SettingsSection.tsx`, the card every settings group
   wears), `auth/` (rendered **outside** `AppShell`: `AuthScreen` — the bare logo-and-one-card
-  layout — `LoginPage`, `RegisterPage`, `ResetPage`, `NoGroupPage`, `RetryCountdown` (the one 429
-  line), `PasswordField` (the one password input with its eye toggle and 10-character hint),
+  layout — `LoginPage`, `RegisterPage`, `ResetPage` ("Set a new login", the **one** token page the
+  admin link, the CLI link and the emailed link all open), `RecoverPage` and `VerifyEmailPage`
+  (E3), `NoGroupPage`, `PasskeyOrPassword` (the **one** "choose a credential" block, passkey
+  first — E3), `useLinkToken.ts` (read the fragment once and strip it), `RetryCountdown` (the one
+  429 line), `PasswordField` (the one password input with its eye toggle and 15-character hint),
   `InviteCodeField` + `inviteCode.ts` (the one code input and its formatter), `password.ts`,
-  `formError.ts`), `admin/` (`AdminPage` with `AccountsTab`, `InvitesTab`, `SessionsSheet` and
+  `formError.ts` (+`passkeyFormErrorText`)), `admin/` (`AdminPage` with `AccountsTab`, `InvitesTab`, `SessionsSheet` and
   `ShownOnce` — the one "secret shown once" box), `NotFoundPage` (the `*` route).
   `stats/` is one layout driven by `StatsInsights.tsx`: `statsNav.ts` resolves `?view=`/`?sub=`
   (and maps every legacy URL shape onto them, §10), `StatsSection.tsx` is the shared sub-view
@@ -224,7 +262,8 @@ Size (2026-09-13): backend ≈ 13.3k LOC Python (`app/` + `manage.py` + `run.py`
   tabbed page], keyboardOpen [the on-screen keyboard's one answer: `<html data-keyboard-open>`,
   Q2], NotificationBell + notificationText [the bell's copy for all seven kinds, in one module],
   PushSetupNotice ["this device gets no notifications", P5], SecureAccountNotice ["secure your
-  account — add a passkey", L9], RouteErrorBoundary [the *page*
+  account — …", L9, its two-step condition since E4; `hooks/useRefreshMeOnReturn.ts` re-asks `/me`
+  while it shows], RouteErrorBoundary [the *page*
   failed] and AppCrashBoundary
   [the app failed — mounted in `main.tsx` outside every provider, see `src/diagnostics/`]),
   `ClubBadge`, `NationFlag`, `SectionTabs`, and the club selection: `SelectClubsPanel` (T9 — one
@@ -287,10 +326,10 @@ make frontend       # or: make frontend-lan  (BACKEND_ORIGIN=http://127.0.0.1:80
 make dev            # both, LAN
 
 # checks — run before every commit
-make test           # backend pytest   (baseline 504 passed, ≈27 min on the Pi, 2026-09-23 at the auth branch head; §11 is the authority)
+make test           # backend pytest   (baseline 705 passed, ≈36 min on the Pi, 2026-09-24 at the auth branch head; §11 is the authority)
 make lint           # ruff (E/W/F/I; line-length 150)
 make gen-types      # regenerate frontend/src/api/generated/schema.d.ts after ANY response-model change
-cd frontend && npm run check   # tsc + eslint + vitest (baseline 932 tests in 96 files, ~106 s)
+cd frontend && npm run check   # tsc + eslint + vitest (baseline 975 tests in 98 files, ~99 s of vitest, 2026-09-24)
 cd frontend && npm run build   # tsc -b + vite build (run for structural changes)
 ```
 
@@ -326,7 +365,9 @@ cd frontend && npm run build   # tsc -b + vite build (run for structural changes
   `Secure` flag follows the request's scheme, which is what lets the phone on plain
   `http://192.168.178.78:8000` keep a session at all. **Passkeys cannot appear on the phone against
   dev**: that URL is plain HTTP off `localhost`, not a secure context, so the browser hides WebAuthn
-  and the app correctly hides "Use a passkey" and the "secure your account" strip. Passkeys are
+  and the app correctly hides "Use a passkey" and every "Create a passkey" (register and reset
+  offer the password form alone) — the "secure your account" strip still shows there since E4, asking
+  for a new password instead of a passkey. Passkeys are
   exercised here only in Chromium on `http://localhost:<vite port>` (a secure context) with the CDP
   virtual authenticator (`scripts/passkey_e2e.mjs`), and on the phone only against production.
 - **A verification stack is backend + vite, on spare ports, against copies outside the repo.**
@@ -336,6 +377,13 @@ cd frontend && npm run build   # tsc -b + vite build (run for structural changes
   **private `cacheDir`** (a wrapper config), or it writes its dependency cache through a symlinked
   `node_modules` into the main checkout; name the DB copy inside the throwaway secrets file; and
   restart the backend to empty the in-memory rate-limit buckets when a test run hits one.
+  **And since the email half, a fifth: no stack ever sends real mail** (`FEATURES_2026-09-auth-email.md`
+  § "Runtime verification" has the recipe): the throwaway secrets file carries **no `smtp_*` key**,
+  every stack sets `MAIL_SINK_DIR=<its work dir>/mail` so "sent" mail lands as `.eml` files that
+  `scripts/mail_sink_link.py` reads the link out of, the boot log must say `Mail: file sink at …
+  (never delivers)`, and **`Mail: SMTP via …` in a stack's log means stop** — that stack is
+  misconfigured. Nothing here ever connects to `smtp.privateemail.com`; the four layers that hold
+  this are in §4.
   Playwright is **not** in `frontend/node_modules`: the batch borrowed `playwright-core` from
   `/home/roli/projects/racer/node_modules` (`PLAYWRIGHT=…` for the two `.mjs` scripts).
 - **Ports 8000, 8001, 8010 (and 5173) belong to Roli's long-running dev services** (this project
@@ -363,6 +411,9 @@ agents** (Roli declined that explicitly). Template: `backend/secrets.json.exampl
 | `push_vapid_public_key`, `push_vapid_private_key_file`, `push_vapid_subject`, `push_ttl_seconds` | Web push (VAPID). Private key PEM lives in `backend/data/vapid_private_key.pem` (dev) / `/data/vapid_private_key.pem` (prod). |
 | `CUPS_CONFIG_PATH` (env) | Cup definitions JSON; falls back to bundled `backend/app/cups.json`. Prod: `/data/cups.json`. **Since L12 it is the seed, not the runtime source**: validated on every boot (**malformed config = backend refuses to boot**, still), imported into `Cup`/`CupEra` once while that table is empty (`Cups imported: 2`), and after that the database wins — a file that differs from the rows logs a warning ("the file is only a seed now") and changes nothing. |
 | `UPLOADS_DIR` (env) | Media root. Docker `/data/uploads`; local fallback `./data/uploads`. Also holds the derived-size cache at `<root>/derived` (W1, §5) — files, not data, safe to delete. |
+| `smtp_host`, `smtp_port`, `smtp_user`, `smtp_pass`, `smtp_from` / `SMTP_HOST` … `SMTP_FROM` | **Optional — they turn email on** (E0). **All five or none**: a half-configured set refuses the boot, naming which keys are set and which missing (never a value). Production's are Namecheap Private Email: `smtp.privateemail.com`, `465` (implicit TLS; any other port is STARTTLS, and a server that offers none is a send error, never a plaintext login), `smtp_user` = **the login mailbox**, `smtp_pass` its password (an *application* password if the mailbox has 2FA), `smtp_from` = **`no-reply@lorbeerkranz.xyz`**, an alias of that mailbox — so `SMTP_USER` ≠ `SMTP_FROM`, on purpose. `smtp_port` defaults to 465, which is why "all five" is checked as "all four strings". `smtp_pass` is a `field(repr=False)`: a `%r` of the settings never prints it, and `SmtpTransport.description` names host, port and `smtp_from` only. **They go into the server's `secrets.json` only after the deliverability gate passed** (§7 steps 13–14). With none of them: `Mail: off …`, and the app hides every email surface. |
+| `MAIL_SINK_DIR` (env) | Dev and verification stacks only: every message becomes `<dir>/<UTC ts>-<seq>.eml` and is delivered nowhere; `scripts/mail_sink_link.py <dir>` prints the newest link. Wins over SMTP when both are set. **Refused in production** — it would swallow every recovery link. |
+| `MAIL_DEV_SMTP` (env) | Default off. The one way a non-production server may hold SMTP credentials ("if you really mean it"); nothing in this repo sets it, and **no worker ever does**. **Refused in production** — a dev flag, the `AUTH_DEV_ORIGIN` precedent. |
 
 **The boot guard** (`settings.py::assert_auth_config_safe`, the first thing `create_app` runs, so
 a refused boot names the setting in its last log line as `AuthConfigError: …`) refuses: an
@@ -373,6 +424,25 @@ production only **warns** (everyone shares one rate-limit bucket) — a wrong co
 accuracy, never safety, and a crash there would be a lock-out. Every setting it can name lives in
 `docker-compose.yml` or has a production default in code: **there is no new key `secrets.json`
 must carry.** `CORS_ALLOW_ORIGINS` is gone with the middleware (dev is same-origin, §3).
+**The email half added four rules, run in this order before the proxy-hops warning** (E0, each one
+proven to bite): SMTP **half-configured** → refuse; SMTP fully configured on a **non-production**
+server without `MAIL_DEV_SMTP` → refuse (*"SMTP credentials are set on a development server — a dev
+or verification stack must never send real email. Unset them, set MAIL_SINK_DIR=<dir> to write mail
+to files, or MAIL_DEV_SMTP=1 if you really mean it."*); `MAIL_SINK_DIR` in **production** → refuse;
+`MAIL_DEV_SMTP` in **production** → refuse. A dev server with the flag and no keys boots (the flag
+allows nothing by itself); a sink does not excuse credentials. **The five `smtp_*` keys are still
+not required** — a server with none of the seven mail settings boots and says `Mail: off`, which is
+the shipped default and the right fifth boot line on deploy day.
+**No real email leaves any non-production stack — four layers**: (1) the capture transport exists
+only in `tests/conftest.py` (`app.state.mail = CaptureTransport()` after `create_app`) and no
+setting, flag or environment variable can select it; (2) the file sink is env-selectable because it
+cannot deliver; (3) the boot guard above; (4) the recipe and the rehearsal carry no `smtp_*` key and
+always set `MAIL_SINK_DIR`, and the rehearsal asserts no log ever says `Mail: SMTP`.
+**One boot line always says what mail will do**, right after `DB initialized`: `Mail: SMTP via
+smtp.privateemail.com:465 as no-reply@lorbeerkranz.xyz` / `Mail: file sink at <dir> (never
+delivers)` / `Mail: off — recovery by email is disabled (set smtp_host, smtp_port, smtp_user,
+smtp_pass, smtp_from in secrets.json)`. The SMTP connection is opened **inside `send`**, so a
+server whose mail host is unreachable still boots.
 
 **Frontend** (Vite, build-time only): `VITE_API_BASE_URL`, `VITE_WS_BASE_URL`.
 `frontend/.env.production` (committed) = `/api` and empty WS base (derived from `window.location`
@@ -414,7 +484,8 @@ nothing but log the drift warning):
   `RecordHolder`, `RecordKeyState`,
   `PushSubscription`, `PushSubscriptionPreference`, and the auth batch's ten — `Group`,
   `GroupMembership`, `Account`, `AuthSession`, `Passkey`, `WebAuthnChallenge`, `InviteCode`,
-  `PasswordResetToken`, `Cup`, `CupEra` (next bullet).
+  `PasswordResetToken`, `Cup`, `CupEra` (next bullet), and the email half's three —
+  `AccountEmail`, `EmailVerification`, `RegistrationIntent` (the bullet after it).
 - **Who may log in, from where, and in which group** (L1, `FEATURES_2026-09-auth.md` "Decided by
   this plan" §1). Ten additive tables and four nullable columns; nothing renamed, nothing dropped.
   - `Group` (`slug` unique, `name`) — one row, `altherren` / `Altherren`. `GroupMembership`
@@ -445,7 +516,8 @@ nothing but log the drift warning):
     none exists → a membership for every player with **no `Account` and no membership** (a
     registrant waiting for an invite has an account, so a restart never pulls them in) → one
     `Account` per matching `player_accounts[]` entry, **hashed eagerly** (argon2id; a password
-    shorter than 10 is hashed as it is — refusing it would lock its owner out), `admin` → site
+    of any length is hashed as it is — refusing a short one would lock its owner out, and
+    production's six are nine characters), `admin` → site
     admin and owner → a passwordless `Account` for every other player (so `name_key` is unique
     across everyone from day one; such a player gets in through an admin's reset link) → the
     `group_id` backfill, **NULL rows only**. One log line, only when something was written:
@@ -468,6 +540,50 @@ nothing but log the drift warning):
     under the new code is inert to the old code (a password **set** on the new code does not carry
     back — the old code logs in from `secrets.json`), and a row the old code writes waits for the
     next new-code boot for its `group_id`.
+- **An account's email, and a passkey-only registration** (E0, `FEATURES_2026-09-auth-email.md`
+  "Decided by this plan" §2). Three additive tables, **no new column, nothing in `_RUNTIME_COLUMNS`**;
+  `Account` deliberately has no email column.
+  - `AccountEmail` (PK `player_id`, `email` as typed, `email_key` = `strip().casefold()` **unique**,
+    `verified_at` **not nullable**) — **only verified addresses live here**, the one recovery
+    resolves, so a typo in a pending change never displaces the address that works.
+  - `EmailVerification` (`player_id`, `email`, `email_key`, `token_hash` sha256 unique,
+    `expires_at` **24 h**, `used_at`) — a pending address *is* an unused row here; consumed by a
+    conditional `UPDATE … WHERE used_at IS NULL`; a newer request deletes the player's older unused
+    ones (the newest link is the only one that works). `services/account_email.py` is its only
+    reader and writer.
+  - `RegistrationIntent` (`challenge_id` FK unique, `invite_id`, `display_name`, `user_handle`) —
+    what a passkey-only registration must remember between `options` and `verify`, because the
+    authenticator stores the user handle before any account exists. **It lives and dies with its
+    challenge**: `take_challenge` deletes both in one commit (wherever a challenge is taken, even
+    by the wrong ceremony), and `sweep_expired_challenges` deletes intents whose challenge is
+    expired **or already gone** before it deletes challenges (E2).
+  - **Recovery tokens are `PasswordResetToken` rows** — no new table, `created_by = NULL` (the CLI's
+    shape). One token, one consumer (`consume_reset`), one page.
+  - **Uniqueness of an address** is `email_key` across `AccountEmail` **and** the live, unused
+    verifications of *other* accounts, checked when a member enters it (409 — an oracle only to a
+    logged-in friend) and re-checked against **verified** addresses when a link is opened (the first
+    tap wins; the loser gets the generic *That link is not valid*, and the unique index is the
+    backstop).
+  - **A password has two lengths** (E0, Roli): every **newly set** password — register, reset,
+    change, `manage.py set-password` — is **at least 15** characters (`MIN_PASSWORD_LENGTH = 15`,
+    mirrored once in `pages/auth/password.ts`; a test pins the floor on all four paths); an
+    **existing** password keeps working at any length, and **login never checks length** —
+    `test_login_never_checks_length` logs in with a nine-character migrated password.
+    `MeOut.login_secure` = `has_passkey or password_origin == "set"` stores no length: "set"
+    implies ≥ 15 on production by construction, because the floor ships in the same deploy as the
+    first `set` password production will ever hold.
+  - **Rule 3 was measured, twice.** E0 booted `ce55a53` (via `git archive`) on a dev copy the new
+    code had written one row into each table: clean boot, JWT login 200, `GET /tournaments` 200,
+    `POST /tournaments` 200, the three tables byte-identical afterwards; the next new-code boot
+    migrated nothing twice. E5 did it again on the production snapshot with **3 / 4 / 1** rows
+    (sha256 of each table's `.dump` unchanged). What a rollback costs: **a password set on the new
+    code does not carry back (401 on the old code), and an account registered passkey-only cannot
+    log in on the old code at all** — both measured (401). The old code's login reads
+    `player_accounts[]` from `secrets.json` and nothing else (`ce55a53`'s
+    `auth.resolve_player_login`), so **no command helps while rolled back** — the plan's "until
+    `manage.py set-password` gives it a password" is wrong, `set-password` writes an `Account` row
+    the old code never reads. The account signs in again with its passkey after the roll forward
+    (E5 measured that too); only an entry in `player_accounts[]` would let it in on the old code.
 - **The Ideas board** (R5, four new tables): `FeatureRequest` is one idea — author (never NULL,
   posting needs a login), `title`, `body`, `kind` (feature|change|bug), `status`
   (new|planned|doing|done|declined) + `status_note`, both admin-only, and `edited_at`, which is
@@ -707,7 +823,11 @@ winning (which is how `/auth/login` is public under the `/auth/` account prefix)
   its bridge address, never loopback. So **`https://lorbeerkranz.xyz/api/health` answers 401 by
   design**, and in dev `:8000/api/health` answers 200 (vite connects from 127.0.0.1).
 - `PUBLIC_PATHS` — `/auth/login`, `/auth/exchange`, `/auth/register`, `/auth/reset`,
-  `/auth/passkeys/login/options`, `/auth/passkeys/login/verify`: no session needed.
+  `/auth/passkeys/login/options`, `/auth/passkeys/login/verify`, and the email half's six:
+  `/auth/email/verify` (E1 — the link opens in a browser with no session), `/auth/recover`,
+  `/auth/reset/passkey/{options,verify}` and `/auth/register/passkey/{options,verify}` (E2 — they
+  hold a token or an invite code instead of a session): no session needed. The audit walks all
+  six unchanged, and L2's two sabotages were repeated on E2's tree.
 - `ACCOUNT_PATHS` — `/auth/` (prefix), `/me`, `/me/notifications`, `/push/` (prefix): a session,
   **no membership** needed (logout, my sessions, my password, my passkeys, redeem a code, this
   device's push). `/auth/redeem` is deliberately here and not public: an existing account redeems.
@@ -763,12 +883,16 @@ lockout, never a row written): a refusal is **429** with `Retry-After` and `{"de
 | family | endpoints | per account | per IP | global |
 |---|---|---|---|---|
 | `login` | `POST /auth/login`, `/auth/exchange`; also wrong *current* passwords on `POST /auth/password` | 10 / 10 min | 30 / 10 min | 150 / 10 min |
-| `redeem` | `POST /auth/register`, `/auth/redeem` (one shared bucket) | — | 10 / h | 40 / h |
-| `reset` | `POST /auth/reset` | — | 10 / h | 40 / h |
+| `redeem` | `POST /auth/register`, `/auth/redeem`, `/auth/register/passkey/{options,verify}` (one shared bucket) | — | 10 / h | 40 / h |
+| `reset` | `POST /auth/reset`, `/auth/reset/passkey/{options,verify}`, `/auth/email/verify` | — | 10 / h | 40 / h |
 | `passkey` | the public sign-in pair — **every minted challenge counts** | — | 30 / 10 min | 300 / 10 min |
+| `email` | `PUT /auth/email`, `POST /auth/email/resend` — every call that reaches a send **and** every refused address (400, 409) | 5 / h | 10 / h | 60 / h |
+| `recover` | `POST /auth/recover` — **every request**, per `email_key` (unknown addresses too); `record_success` is never called | 3 / h per address | 5 / h | 30 / h |
 
 Every 4xx from these endpoints counts, a success clears the account key, a 429 itself does not
-count. The IP is `auth_gate.client_ip(scope, hops)`: the `X-Forwarded-For` entry `hops` from the
+count. The two public *options* endpoints of the email half count a **successful mint** too (L8's
+"a minted challenge is an attempt"). The `recover` per-address bucket is what stops email-bombing
+one person; its global bucket protects the sender reputation of `lorbeerkranz.xyz`. The IP is `auth_gate.client_ip(scope, hops)`: the `X-Forwarded-For` entry `hops` from the
 **right** (the one the outermost trusted proxy wrote — correct whether Caddy appends or replaces),
 the socket peer when the chain is shorter, `hops = TRUSTED_PROXY_HOPS`, a loopback peer counting as
 one. **Reading the first entry is the bug** — it is client-supplied. A wrong name, a wrong password
@@ -778,7 +902,12 @@ is verified against a dummy argon2 hash so it costs the same time. The buckets l
 
 **The login surface** (`routers/auth.py`, thin, over `services/accounts.py`, `invites.py`,
 `reset_links.py`, `passkeys.py`). Every way in answers `MeOut` (`{role, player_id, player_name,
-site_admin, groups, has_password, has_passkey, password_migrated, session_id}`) and sets the cookie.
+site_admin, groups, has_password, has_passkey, password_migrated, session_id}` **plus E1's five**:
+`email` (the verified address), `email_pending`, `email_verified`, `email_available` (this server's
+transport is `configured`) and `login_secure` (`has_passkey or password_origin == "set"`), all built
+by `sessions.me_payload`, whose `email_available` keyword is required so no caller forgets it) and
+sets the cookie. **The strip, the Email section and the admin page read those five and never
+re-derive them.**
 - `POST /auth/login {username, password}` — the display name, case-insensitive. A parameter change
   re-hashes on the next login.
 - `POST /auth/exchange` — `Authorization: Bearer <pre-batch JWT>` → a `kind="exchange"` session.
@@ -795,17 +924,20 @@ site_admin, groups, has_password, has_passkey, password_migrated, session_id}`) 
   from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no `O/0/I/1`), shown `ABCD-EFGH`, single use, one hour,
   carry their group, grant membership never ownership, stored as sha256 and **readable only in the
   response that created them**; the defence is the global `redeem` cap (P(hit within a code's hour)
-  ≈ 3.6×10⁻¹¹).
+  ≈ 3.6×10⁻¹¹). **A code can also register an account with a passkey and no password** (E2, below).
 - `POST /auth/reset {token, password}` — an admin-issued link, `{origin}/g/altherren/reset#<token>`
   (32 random bytes, one hour, single use, the token in the **fragment**; a `?token=` is accepted too
   because chat clients mangle fragments). The password is validated **before** the token is spent,
   the reset **ends every other session** of that player, and a newer link kills the older unused
-  ones. Every bad token is *"That reset link is not valid"*. No email, no recovery codes.
+  ones. Every bad token is *"That reset link is not valid"*. No recovery codes. **The same token
+  now also comes by email and can set a passkey instead** (E2, below) — the admin link, the CLI
+  link and the emailed link are three ways of delivering one thing to one page.
 - `POST /auth/password {current_password?, new_password}` (the current one whenever the account has
   a password; does **not** end other sessions) and `DELETE /auth/password` (409 without a passkey).
   Passwords: argon2id with the library's own per-hash random salt — **no salt parameter anywhere,
   no pepper** (the DB and `secrets.json` sit in one directory, so a pepper protects nothing and adds
-  a way to fail every password at once); minimum 10 characters, no composition rule, maximum 200.
+  a way to fail every password at once); a **new** password is at least **15** characters (E0 —
+  it was 10), no composition rule, maximum 200; **login never checks length** (§5).
 - `GET /auth/sessions`, `DELETE /auth/sessions/{id}` (the id is looked up **in the caller's own
   list** — 404 otherwise), `POST /auth/sessions/revoke-others`.
 - **Passkeys** (L8, `services/passkeys.py` over `webauthn` 2.7.1): `POST
@@ -829,6 +961,93 @@ site_admin, groups, has_password, has_passkey, password_migrated, session_id}`) 
   in the caller's own list, an admin's included. All eighteen negatives were proven to bite with a
   hand-rolled software authenticator (`tests/soft_authenticator.py`).
 
+**An account's email** (E1, `routers/auth.py` over `services/account_email.py`). `PUT /auth/email
+{email}`, `POST /auth/email/resend` and `DELETE /auth/email` are account paths answering
+`EmailStatusOut {email, email_pending, email_verified}`; `POST /auth/email/verify {token}` is
+**public** (the link opens in Safari, which has no PWA cookie — the token proves the mailbox, not
+the session) and answers `EmailVerifiedOut {ok, email}`. **There is no `GET` for it** (405): a mail
+scanner that fetches the link must not spend it, which is also why the page verifies on a tap
+(`DESIGN.md` §7). The link is `{origin}/g/altherren/verify-email#<token>` — 32 random bytes, sha256
+stored, **24 hours**, single use, the token in the fragment. A pending address never displaces a
+verified one: the verified address keeps working until the new one is confirmed. The refusals,
+verbatim and the only words for their case: *That does not look like an email address* (400),
+*That email address is used by another account* (409, at entry), *That link is not valid* (every
+unknown / used / expired / lost-race token), *Nothing to send* (409, resend with nothing pending),
+*Email is not set up on this server* (409 on a server with mail off — the UI never shows it, it
+hides the form on `email_available: false`), *Could not send the email — try again in a moment*
+(**502**: the send raised, and the token row is deleted again in a fresh transaction). The
+account's own verified address typed again answers 200, sends nothing and gives up a pending
+change; a change of case only is not a change. **The old address is told** — on a verification
+that replaces it and on `DELETE` — with `email_changed_message`, which carries **no link** (a link
+there would be a second recovery surface pointing at the address that just lost the account).
+**Mint → commit → send, and never a transaction across a send** (L16's rule, the push dispatcher's
+lesson applied from day one): the token row is flushed and **committed** before the transport is
+called, the handlers are `def` so FastAPI already runs them in the threadpool (`send_off_loop` is
+the one wrapper for an `async` caller), and a `BackgroundTasks` notice closes over a built
+`MailMessage` and the transport — never the session, never the request. **No retries**: a failed
+send is reported once and the next attempt is the person's, rate-limited.
+**What a mail log line may say**: `Mail sent to r***@gmail.com (verify)` / `Mail to r***@… (recover)
+failed: SMTPRecipientsRefused: …` / the file sink's path — the recipient masked by `mask_address`,
+the kind, the exception class and at most 200 characters of the SMTP reply. **Never a body, never a
+token or a link, never a full address**; tests grep captured logs for all three, and every stack
+walk (E1, E2, E5) grepped its own logs to 0.
+
+**Recovery by email** (E2). `POST /auth/recover {email}` is public and **answers `{"ok": true}` for
+every plausible address** — verified, unknown and pending alike, byte-identical, no cookie; a
+non-address is the only other answer (400, naming the string, not an account). It sends only to a
+**verified** address (a pending one buys nothing), and with mail off it mints nothing and logs
+`Recovery requested for r***@… but mail is off — nothing sent`. **It mints after answering** — E2's timing finding: the plan
+had the handler mint and commit before the response, and SQLite's commit (an fsync, tens of ms on
+the Pi) sat on the request's clock — **52.8 ms** for a verified address against **8.1 ms** for an
+unknown one, exactly the oracle the endpoint exists to close. Now the handler only reads (the
+limiter, `validate_email`, `transport.configured`, `account_by_verified_email`) and a background
+task opens its own short session, re-reads the verified address, mints through
+`create_reset(created_by=None)`, **commits, closes, then sends**: 3.42 ms known against 3.02 ms
+unknown (median of 30), the 0.4 ms being one `SELECT`. A test records the SQL verbs before and
+after the response and asserts only `SELECT` before it. The mail (*Get back into Lorbeerkranz*)
+carries the reset page's link, one hour, single use; using it **ends every other session and keeps
+every passkey** (a lost device still needs Face ID to use its passkey; Settings lists it with "last
+used" so it can be removed on purpose). **A recovery request voids an earlier unused admin link**
+for the same account (`create_reset`'s "the newest link is the only one that works" — §10).
+
+**A passkey from a reset token** (E2). `POST /auth/reset/passkey/options {token}` →
+`find_live_reset` (spends nothing) → the ordinary `kind="register"` challenge bound to that player.
+`POST /auth/reset/passkey/verify {token, credential, label}` runs, **in this order and with one
+commit at the end**: `find_live_reset` → parse → `take_challenge(kind="register", player_id=the
+token's)` → `verified_registration` → `consume_reset` (the conditional spend; a token that lost a
+race refuses *here*, with no credential stored) → `store_passkey` → `revoke_all_sessions` →
+`_start_session(kind="reset")` → `MeOut`. So a ceremony that fails verification spends the
+challenge and **not** the token (try again, or use the password half), a 409 *That passkey is
+already registered* rolls the spend back, and a cancelled sheet never reaches the server.
+
+**A passkey-only registration is atomic** (E2, Roli: an account must never exist without a way in).
+`POST /auth/register/passkey/options {code, display_name}` checks the **code first** (so nobody
+without one learns whether a name is taken), then the name, then mints a
+`WebAuthnChallenge(kind="register-new", player_id=None)` and a `RegistrationIntent` holding the
+invite id, the name and a fresh user handle — **nothing about the person exists yet**. `POST
+/auth/register/passkey/verify {credential, label}` sends only the credential (the name the handle
+was minted for is the server's, never re-sent): `take_registration_intent` (intent and challenge
+deleted and committed **before** anything is verified, so a replay finds nothing) →
+`verified_registration` → **one transaction**: the invite re-checked by id with the full liveness
+rule (`find_live_invite_by_id` — a code that *expired* meanwhile would pass `spend_invite`'s UPDATE
+alone), `ensure_name_free` again, `Player`, `Account(password_hash=None, password_origin="none",
+webauthn_user_handle=intent's)`, the passkey, the membership, `spend_invite`, the session,
+**commit**. Proven by row counts (`tests/test_passkey_tokens.py`): after every refusal — wrong
+origin, another site's origin, wrong rpID, UV clear, a corrupt attestation, a code spent or expired
+meanwhile, a name taken meanwhile (409), a replay, an unanswered sheet, **a crash injected after the
+passkey row and before the commit** (500) — `player`, `account`, `passkey`, `groupmembership` and
+`authsession` have the counts they had before and the code is unspent. The new account answers
+`has_passkey: true, has_password: false, login_secure: true, email_verified: false`, so the strip
+asks it for an email next. Refusals, verbatim: *That code is not valid*, *That name is taken*,
+*That passkey could not be registered* (400, every failed ceremony on both pairs), *That passkey is
+already registered* (409), *Passkeys are not available from this origin* (400). `label` is sent as
+`""`, never `null` (a 422). E2 proved **26 of 26** weakenings bite (the table is in its Deviations).
+
+**Where "secure" is decided.** The strip's condition — a verified email (only while
+`email_available`) **and** a secure login — is written in `ui/shell/SecureAccountNotice.tsx` and in
+`DESIGN.md` §7's row, nowhere else; the admin page's **Not secured** chip is the same two steps,
+read off the same server fields.
+
 **The admin surface** (`routers/admin.py`, `require_owner` on the router). **Owner+**: `GET
 /admin/accounts` (a site admin sees every player, uninvited registrants included; an owner the
 members of their groups; `role` is effective), `POST /admin/invites {note}` → the code, **once**,
@@ -839,7 +1058,12 @@ demoted by anyone**, the site admin included — 409). **Site admin only** (an o
 /admin/accounts/{pid}/revoke-sessions`, `POST /admin/reset-links {player_id}` → the URL, once (a
 reset takes an account over). In dev-origin mode the link points at the admin's own request
 `Origin`; `manage.py reset-link` uses `AUTH_ORIGIN` or `--origin`. There is **no delete-account
-endpoint**: a stray registration is removed by SQL for now (part 2).
+endpoint**: a stray registration is removed by SQL for now (part 2). The email half added `GET
+/admin/mail-status` → `{configured, description}` (**site admin only** — an owner's page never
+asks), and two fields on every `AdminAccountOut` row: `email_state` (`none` | `pending` |
+`verified` — the state only; the address itself is never shown to the admin, deliberately deferred)
+and `login_secure`, computed by the same rule as `MeOut`'s. `link_origin` (the origin a link points
+at) lives in `services/reset_links.py` since E1, so the email routes never import a router.
 
 **Who sees whom** (L3/L11). `GET /players` is `groups.roster_for(claims)` — the members of every
 group the caller is in, everyone for the site admin — which is what makes a registered-but-uninvited
@@ -1118,7 +1342,7 @@ Coverage is not "is there a channel" but "is the channel open *while you are awa
 | `["ideas", …]` | **none** | 5 s | R5 gave the board no channel on purpose, and P1's comments changed nothing: they ride in the same payload under the same key, so the writer's own mutation invalidates `qk.ideasAll()` and everyone else gets them on the next return or focus. `["ideas","areas"]` is a static list (1 h at its call site). |
 | `["push", …]` | **none** | 30 s | This device's own subscriptions; nothing but this device changes them. |
 | `["auth", …]` (my sessions, my passkeys — L4/L7/L9) | **none** | 5 s | Another device logging in, or being revoked from the admin page, announces nothing; the list is right only when it is re-asked. |
-| `["admin", …]` (accounts, a player's sessions, live invite codes — L6) | **none** | 5 s | A login, a logout or a redeemed code on any device is found only by refetching — nothing broadcasts them. |
+| `["admin", …]` (accounts, a player's sessions, live invite codes — L6; the mail status — E4) | **none** | 5 s | A login, a logout or a redeemed code on any device is found only by refetching — nothing broadcasts them. |
 
 **Call-site overrides that stand** (a `useQuery` option still beats the table, so each one is a
 claim the table cannot make): `useLiveTournament` polls `["tournaments","live"]` at `staleTime: 0`
@@ -1201,32 +1425,68 @@ doing only what it is for — the combination nobody has asked for yet.
   (`PIL/` 8.3 MB + `pillow.libs/` 16 MB) and nothing else about the image changes. The
   frontend's alpine/musl lockfile problem (§10) does not carry over: the backend image is
   Debian/glibc x86-64 and this dev Pi is arm64 glibc, and a wheel exists for both.
-- **The auth deploy — one deploy, on Roli's go** (`FEATURES_2026-09-auth.md`, L0–L13 + L16; Roli:
-  *"one deploy, why would i want 2?"*). It is the full deploy — backend, schema (ten tables, four
-  columns), three new backend dependencies and one frontend one — and the one deploy that can lock
-  Roli out of his own app, which is why it has a rehearsal before it and an escape hatch after it.
-  **`secrets.json` is not edited by it**: `player_accounts[]` and `jwt_secret` stay, because they
-  are the old code's login and therefore the rollback's.
+- **The auth deploy — one deploy, on Roli's go, both halves** (`FEATURES_2026-09-auth.md`, L0–L13 +
+  L16, and `FEATURES_2026-09-auth-email.md`, E0–E5; Roli: *"one deploy, why would i want 2?"*). It
+  is the full deploy — backend, schema (thirteen tables, four columns), three new backend
+  dependencies and one frontend one (the email half adds **none**) — and the one deploy that can lock
+  Roli out of his own app, which is why it has a rehearsal before it and escape hatches after it.
+  **Email is switched on only after it**: the deploy boots with mail **off**, a real message to Gmail
+  has to pass SPF and DKIM from inside the production container, and only then do the five `smtp_*`
+  keys go into `secrets.json` (steps 13–14). **`secrets.json` is not edited by the deploy itself**:
+  `player_accounts[]` and `jwt_secret` stay, because they are the old code's login and therefore the
+  rollback's. Every step below has been written down once, here; the two plan files point here.
   **Before, on the dev machine:**
-  1. Gates green on the branch head (§11 has the numbers), `make gen-types` no diff, the branch
+  1. **DNS** (Roli, in Namecheap's panel — the one record that is missing). Measured 2026-09-24
+     against `1.1.1.1`, `8.8.8.8` and the authoritative `dns1.registrar-servers.com`: **SPF, MX and
+     DKIM are published** — `TXT lorbeerkranz.xyz` → `v=spf1 include:spf.privateemail.com ~all`,
+     `MX` → `mx1`/`mx2.privateemail.com`, `TXT privateemail._domainkey.lorbeerkranz.xyz` →
+     `v=DKIM1;k=rsa;p=…` (the host name Namecheap uses for Private Email bought on or after
+     2026-06-02; `default._domainkey` is the older one and is empty here). **Only DMARC is
+     missing**: publish host `_dmarc`, type TXT, value **`v=DMARC1; p=none`** — **no `rua=`**
+     (Roli: daily XML reports are noise for six people; the Gmail check in step 13 is the proof).
+     **Never add a second SPF record** (two is a permanent `permerror`; edit the one that exists).
+     Check, don't create: the Private Email panel shows DKIM *enabled* for the mailbox that will log
+     in. Verify from the Pi **with dig's arguments spelled literally** — a `$q`-style variable is not
+     word-split by zsh, which is how an earlier check in this batch "found" all four records
+     missing (§10):
+     ```bash
+     dig @1.1.1.1 +short lorbeerkranz.xyz TXT                          # the one SPF line
+     dig @1.1.1.1 +short privateemail._domainkey.lorbeerkranz.xyz TXT  # v=DKIM1;k=rsa;p=…
+     dig @1.1.1.1 +short _dmarc.lorbeerkranz.xyz TXT                   # v=DMARC1; p=none  (TTL 1800 → ≤ 30 min)
+     ```
+     DMARC does not block the deploy — only step 13's verdict line waits for it.
+  2. Gates green on the branch head (§11 has the numbers), `make gen-types` no diff, the branch
      merged to `main` and pushed.
-  2. `python3 backend/manage.py backup-deploy-data` → `backup/deploy/<ts>/` — the way back for data.
-  3. **Rehearse against that fresh snapshot** and require **`ALL PASSED`** on the last line:
-     `scripts/auth_rehearsal.sh backup/deploy/<ts> ~/.local/share/turnierplaner-rehearsal/secrets.rehearsal.json`
-     (the second argument is Roli's own copy of the secrets' *shape* — the six real names, the admin
-     flag, throwaway passwords, a throwaway `jwt_secret` — never the real file). It works in a
+  3. `python3 backend/manage.py backup-deploy-data` → `backup/deploy/<ts>/` — the way back for data.
+  4. **Rehearse against that fresh snapshot** and require **`ALL PASSED`** on the last line:
+     `bash scripts/auth_rehearsal.sh backup/deploy/<ts> ~/.local/share/turnierplaner-rehearsal/secrets.rehearsal.json`
+     — **under bash** (the shebang is bash; never `zsh script`, which does not word-split the way it
+     expects, §10), with **`python3` on the PATH** (it runs `scripts/mail_sink_link.py`). The second
+     argument is Roli's own copy of the secrets' *shape* — the six real names, the admin flag,
+     throwaway passwords, a throwaway `jwt_secret` — never the real file, and **it must never gain an
+     `smtp_*` key** (the rehearsal's own first boot of the new code would be refused by the guard, which is the point). It works in a
      `mktemp -d`, never writes to `backup/` (it checks the snapshot's sha256 before and after),
-     deletes the copy's push subscriptions before anything boots and never sets a VAPID key, and
-     walks: the old code's baseline, the preflight, the first boot (log lines, all six logins,
-     identical answers, the exchange, a passkey in Chromium, old deep links), a rollback to
-     `ce55a53` on the same file, a roll forward, a third boot, the five escape-hatch commands, one
-     boot with `docker-compose.yml`'s production environment, and the timing. On 2026-09-20's
-     snapshot it gave **131 PASS, 0 FAIL**, twice. Ports 8244 / 8245 / 8264; the browser step needs
-     Playwright (`PLAYWRIGHT=…`, default the racer checkout's `playwright-core`) or `--no-browser`.
-     Anything but `ALL PASSED` → stop; nothing on the server has changed yet.
+     deletes the copy's push subscriptions before anything boots, never sets a VAPID key, boots every
+     new-code server with `MAIL_SINK_DIR` and asserts no log ever says `Mail: SMTP`, and walks: the
+     old code's baseline, the preflight, the first boot (log lines, all six logins, identical
+     answers, the exchange, a passkey in Chromium, old deep links), **email over the API** (set,
+     verify with no cookie, change and the link-free notice, recovery to a 15-character password,
+     an unknown address answered byte-identically with no mail, the 4th recovery a 429,
+     `verify-email`), a restart, **the browser email walk** (`scripts/email_e2e.mjs`: a passkey-only
+     registration with an invite code, verify by tap in a cookie-less context, a change, recovery to
+     a new passkey), a rollback to `ce55a53` on the same file (the three email tables byte-identical,
+     a new-code password and the passkey-only account both 401 there), a roll forward, a third boot,
+     the six escape-hatch commands and `mail-test` against the sink, the production environment
+     booted **twice** (refused with `MAIL_SINK_DIR` still set; with it unset, `Mail: off`), and the
+     timing. On 2026-09-20's snapshot at `7213706` it gave **237 PASS, 0 FAIL**, twice, identical
+     once masked (L13's 131 plus 106 for the email half). Ports **8276 / 8277 / 8286** (`B_NEW`,
+     `B_OLD`, `V` override them); the browser steps need Playwright (`PLAYWRIGHT=…`, default the
+     racer checkout's `playwright-core`) or `--no-browser`. Anything but `ALL PASSED` → stop;
+     nothing on the server has changed yet. **What it cannot prove is Safari**: it opens the verify
+     link in a cookie-less Chromium context, which is the phone's Safari only in shape.
   **On the server, in this order:**
-  4. `ssh hetzner && cd ~/projects/Lorbeer-Turnierplaner && git pull` — **do not `up` yet**.
-  5. `docker compose build backend frontend` — the old containers keep serving meanwhile, so a
+  5. `ssh hetzner && cd ~/projects/Lorbeer-Turnierplaner && git pull` — **do not `up` yet**.
+  6. `docker compose build backend frontend` — the old containers keep serving meanwhile, so a
      failure here costs nothing. **Watch `pip install` for wheels, never a compile**: expect
      `argon2_cffi_bindings-26.1.0-cp310-abi3-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl` and
      `cbor2-6.1.4-cp311-cp311-manylinux_2_28_x86_64.whl` (the two binary ones, both fetched for
@@ -1234,8 +1494,9 @@ doing only what it is for — the combination nobody has asked for yet.
      `argon2_cffi-25.1.0`, `webauthn-2.7.1`, `pyOpenSSL-25.1.0` and `pyasn1` `py3-none-any`
      wheels; `cryptography` stays at 45.x inside the `<46` pin. A `Building wheel for …` line means
      the image would need build tooling it deliberately lacks — stop and report. The frontend
-     build pulls `@simplewebauthn/browser` 13.3.0 (pure JS).
-  6. **The preflight, against the live database, read-only**:
+     build pulls `@simplewebauthn/browser` 13.3.0 (pure JS). The email half adds no wheel: mail is
+     the standard library.
+  7. **The preflight, against the live database, read-only**:
      `docker compose run --rm --no-deps backend python manage.py auth-preflight --secrets /app/secrets.json --db-url sqlite:////data/app.db`.
      **Success is `RESULT: OK` with no `PROBLEM:` line** — an unmatched name or a case collision
      prints as `PROBLEM: …` and the result as `FAIL`; the report has no literal
@@ -1243,67 +1504,127 @@ doing only what it is for — the combination nobody has asked for yet.
      `accounts with a password: 6 (Roli, Flo, Rumpi, Berni, Atzi, Mike)`, `accounts without a
      password: 0`, `owners (site admins): 1 (Roli)`, and a `group_id backfill:` line whose counts
      match the rehearsal's (17 / 23 / 1 on the 2026-09-20 snapshot). A non-zero exit → stop.
-  7. `docker compose up -d --build backend frontend`, then `docker compose logs -f backend`. **The
-     first boot logs exactly these four lines, in this order:** `Cup defs validated` ·
-     `Auth migrated: 6 accounts, 1 group, 6 memberships — 0 players without a password, 1 owner,
-     backfilled tournament=N, friendlymatch=M, featurerequest=K` · `Cups imported: 2` ·
-     `DB initialized`. **No `Record holders seeded` line** is expected (production already holds
-     its records) and no `swept` line. A boot that stops with `AuthConfigError: …` names the
+  8. `docker compose up -d --build backend frontend` — **naming the two services keeps `caddy` out
+     of the target set, so Roli's other sites never restart** — then `docker compose logs -f
+     backend`. **The first boot logs exactly these five lines, in this order:** `Cup defs
+     validated` · `Auth migrated: 6 accounts, 1 group, 6 memberships — 0 players without a password,
+     1 owner, backfilled tournament=N, friendlymatch=M, featurerequest=K` · `Cups imported: 2` ·
+     `DB initialized` · **`Mail: off — recovery by email is disabled (set smtp_host, smtp_port,
+     smtp_user, smtp_pass, smtp_from in secrets.json)`** — the correct fifth line today, because the
+     keys are not there yet. **No `Record holders seeded` line** is expected (production already
+     holds its records) and no `swept` line. A boot that stops with `AuthConfigError: …` names the
      setting; the ones it can name are `APP_ENV`, `TRUSTED_PROXY_HOPS`, `AUTH_ORIGIN`,
-     `AUTH_DEV_ORIGIN`, `PASSWORD_HASH_PROFILE` — all in `docker-compose.yml` or defaulted in
-     code, none in `secrets.json`.
-  8. `docker compose ps` → backend **healthy**. If it flaps to unhealthy, `/health` is being
-     refused over loopback (`auth_gate.is_loopback`) — roll back (step 12).
-  9. **Smoke, from the dev machine — GETs, never HEAD** (the API answers 405 to HEAD, §10):
-     `curl -s -o /dev/null -w '%{http_code}\n' https://lorbeerkranz.xyz/api/tournaments` → **401**
-     (the gate is up; the body is `{"detail":"Not logged in"}`);
-     `…/api/health` → **401 as well, by design** (loopback only — the healthy container in step 8
-     is the health check now);
-     `curl -s -X POST https://lorbeerkranz.xyz/api/auth/passkeys/login/options` → 200 with a
-     `challenge`, `"rpId":"lorbeerkranz.xyz"` and **no `allowCredentials`**;
-     `curl -s -o /dev/null -w '%{http_code}\n' -X POST https://lorbeerkranz.xyz/api/auth/login -H 'Content-Type: application/json' -d '{"username":"x","password":"y"}'`
-     → 401; `curl -s -o /dev/null -w '%{http_code}\n' https://lorbeerkranz.xyz/` → 200 (nginx's
-     shell). Every check that reads data now needs a session, so the old anonymous smoke lines
-     (`/stats/records | jq`, `/ideas`, `?w=137` → 422) answer 401 — run them from a logged-in
-     browser, or with a cookie jar (`curl -c jar -X POST …/api/auth/login …` with your own
-     password typed at a prompt, then `-b jar`).
-  10. **The phone** (the part nothing here can prove — §11): open the installed PWA. It still holds
-      the old JWT, so it **exchanges it and lands on the dashboard with no login screen** — that is
-      the "nobody is logged out" check. Settings → Account → Devices lists this phone. Settings →
-      Account → Passkeys → **Add a passkey** → Face ID → the row appears (with "synced" if iCloud
-      Keychain reports it backed up) and the "secure your account" strip is gone. Log out → **Use a
+     `AUTH_DEV_ORIGIN`, `PASSWORD_HASH_PROFILE`, `MAIL_SINK_DIR`, `MAIL_DEV_SMTP` and the `smtp_*`
+     keys — all in `docker-compose.yml`, defaulted in code, or absent, none required in
+     `secrets.json`.
+  9. `docker compose ps` → backend **healthy**. If it flaps to unhealthy, `/health` is being
+     refused over loopback (`auth_gate.is_loopback`) — roll back (step 19).
+  10. **Smoke, from the dev machine — GETs, never HEAD** (the API answers 405 to HEAD, §10):
+      `curl -s -o /dev/null -w '%{http_code}\n' https://lorbeerkranz.xyz/api/tournaments` → **401**
+      (the gate is up; the body is `{"detail":"Not logged in"}`);
+      `…/api/health` → **401 as well, by design** (loopback only — the healthy container in step 9
+      is the health check now);
+      `curl -s -X POST https://lorbeerkranz.xyz/api/auth/passkeys/login/options` → 200 with a
+      `challenge`, `"rpId":"lorbeerkranz.xyz"` and **no `allowCredentials`**;
+      `curl -s -o /dev/null -w '%{http_code}\n' -X POST https://lorbeerkranz.xyz/api/auth/login -H 'Content-Type: application/json' -d '{"username":"x","password":"y"}'`
+      → 401; `curl -s -o /dev/null -w '%{http_code}\n' https://lorbeerkranz.xyz/` → 200 (nginx's
+      shell). Every check that reads data now needs a session, so the old anonymous smoke lines
+      (`/stats/records | jq`, `/ideas`, `?w=137` → 422) answer 401 — run them from a logged-in
+      browser, or with a cookie jar (`curl -c jar -X POST …/api/auth/login …` with your own
+      password typed at a prompt, then `-b jar`). With a session, `GET /api/me` carries the email
+      half's five fields, `"email_available": false` until step 14.
+  11. **The phone, email still off** (the part nothing here can prove — §11): open the installed
+      PWA. It still holds the old JWT, so it **exchanges it and lands on the dashboard with no login
+      screen** — that is the "nobody is logged out" check. The strip reads *"Secure your account —
+      add a passkey."* (with mail off there is no email step). Settings → Account → Devices lists this
+      phone. Settings → Account → Passkeys → **Add a passkey** → Face ID → the row appears (with
+      "synced" if iCloud Keychain reports it backed up) and **the strip is gone**. Log out → **Use a
       passkey** → Face ID → in, nothing typed. Settings → Notifications → **Send test** → it arrives
       → tap it → **does it open the installed app or Safari?** — write the answer into §11. On a
       laptop, log in with the old password → `/g/altherren/admin` → Roli has two devices → revoke
       the laptop → its next click lands on the login screen. Create an invite code and **revoke**
       it rather than registering a throwaway (there is no delete-account command or endpoint; a
       stray registration is removed only by SQL).
-  11. A link tapped in WhatsApp opens **Safari**, not the PWA, and Safari has its own cookie jar: the
-      first such tap shows the login screen once. Expected; `README.md` says so.
-  **If login is broken — the escape hatch, in the order to try it:**
-  12. **Roll back to `ce55a53`, never `cfc1669`**: `git checkout ce55a53 && docker compose up -d
-      --build backend frontend`. It restores the JWT login at once — old code ignores every new
-      table and column (measured in L1 and L13) and `secrets.json` still holds its accounts. It
-      leaves the server on a **detached HEAD**: `git checkout main` before any later `git pull`.
-      `cfc1669` is the last commit of the app itself, but production runs `ce55a53` (= `cfc1669` +
-      the multi-site Caddy commit), and checking out `cfc1669` would strip the `import` and take
-      Roli's other sites down. What a rollback costs: a phone that already opened the new app has
-      had its JWT deleted by the exchange, so it meets the **old** login screen once and logs in
-      with its `secrets.json` password (measured for all six); a password **set or reset on the new
-      code does not carry back**; sessions, passkeys and codes written on the new code are inert.
-      Roll forward later with the same `git checkout main && git pull && docker compose up -d
-      --build backend frontend` — the next boot backfills whatever the old code wrote.
-  13. The new code stays up but *one* login is wrong: the five `manage.py` commands, inside the
-      running container. The four that only print take `-T`: `docker compose exec -T backend python
-      manage.py reset-link --player Roli` (a one-hour link — open it on the phone and set a
-      password), `… make-admin --player Roli` (`--revoke` to undo), `… invite --group altherren
-      --note …` (a code), `… sessions --player Roli` (`--revoke-all` to end them). `set-password
-      --player Roli` prompts twice with no echo when run **without** `-T`; with `-T` it reads the two
-      entries as two stdin lines (for a script — never type a password into shell history). Each
-      resolves the player by login name, case-insensitively, prints one line and exits 0, or says
-      why on stderr and exits 1.
-  14. The data is wrong: rsync `backup/deploy/<ts>/data/` back (§8) and restart the backend.
-  15. **After the deploy has been proven on Roli's phone** — not before — a later, separate step
+  12. A link tapped in WhatsApp — or in a mail — opens **Safari**, not the PWA, and Safari has its
+      own cookie jar: the first such tap shows the login screen once. Expected; `README.md` says so.
+  **Email on — the deliverability gate first, then the keys:**
+  13. **The gate, from inside the production container, with the app still "email off"**:
+      ```bash
+      ssh hetzner && cd ~/projects/Lorbeer-Turnierplaner
+      docker compose exec backend python manage.py mail-test --to <Roli's Gmail address> \
+        --host smtp.privateemail.com --port 465 --user <the login mailbox> --from no-reply@lorbeerkranz.xyz
+      # prompts for the mailbox password (no echo; an *application* password if the mailbox has 2FA).
+      # Run it WITHOUT -T, so the prompt has a terminal; nothing is typed into shell history.
+      ```
+      It prints `Mail: SMTP via smtp.privateemail.com:465 as no-reply@lorbeerkranz.xyz`, then
+      `Sent to <the address> via SMTP via smtp.privateemail.com:465 as no-reply@lorbeerkranz.xyz.
+      Open it in Gmail → ⋮ → Show original …` and exits 0 (the address is printed as typed — it is
+      the operator's own terminal; the logs mask it). Then in Gmail: the message is in the
+      **inbox**, not spam; ⋮ → **Show original** → `SPF: PASS`, `DKIM: 'PASS' with domain
+      lorbeerkranz.xyz`, and `DMARC: 'PASS'` once step 1's record has propagated (before that Gmail
+      prints no DMARC verdict, and SPF + DKIM passing is the bar). **Any FAIL → stop here; the app
+      stays email-off and nobody is asked for an address.** The three refusals this gate exists to
+      catch: `553 … sender address rejected` (`no-reply@` is not an alias of the login mailbox — add
+      the alias in the panel, or send as the mailbox itself), `535 … authentication failed` (a 2FA
+      mailbox wants an application password), and `CERTIFICATE_VERIFY_FAILED` (the image lacks a CA
+      store — §10 has the decided one-line fallback, then a rebuild and the gate again).
+  14. **The keys.** Only now add to the server's `backend/secrets.json`: `"smtp_host":
+      "smtp.privateemail.com"`, `"smtp_port": 465`, `"smtp_user": "<the login mailbox>"`,
+      `"smtp_pass": "<its (application) password>"`, `"smtp_from": "no-reply@lorbeerkranz.xyz"` — all
+      five, or the boot refuses — and `docker compose restart backend` (the file is bind-mounted; no
+      rebuild, and still never `caddy`). The fifth boot line becomes `Mail: SMTP via
+      smtp.privateemail.com:465 as no-reply@lorbeerkranz.xyz`; a logged-in `GET /api/me` says
+      `"email_available": true`; the admin page's Accounts tab prints `Email: SMTP via …`.
+  15. **The phone, email on**: the strip now asks again — *"Secure your account — add an email
+      address."* (the passkey from step 11 already counts). Settings → Account → Email → the address
+      → **Send verification link** → the mail arrives (inbox, not spam — the gate holding for a
+      second recipient) → tap the link → **Safari** opens `/g/altherren/verify-email` → **Confirm**
+      (a button, never an automatic POST) → *Verified* → back to the PWA → the strip is gone and the
+      row says **verified** with no reload (the app re-asks `/me` on return). Log out → **Lost your
+      passkey or password?** → the address → *"If that address is verified, a link is on its way.
+      Check your spam folder too."* → the mail → tap → Safari → **Set a new login** → **Create a
+      passkey** → Face ID → in (in Safari); back in the PWA, **Use a passkey** → in, and Settings →
+      Passkeys lists two, the older with its last-used time; remove it if it was only for the test.
+      On a laptop: log in with a password, Settings → Passkeys shows the hint line; log out and press
+      **Use a passkey** → the browser's prompt offers the phone → scan the QR code → Face ID → in,
+      nothing typed (the cross-device flow needs Bluetooth on both). **Write each answer into §11.**
+  **If something is wrong — the escape hatches, cheapest first** (a login broken for *everyone* goes
+  straight to step 19):
+  16. **A verification mail never arrives** → `docker compose exec -T backend python manage.py
+      verify-email --player <name> --email <addr>`: the address is verified by hand (the same trust
+      as a reset link, which the CLI already mints), nothing is sent, and recovery works from then
+      on. It refuses an address verified or pending on another account.
+  17. **One login is wrong, or someone is locked out with no verified email** → the other five
+      `manage.py` commands, inside the running container. The four that only print take `-T`:
+      `docker compose exec -T backend python manage.py reset-link --player Roli` (a one-hour link —
+      open it on the phone; the page now offers **Create a passkey** first and a password second),
+      `… make-admin --player Roli` (`--revoke` to undo), `… invite --group altherren --note …` (a
+      code), `… sessions --player Roli` (`--revoke-all` to end them). `set-password --player Roli`
+      prompts twice with no echo when run **without** `-T`; with `-T` it reads the two entries as two
+      stdin lines (for a script — never type a password into shell history); it enforces the
+      15-character floor. Each resolves the player by login name, case-insensitively, prints one
+      line and exits 0, or says why on stderr and exits 1.
+  18. **Email misbehaves for everyone** (mail in spam, a bounce storm) → remove the five `smtp_*`
+      keys and `docker compose restart backend`: the boot says `Mail: off`, the strip stops asking
+      for an address, the Email section says email is not set up, and `/auth/recover` keeps
+      answering its unchanging sentence and sends nothing. Verified addresses stay stored for the day
+      mail comes back.
+  19. **Login is broken — roll back to `ce55a53`, never `cfc1669`**: `git checkout ce55a53 && docker
+      compose up -d --build backend frontend`. It restores the JWT login at once — old code ignores
+      every new table and column (measured in L1, L13, E0 and E5) and `secrets.json` still holds its
+      accounts. It leaves the server on a **detached HEAD**: `git checkout main` before any later
+      `git pull`. `cfc1669` is the last commit of the app itself, but production runs `ce55a53` (=
+      `cfc1669` + the multi-site Caddy commit), and checking out `cfc1669` would strip the `import`
+      and take Roli's other sites down. What a rollback costs: a phone that already opened the new
+      app has had its JWT deleted by the exchange, so it meets the **old** login screen once and logs
+      in with its `secrets.json` password (measured for all six); **a password set or reset on the
+      new code does not carry back, and an account registered passkey-only on the new code cannot
+      log in on the old code at all** (§5 — no command changes that while rolled back); sessions,
+      passkeys, codes, verified emails and recovery links written on the new code are inert and wait.
+      Roll forward later with `git checkout main && git pull && docker compose up -d --build backend
+      frontend` — the next boot backfills whatever the old code wrote.
+  20. The data is wrong: rsync `backup/deploy/<ts>/data/` back (§8) and restart the backend.
+  21. **After the deploy has been proven on Roli's phone** — not before — a later, separate step
       deletes `player_accounts[]` from `secrets.json`, then `jwt_secret`, PyJWT,
       `/auth/exchange` and `services/legacy_jwt.py` (§11's first open item).
 - **Deploy checklist** (every deploy; the auth deploy's own steps are above):
@@ -1355,14 +1676,14 @@ doing only what it is for — the combination nobody has asked for yet.
      batch every `/api` read answers 401 without a session**, `/api/health` included (loopback
      only), so an anonymous `curl …/api/tournaments` → **401** is the proof that the gate is up,
      and anything that reads data is checked from a logged-in browser or with a cookie jar
-     (step 9 of the auth deploy above). With a session, the checks that prove the deployed code is
+     (step 10 of the auth deploy above). With a session, the checks that prove the deployed code is
      the current code: `/api/stats/records | jq '.records | length'` → 16, `/api/ideas` carries
      `"comments"`, `/api/players/1/avatar?w=137` → 422 (the media ladder), and every `path` in
      `/api/me/notifications` or `/api/stats/records` starts `/g/altherren/`.
 - **Rollback:** `git checkout <previous-sha> && docker compose up -d --build backend frontend`,
   then `git checkout main` before the next pull (detached HEAD). **Never a sha older than
   `ce55a53`** (the Caddy import above); for the auth deploy the target is exactly `ce55a53`
-  (step 12). Schema changes are additive, so old code boots on the new DB. If data must be restored, rsync the desired
+  (step 19). Schema changes are additive, so old code boots on the new DB. If data must be restored, rsync the desired
   `backup/deploy/<ts>/data/` back to `backend/data/` on the server and restart backend.
   **A rollback past the media batch costs nothing and was measured, not asserted** (W1): old
   code ignores an unknown `?w=` and serves the original, and it never reads or writes
@@ -1400,7 +1721,7 @@ Other helpers: `seed --file backend/data/seed.json` (players/leagues/clubs upser
 `add-match --file`, `vacuum-db [--analyze]`, `generate-vapid`.
 
 **The auth commands** (L1/L3). Every one takes `--secrets` / `--db-url` before or after the
-subcommand; the five escape hatches configure the engine **without** `init_db` (no seeding, no
+subcommand; the six escape hatches configure the engine **without** `init_db` (no seeding, no
 migration, no sweeps against a live server's database).
 ```bash
 python3 backend/manage.py auth-preflight [--secrets …] [--db-url …]   # dry-run the boot migration, DB opened mode=ro
@@ -1409,15 +1730,33 @@ backend/.venv/bin/python backend/manage.py set-password --player <name>         
 backend/.venv/bin/python backend/manage.py make-admin   --player <name> [--revoke]
 backend/.venv/bin/python backend/manage.py invite       --group altherren [--note …]    # one-hour, single-use code
 backend/.venv/bin/python backend/manage.py sessions     --player <name> [--revoke-all]
+backend/.venv/bin/python backend/manage.py verify-email --player <name> --email <addr>  # E1: mark verified by hand, sends nothing
+backend/.venv/bin/python backend/manage.py mail-test    --to <addr> [--host H --port P --user U --from F]   # E1: the deliverability gate
+python3 scripts/mail_sink_link.py <sink-dir> [--all] [--to ADDR]   # E1: the newest link in a stack's mail sink
 ```
 `auth-preflight` prints what the first boot would do — group, memberships, accounts with and
 without a password (named), owners, unmatched names, case collisions, the `group_id` backfill
 counts — ends with `RESULT: OK` or `RESULT: FAIL`, prints each problem as a `PROBLEM:` line and
 exits 1 on one; the database file's sha256 is unchanged afterwards. A **WARNING** (not a failure)
 says so when nobody would end up with a password. On production the escape hatches run inside the
-container (§7, step 13). **`scripts/auth_rehearsal.sh <deploy-snapshot> <secrets-shape.json>`** is the
-deploy's dress rehearsal (§7, step 3): it reads a snapshot selected by `snapshot.json`'s `"kind":
-"deploy"` and never writes under `backup/`.
+container (§7, step 17). **`scripts/auth_rehearsal.sh <deploy-snapshot> <secrets-shape.json>`** is the
+deploy's dress rehearsal (§7, step 4): it reads a snapshot selected by `snapshot.json`'s `"kind":
+"deploy"` and never writes under `backup/`; since E5 it also walks email, recovery and the two new
+passkey ceremonies (`scripts/email_e2e.mjs`), and it runs **under bash** with `python3` on the PATH.
+**`verify-email`** is the DNS-is-broken hatch: it resolves the player like the other hatches, validates
+the address, refuses one verified *or pending* on another account, marks it verified, commits, prints
+one line and **sends nothing** (not even the "changed" notice when it replaces an address).
+**`mail-test`** needs no database: it prints `Mail: <description>`, sends `test_message` (the UTC
+time, the transport's description and what to read in Gmail's "Show original") and says *"Sent to
+<addr> via <description>. Open it in Gmail → ⋮ → Show original and read the SPF, DKIM and DMARC
+lines: all three must say PASS (DMARC once its record is published)."*, exit 0; a send error goes to
+stderr, exit 1. With `--host` the four flags override the loaded settings and the password is read
+with `getpass` on a terminal (one stdin line when piped, never echoed), **and the boot guard runs on
+the result** — so on a development box it is refused before anything connects, which is the guard
+doing its job (production's container is `APP_ENV=production`, where it is allowed). That is why the
+gate can run *before* the keys are in `secrets.json` (§7 step 13). **`scripts/mail_sink_link.py`**
+parses the newest `.eml` in a sink with the standard library and prints its first link (`--all`:
+every message's `To`, `Subject`, link; `-` for a message with none); exit 1 on an empty directory.
 **Syncing production into dev after the auth deploy** copies a database that is already migrated,
 with production's argon2 hashes, sessions and passkeys — the dev backend then logs in with
 production's passwords, not with the dev `secrets.json`'s, and a passkey minted for
@@ -1465,7 +1804,10 @@ every past match simply keeps counting today's rating.
   are written down), `FEATURES_2026-09-media.md` (W1–W4), and `FEATURES_2026-09-auth.md` (L0–L16:
   the app behind a login, sessions, passkeys, invites, the admin page and the ground for groups,
   on `feature/2026-09-auth`, see §11 — its "Roli's answers, 2026-09-23" section at the top
-  supersedes anything below it that disagrees, L14 was dropped, and L16 was added mid-batch).
+  supersedes anything below it that disagrees, L14 was dropped, and L16 was added mid-batch), and
+  `FEATURES_2026-09-auth-email.md` (E0–E6: passkey first, an account's email, recovery by email —
+  the same branch and the same deploy; its "Roli's answers, 2026-09-24" section at the top likewise
+  supersedes what follows it).
   A new batch gets a
   new dated file with the same shape: baseline commit, rules for implementing agents, decisions
   already made, one section per task with exact files/symbols, definition of done, deviations
@@ -1629,7 +1971,11 @@ every past match simply keeps counting today's rating.
   `cryptography>=44,<46` pin, which predates the batch and was deliberately not lifted; `cbor2`
   and `pyasn1` come with it), and **`@simplewebauthn/browser` 13.3.0**, exact, the one new frontend
   dependency (the value is its accumulated browser quirks; imported by `api/passkeys.api.ts`
-  only). PyJWT stays until the exchange goes. Before that the backend's first exception was
+  only). PyJWT stays until the exchange goes. **The email half added none** (E0): an SMTP
+  submission over implicit TLS with authentication and a timeout is `smtplib.SMTP_SSL` +
+  `ssl.create_default_context()` + `email.message.EmailMessage`, all standard library — racer needed
+  nodemailer because Node has no SMTP client, Python does, and `aiosmtpd` is not needed either (the
+  capture transport and the file sink replace a local SMTP server). Before all of that the backend's first exception was
   **`Pillow==12.3.0`** (W1, 2026-09-20),
   which `FEATURES_2026-09-media.md` said in as many words and argued for in writing: there is no
   way to resize a JPEG in the standard library, Pillow ships a wheel for **both** of this
@@ -2263,66 +2609,151 @@ every past match simply keeps counting today's rating.
 - **`device_label` calls headless Chromium "Linux · Safari"** (L7). `HeadlessChrome/…` is not
   matched as Chrome, so the `Safari/` token wins. Cosmetic — a real desktop Chrome reads `Chrome`
   and the installed iOS PWA (no `Safari/` token) still reads `iPhone · Safari` — noted for whoever
-  next touches `services/device_label.py`.
+  next touches `services/device_label.py`. E3 met it again: a passkey made through the new register
+  and reset pages is stored with the label `Linux · Safari` under headless Chromium (the page sends
+  `label: ""`, so `store_passkey` falls back to its `user_agent_label` argument, which is this same
+  parse). Still cosmetic, still unfixed.
 - **The rate limiter is real on a test stack** (L5). Register and redeem share one 10-per-hour IP
   bucket, and behind vite every dev caller is one IP (the proxy connects from 127.0.0.1 and sends no
   `X-Forwarded-For`). A run that hits it shows "Too many attempts — try again in 3521s"; the
-  buckets live in memory, so restart the backend (by PID) to empty them.
+  buckets live in memory, so restart the backend (by PID) to empty them. The email half's `recover`
+  family is tighter still — **5 per hour per IP, 3 per address** — so a walk that recovers twice and
+  checks the 429 has spent the hour: E5's rehearsal restarts the backend between its API and browser
+  email steps for exactly this.
+- **zsh does not word-split an unquoted variable, and this machine's shell is zsh** (2026-09-24,
+  twice in one batch). `q="TXT lorbeerkranz.xyz"; dig @1.1.1.1 +short $q` passes dig **one**
+  argument — a nonsense name — and it answers nothing: the planning session "measured" SPF, DKIM,
+  DMARC and MX all missing that way, and even the live site's A record came back empty. Three of the
+  four were published all along (§7 step 1). A worker's browser-walk loop in this batch hit the same trap with `set -- $combo` (the viewport × theme pairs never split).
+  **Spell a command's arguments literally, or run the script under bash explicitly** (`bash
+  script.sh`; `${=q}` is zsh's opt-in split) — every shell script in this repo has a bash shebang,
+  and `scripts/auth_rehearsal.sh` says in its header never to run it as `zsh script`.
+- **A verify link opens in Safari, and the PWA only learns about it by asking again** (E4). iOS
+  opens a link from Mail in Safari — its own cookie jar (bullet above) — which is why `POST
+  /auth/email/verify` is public (the token proves the mailbox, not the session) and why the page
+  confirms on a **tap**, not on load (a mail scanner that runs JavaScript would otherwise spend the
+  link). The installed app still believes the address is pending until it re-reads `/me`:
+  `hooks/useRefreshMeOnReturn.ts` does that on `visibilitychange` → visible and on `focus`,
+  **debounced to one call per 2 s**, while the Email section has an address pending and while the
+  strip is shown — so coming back from Safari clears the strip with no reload. A script that
+  simulates two returns in one mount must wait more than 2 s between them. The same goes for a
+  recovery link: it signs Safari in, not the PWA, and the PWA then signs in with the new passkey.
+- **A recovery request voids an earlier unused admin reset link** for the same account (E2, the
+  plan's disagreement 4, kept on purpose): recovery mints through `create_reset`, whose rule is "the
+  newest link is the only one that works" — what makes a link sent to the wrong chat harmless. The
+  cost, written down rather than designed around with a second token table: someone who knows a
+  *verified* address can void a WhatsApp link Roli sent seconds earlier, three times an hour. So if
+  a freshly sent admin link says *That reset link is not valid*, ask whether a recovery mail went
+  out in between.
+- **A WebAuthn credential that has signed once is refused if it is replayed from an older copy**
+  (E5). The server's counter check — a counter that does not increase is refused whenever either
+  side is above zero (§6) — answered *"Response sign count of 2 was not greater than current count
+  of 2 — clone?"* when a script imported a soft credential into a fresh browser after it had already
+  signed elsewhere. That is the check doing its job. **A script that carries a credential between
+  browser contexts must save it back after every use** (`scripts/email_e2e.mjs` writes it back after
+  every mode that signs); iCloud Keychain's always-0 counter is unaffected.
+- **The boot guard refuses a mail sink in production — seen, not assumed** (E5): the rehearsal's
+  production boot with `MAIL_SINK_DIR` still set exits 1 with `AuthConfigError: MAIL_SINK_DIR is set
+  on a production server — it would swallow every email (recovery links included) into files. Unset
+  it.`, nothing listening and the database byte-identical; without it, `Mail: off` and a clean boot.
+  A server left with a sink from a debugging session therefore cannot silently eat recovery mail.
+- **`smtplib` reads the system CA store, not certifi** (E0). httpx bundles certifi; `smtplib` with
+  `ssl.create_default_context()` uses the image's `ca-certificates`, which `python:3.11-slim`
+  installs — believed, not measured inside the image; the deliverability gate (§7 step 13) is where
+  it is seen. **The fallback is decided and deliberately not written in advance**: if the gate fails
+  with `CERTIFICATE_VERIFY_FAILED`, `services/mail.py::SmtpTransport` builds its context with
+  `ssl.create_default_context(cafile=certifi.where())` — certifi is already in the image as httpx's
+  dependency — one line, a rebuild of the backend, the gate again.
+- **Namecheap refuses a `From` that is neither the login mailbox nor one of its aliases**
+  (`553 … sender address rejected`), and a mailbox with two-factor authentication wants an
+  **application password** for SMTP, not the login one (`535`). Both are Roli's panel's to fix and
+  both are what the gate (§7 step 13) catches before any person is asked for an address.
 
-## 11. Current state (2026-09-23)
+## 11. Current state (2026-09-24)
 
-- **`feature/2026-09-auth` (`FEATURES_2026-09-auth.md`, L0–L13 + L16, documented by L15) is the one
-  open branch, and it is not deployed.** It is worked in the git worktree
-  `/home/roli/projects/turnierplaner-auth`, branched from `cfc1669`, with `ce55a53` merged in
-  (`0e1f174`) so it carries Roli's multi-site Caddy commit. It waits for Roli's go and ships as
-  **one deploy** (§7 — his answer: *"one deploy, why would i want 2?"*; L14, the first of two
-  documentation passes, was dropped with the second deploy). Roli asked for the app to be closed —
-  no page, picture or stat without a login — with a login that can be revoked, passkeys so a phone
+- **`feature/2026-09-auth` is the one open branch, and it is not deployed.** It carries **two
+  plans, both finished, for one deploy**: `FEATURES_2026-09-auth.md` (L0–L13 + L16, documented by
+  L15, plus Q-G) and `FEATURES_2026-09-auth-email.md` (E0–E5, documented by E6, this pass). It is
+  worked in the git worktree `/home/roli/projects/turnierplaner-auth`, branched from `cfc1669`, with
+  `ce55a53` merged in (`0e1f174`) so it carries Roli's multi-site Caddy commit, and its head is the
+  E6 commit on top of `c4a5f21`. It waits for Roli's go and ships as **one deploy** (§7 — his answer:
+  *"one deploy, why would i want 2?"*; L14 was dropped with the second deploy, and the email half
+  joined the same one rather than becoming a sibling). Roli asked for the app to be closed — no
+  page, picture or stat without a login — with a login that can be revoked, passkeys so a phone
   opens it with Face ID, new people let in by a code he hands out, an admin page showing who is in
-  from which device, and the URL, tables and roles shaped for a second friend group later. What
-  landed, one line each (the rules are in §1, §4–§6, §9, §10):
-  - **L0** (`698ee4c`) dev is one origin: vite proxies `/api/` and `/ws/`; **L1** (`c7e1945`) the ten
-    tables, the four `group_id` columns, the boot guard, argon2id, the boot migration and
-    `auth-preflight`; **L2** (`db63bb9`) the default-deny gate and its route-walking audit, cookie
-    sessions, the exchange, the rate limiter, CORS and JWT auth deleted, every test fixture on
-    cookies; **L3** (`8b207e1`, `17cc71d`) register, redeem, reset, password, my sessions, the admin
-    API, owner roles, `group_id` on writes, the roster rule, the push group prefix and the five
-    escape-hatch commands.
-  - **L4** (`456e51c`) the frontend switch: no token anywhere, `AuthProvider` on `/me` and the
-    offline rule, `RequireAuth`, the bare login screen; **L7** (`b1b8d93`) Settings → Account;
-    **L10** (`2109e1b`) `/g/altherren/` via `basename`, `paths.group_path` for every backend path,
-    the service worker's own `PUT`; **L5** (`b7cd2d6`) register, reset and "not in a group yet";
-    **L6** (`5c77313`) the admin page; **L12** (`d699892`) cups in the database, the per-group star
-    overlay and promotion.
-  - **L8** (`f14f269`) passkeys, server side, eighteen negatives proven to bite with a hand-rolled
-    software authenticator; **L11** (`3928204`) `PlayerLink` decides who may open a profile, the three
-    link-less surfaces closed, `ensure_shared_group` on the server; **L9** (`9b2cf8c`) passkeys in the
-    browser and the "secure your account" strip; **L16** (`3801260`, added mid-batch, approved by
-    Roli) the push dispatcher no longer holds SQLite's write lock across network calls — found when
-    a login answered 500 "database is locked" during a fan-out; **L13** (`7e7d54b`) the dress
-    rehearsal against production's 2026-09-20 snapshot: **131 PASS, 0 FAIL**, twice, identical.
-  - **L15** is this documentation pass, plus the final gates below and one comment-only
-    `schema.d.ts` regeneration (L11's `routers/players.py` docstrings, which L8 had deliberately
-    kept out of its own commit) so that `make gen-types` yields no diff.
-  **Checks at the branch head** (measured by L15 on the finished tree): `make test` **504 passed** in 27:05 on the Pi (sharing it with `npm run check` for three minutes; L16 read the same 504 in 27:36);
-  `make lint` clean; `make gen-types` **no diff** after the comment-only commit above;
-  `cd frontend && npm run check` **932 tests in 96 files** (vitest 106 s, 3:10 all in, sharing the Pi
-  with `make test`); `npm run build` green, `index-*.js` **774.28 kB** (the pre-existing >500 kB
-  hint; 737.84 kB at Q-E — the batch's code, `@simplewebauthn/browser` being 8.8 kB of it) and the
-  admin page its own lazy chunk (`AdminPage-*.js` 12.60 kB). Before the batch (`cfc1669`) the
-  numbers were 303 backend tests and 839 frontend tests in 88 files.
-  **What only Roli's iPhone can prove**, on production over HTTPS after the deploy — none of it is
-  reachable from here, because the phone reaches dev over plain-http LAN, which is not a secure
-  context: that Safari on `https://lorbeerkranz.xyz` offers "Use a passkey" at all; that **Face ID
-  sets the UV flag the server requires** (a device that did not would be refused, not let in); that
-  **iCloud Keychain syncs the credential** and reports it backed up (the "synced" pill) with a
-  counter that stays 0 (accepted by the rule, unverified on the device); that **the installed PWA's
-  own cookie jar keeps the session** `login/verify` or the exchange sets, and that a passkey made in
-  Safari signs in from the PWA; that a closed Face ID sheet arrives as `NotAllowedError` (silence);
-  that **`pushsubscriptionchange` fires for real** and the worker's own `PUT` lands; that a tapped
+  from which device, and the URL, tables and roles shaped for a second friend group later; and then,
+  on 2026-09-24, for the passkey to be the credential the app offers first and for an account to
+  be recoverable without him, by email. What landed, one line each (the rules are in §1, §4–§6, §9,
+  §10):
+  - **First half.** **L0** (`698ee4c`) dev is one origin: vite proxies `/api/` and `/ws/`; **L1**
+    (`c7e1945`) the ten tables, the four `group_id` columns, the boot guard, argon2id, the boot
+    migration and `auth-preflight`; **L2** (`db63bb9`) the default-deny gate and its route-walking
+    audit, cookie sessions, the exchange, the rate limiter, CORS and JWT auth deleted, every test
+    fixture on cookies; **L3** (`8b207e1`, `17cc71d`) register, redeem, reset, password, my
+    sessions, the admin API, owner roles, `group_id` on writes, the roster rule, the push group
+    prefix and the five escape-hatch commands; **L4** (`456e51c`) the frontend switch: no token
+    anywhere, `AuthProvider` on `/me` and the offline rule, `RequireAuth`, the bare login screen;
+    **L7** (`b1b8d93`) Settings → Account; **L10** (`2109e1b`) `/g/altherren/` via `basename`,
+    `paths.group_path` for every backend path, the service worker's own `PUT`; **L5** (`b7cd2d6`)
+    register, reset and "not in a group yet"; **L6** (`5c77313`) the admin page; **L12**
+    (`d699892`) cups in the database, the per-group star overlay and promotion; **L8** (`f14f269`)
+    passkeys, server side, eighteen negatives proven to bite with a hand-rolled software
+    authenticator; **L11** (`3928204`) `PlayerLink` decides who may open a profile, the three
+    link-less surfaces closed, `ensure_shared_group` on the server; **L9** (`9b2cf8c`) passkeys in
+    the browser and the "secure your account" strip; **L16** (`3801260`, added mid-batch, approved
+    by Roli) the push dispatcher no longer holds SQLite's write lock across network calls; **L13**
+    (`7e7d54b`) the dress rehearsal against production's 2026-09-20 snapshot, **131 PASS**, twice;
+    **L15** the first documentation pass; **Q-G** (`f0dab7d`) gated media say `Cache-Control:
+    private` (closed item below).
+  - **Second half** (planned 2026-09-24 with Roli's answers folded in, `0dfd68b`). **E0**
+    (`37563af`) the three tables, the seven mail settings and four guard rules, `services/mail.py`
+    and its four transports, the 15-character floor for a new password — and login that never checks
+    length; **E1** (`8371773`) an account's email — set, verify, resend, remove, the link-free
+    "changed" notice, `MeOut`'s five fields, `/admin/mail-status`, `mail-test` and `verify-email`,
+    `scripts/mail_sink_link.py`; **E2** (`86f81bc`, Fable) recovery by email (minting **after** the
+    answer, the timing finding in §6), a passkey from a reset token, the atomic passkey-only
+    registration, 26 of 26 weakenings proven to bite; **E3** (`a5a3d73`) passkey first on the
+    register and reset pages (`PasskeyOrPassword`), `/recover`, `/verify-email` (a tap, not an
+    automatic POST), the login's recovery link and cross-device hint; **E4** (`877e7db`,
+    `7213706`) Settings → Email, the strip's two steps, the Settings passkey hint, the admin page's
+    **Not secured** chip, email state and mail status; **E5** (`e6d9ad5`, `c4a5f21`) the rehearsal
+    learns email, recovery and both new ceremonies — **237 PASS, 0 FAIL**, twice, identical once
+    masked; **E6** this pass and the final gates.
+  **Checks on the finished tree** (measured by E6 at `c4a5f21`, documentation-only changes on top):
+  `make test` **705 passed** in 36:22 on the Pi (sharing it with
+  `npm run check` for three minutes; E2 read the same 705 in 35:57 — 504 at L15, +3 Q-G, +79 E0,
+  +54 E1, +65 E2); `make lint` clean; `make gen-types` **no diff**; `cd frontend && npm run check`
+  **975 tests in 98 files** (vitest 99 s, 2:58 all in — 932 in 96 at L15, +21 and one file E3, +22
+  and one file E4); `npm run build` green, `index-*.js` **786.99 kB** (774.28 kB at L15: the four
+  new pages and the Email section, no dependency; the pre-existing >500 kB hint) and the admin page
+  its own lazy chunk (`AdminPage-*.js` 13.18 kB). `test_auth_gate.py` walks the six new public paths
+  green, and L2's listing sabotage was re-tried once on this tree (a phantom `/probe` in
+  `PUBLIC_PATHS` → the audit fails; restored, byte-compared, 14 passed). The greps: nothing but
+  `settings.py` and `mail.py` names `smtp_pass`; nothing outside `api/passkeys.api.ts` (and a
+  comment in the generated schema) imports `@simplewebauthn/browser`; `MIN_PASSWORD_LENGTH = ` is
+  exactly two lines, both 15. The rehearsal was not re-run for this pass (no code changed since E5's
+  two `ALL PASSED` runs at `7213706`; `c4a5f21` touched only its own checks script).
+  Before the batch (`cfc1669`) the numbers were 303 backend tests and 839 frontend tests in 88
+  files; at the first half's head (L15, `7e7d54b`) 504 and 932 in 96, `index-*.js` 774.28 kB.
+  **What only Roli's iPhone and a desktop can prove**, on production over HTTPS after the deploy —
+  none of it is reachable from here, because the phone reaches dev over plain-http LAN, which is not
+  a secure context, and no stack here ever sends real mail: that Safari on
+  `https://lorbeerkranz.xyz` offers "Use a passkey" at all; that **Face ID sets the UV flag the
+  server requires** (a device that did not would be refused, not let in); that **iCloud Keychain
+  syncs the credential** and reports it backed up (the "synced" pill) with a counter that stays 0
+  (accepted by the rule, unverified on the device); that **the installed PWA's own cookie jar keeps
+  the session** `login/verify` or the exchange sets, and that a passkey made in Safari signs in from
+  the PWA; that a closed Face ID sheet arrives as `NotAllowedError` (silence); that
+  **`pushsubscriptionchange` fires for real** and the worker's own `PUT` lands; that a tapped
   notification opens the installed app rather than Safari; that the exchange takes the old JWT on
-  the first launch with no login screen; and how the strip reads at his width. §7 step 10 is that
-  walk; write each answer here.
+  the first launch with no login screen; **that a real message reaches Gmail's inbox with SPF and
+  DKIM passing** (§7 step 13 — the deliverability gate, Namecheap's alias and 2FA answers, the
+  image's CA store); **that a verification link and a recovery link open in Safari and the PWA
+  notices on return** (the strip going away with no reload); that **Create a passkey** on the
+  register and reset pages raises Face ID and lands in the app; **that the cross-device flow works**
+  — a laptop's passkey prompt offering the phone, the QR code, Bluetooth on both, Face ID, in with
+  nothing typed; and how the strip's two-line sentences read at his width. §7 steps 11 and 15 are
+  that walk; write each answer here.
 - **Q-E and Q-F are merged and deployed — production runs `ce55a53`.** `main` is `cfc1669` (Q-F,
   "an author's name is a door to their profile", merged from `fix/2026-09-identity-links`) on top of
   `17ca1f4` (Q-E, "a blocked device says so in the bell", from `fix/2026-09-bell-denied`), plus
@@ -2649,17 +3080,30 @@ every past match simply keeps counting today's rating.
 - **First, once the auth deploy has been proven on Roli's phone — and not before:** a later,
   separate step deletes `player_accounts[]` from the server's `secrets.json`, then `jwt_secret`,
   `PyJWT` from `requirements.txt`, `POST /auth/exchange` (and its `PUBLIC_PATHS` entry) and
-  `services/legacy_jwt.py`, together. Until then they are the rollback's login (§7 step 12) and the
+  `services/legacy_jwt.py`, together. Until then they are the rollback's login (§7 step 19) and the
   exchange that keeps every phone logged in across the deploy. Removing `jwt_secret` alone already
   ends the transition: the exchange answers 410.
-- **The "secure your account" strip's condition is awaiting Roli's answer.** It is written in
-  exactly one place — `DESIGN.md` §7, the `SecureAccountNotice` row — and deliberately nowhere
-  else, so that changing it is a one-line code edit in `ui/shell/SecureAccountNotice.tsx` plus a
-  one-line edit of that row. The question (asked 2026-09-23, after L9): he had said the strip should
-  stay "until they have a passkey"; whether the shipped condition matches that, or should become
-  "no passkey" alone, is his to say — the row names both and what each would show.
-- **The auth deploy itself** (§7), on Roli's go, and after it the iPhone walk listed in the first
-  bullet above. The frontend it ships was rehearsed only as the vite dev server; the production
+- **Closed 2026-09-24: the "secure your account" strip's condition is decided.** Roli's answer
+  (the question asked after L9 was whether "until they have a passkey" meant the shipped
+  "migrated password and no passkey"): **the strip goes away only when a verified email *and* a
+  secure login exist** — a passkey, or a password newly set on this code (≥ 15 characters;
+  `MeOut.login_secure`). **The email step exists only while the server can send**
+  (`email_available`), so the strip can always be cleared: with mail off it asks for the login half
+  alone, and the moment the `smtp_*` keys land it starts asking for the email too. It says which
+  step is still missing, in five sentences — *add an email address and a passkey* / *… and set a new
+  password* (both missing; the second where WebAuthn is unavailable), *add an email address*, *add
+  a passkey* / *set a new password* — and `passkeysSupported()` chooses the words, never the
+  visibility, so a device without WebAuthn is now asked too. **The condition lives in one place**,
+  the JSDoc and the three lines at the top of `ui/shell/SecureAccountNotice.tsx`, mirrored in
+  `DESIGN.md` §7's row with the sentence table; the admin page's **Not secured** chip is the same
+  two steps read off the same server fields.
+- **The auth deploy itself** (§7), on Roli's go, and after it the iPhone and desktop walk listed in
+  the first bullet above (§7 steps 11 and 15). **Before it, Roli publishes the DMARC record**
+  (`_dmarc` TXT `v=DMARC1; p=none`, no `rua=`, §7 step 1) — it does not block the deploy, only the
+  last line of the Gmail verdict — and checks in the Private Email panel that DKIM is enabled for
+  the login mailbox and that `no-reply@lorbeerkranz.xyz` is its alias. **Email stays off until the
+  deliverability gate passes** (§7 steps 13–14); if it never does, the app is complete without it
+  (the strip asks for the login half alone, and the admin reset link is the way back in). The frontend it ships was rehearsed only as the vite dev server; the production
   build's resume was measured separately (L10), and `docker compose build` was never run here (an
   arm64 build proves nothing about the x86 image — the wheels were proven by `pip download` for
   that platform instead). Step 5 of the deploy is where that is finally seen.
@@ -2677,8 +3121,13 @@ every past match simply keeps counting today's rating.
   routes become owner routes, and a no-group account's basename. Also deferred, not part-2-bound: a
   real delete for an account or a player behind the red `ConfirmDialog` (a stray registration is
   removed by SQL today), showing a session's stored IP in the admin sheet (a privacy call), email
-  (nothing makes it harder: `Account` has no email column on purpose), and session-token rotation
-  (declined for now — every added state is a way to log someone out by mistake).
+  (**built since, by the email half** — in a table of its own, `AccountEmail`, exactly as that
+  sentence intended), and session-token rotation (declined for now — every added state is a way to
+  log someone out by mistake). The email half's own deferrals: a notice when a password is changed,
+  a passkey added or removed or a recovery link used (only "your email changed" ships); showing the
+  address itself to the site admin (the admin page shows the state only); removing passkeys on
+  recovery (kept on purpose, §6); invites by email; any HTML mail or second language; a second token
+  table for recovery.
 - **Closed 2026-09-24 (Q-G): gated media say `Cache-Control: private`, not `public`.** L15 found
   it; Roli's call was *"set it to private, make sure it does not break stuff"*. Six call sites in
   `routers/players.py` (avatar, header image, pinned snapshot), `comments.py`, `ideas.py` and
@@ -2691,11 +3140,22 @@ every past match simply keeps counting today's rating.
   access log showed each media URL exactly once per browser context, and every `<img>` rendered
   (`naturalWidth > 0`) in every phase. `frontend/public/sw.js` has no `fetch` handler, so no service
   worker caches media and nothing there changed. Nothing was found that should stay `public`.
-- **Two notices stacked were not measured** (L9). The "secure your account" strip costs the tab
-  strip +78px at 390 and +70px at 1280; with P5's push notice above it the arithmetic says
-  ≈+140–156px, but headless Chromium always reports `Notification.permission === "denied"`, so
-  P5's notice never renders there. A phone shows both only while it has neither decided about push
-  nor added a passkey.
+- **Two notices stacked were not measured** (L9, re-measured for one notice by E4). The "secure
+  your account" strip is **358×66** at 390 for a one-line sentence (*add an email address*, *add a
+  passkey*) and **358×86** for a two-line one (both steps missing), moving the tab strip **+78px** /
+  **+98px**; at 1280 it is **992×58** for every sentence, **+70px**; the top bar's title stays at
+  195.0 either way. With P5's push notice above it the arithmetic says roughly +140–176px at 390,
+  but headless Chromium always reports `Notification.permission === "denied"`, so P5's notice never
+  renders there. After the deploy every phone will show the two-line strip until it has a passkey
+  and a verified address, so this is now the common case on day one, not a corner.
+- **One code comment the email half left stale, outside this pass's files**: `backend/app/models.py`
+  `WebAuthnChallenge.kind`'s comment still reads `"register" | "login"`; E2 added a third kind,
+  `"register-new"` (`services/passkeys.py::KIND_REGISTER_NEW`, a passkey-only registration's
+  challenge). A one-word edit for whoever next touches `models.py`; nothing reads the comment.
+- **The main checkout moving onto this branch also needs no new secret for email**: dev boots with
+  mail off (`Mail: off`) and hides every email surface; to exercise email in dev, set
+  `MAIL_SINK_DIR` — **never** put `smtp_*` keys in the dev `secrets.json` (the guard refuses them
+  there anyway).
 - **The About head doubled in height, and whether that is right is still Roli's call** (K3, §10;
   narrowed by Q-A). With an action it is 32.0px; a head with none — and every other section head
   whose action is text-only, "Recent matches" being the one on the same tab — is 16.0px (both
@@ -2823,8 +3283,8 @@ every past match simply keeps counting today's rating.
 | Visual language (surfaces, tokens, type, primitives) | `DESIGN.md` — the design canon, follow it for every UI change |
 | Tool entry points | `CLAUDE.md` (imports this file), `GEMINI.md` (points here) |
 | Human README / setup narrative | `README.md` |
-| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md`, `DESIGN_FIXES_2026-09.md`, `FEATURES_2026-09-ideas.md`, `FEATURES_2026-09-badges.md`, `FEATURES_2026-09-guestbook.md`, `FEATURES_2026-09-media.md`, `FEATURES_2026-09-auth.md` |
+| Batch trackers (history + decisions) | `REFACTORING_PLAN.md`, `FEATURES_2026-07.md`, `FEATURES_2026-08.md`, `FEATURES_2026-09.md`, `DESIGN_FIXES_2026-09.md`, `FEATURES_2026-09-ideas.md`, `FEATURES_2026-09-badges.md`, `FEATURES_2026-09-guestbook.md`, `FEATURES_2026-09-media.md`, `FEATURES_2026-09-auth.md`, `FEATURES_2026-09-auth-email.md` |
 | The blind design audit behind the C-batch | `DESIGN_AUDIT_2026-09-17.md` + `design-audit-2026-09-17/` (eight raw reports) |
 | Claude Code auto-memory (per-machine, not in git) | `~/.claude/projects/-home-roli-projects-turnierplaner-reloaded/memory/` |
 | Production data snapshots (not in git) | `backup/deploy/<ts>/`, `backup/local/<ts>/` |
-| The deploy rehearsal's secrets *shape* (not in git, not the real file) | `~/.local/share/turnierplaner-rehearsal/secrets.rehearsal.json` (§7 step 3) |
+| The deploy rehearsal's secrets *shape* (not in git, not the real file) | `~/.local/share/turnierplaner-rehearsal/secrets.rehearsal.json` (§7 step 4) |
