@@ -562,7 +562,7 @@ def cmd_email(a) -> None:
     verify (no session) → change (the old address is told, with no link) → recover → a new
     password, and the earlier session ends → the unknown address and the per-address limit →
     `verify-email` by hand. Then no token and no full address in any log."""
-    work, db, mail = Path(a.work), Path(a.db), Path(a.mail)
+    work, mail = Path(a.work), Path(a.mail)
     acc = accounts(Path(a.shape))
     base = a.base
     admin = next(x for x in acc if x.get("admin"))
