@@ -15,12 +15,12 @@ import { type CommentScope } from "../tournamentCommentTypes";
 
 /**
  * All comment write operations for one tournament (create/edit/delete/vote/pin/read),
- * with their cache invalidations. Encapsulates token + query client so callers
+ * with their cache invalidations. Encapsulates the viewer + query client so callers
  * (TournamentCommentsCard, and any future reuse on the match detail page) don't repeat them.
  */
 export function useCommentMutations(tournamentId: number) {
   const qc = useQueryClient();
-  const { token } = useAuth();
+  const { playerId: viewerId } = useAuth();
 
   const createMut = useMutation({
     mutationFn: async (payload: {
@@ -35,8 +35,7 @@ export function useCommentMutations(tournamentId: number) {
       result_score_a?: number;
       result_score_b?: number;
     }) => {
-      if (!token) throw new Error("Not logged in");
-      return createTournamentComment(token, tournamentId, {
+      return createTournamentComment(tournamentId, {
         match_id: payload.scope.kind === "match" ? payload.scope.matchId : null,
         parent_comment_id: payload.parent_comment_id ?? null,
         author_player_id: payload.author_player_id,
@@ -52,8 +51,8 @@ export function useCommentMutations(tournamentId: number) {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.tournament(tournamentId) });
       await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, viewerId) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(viewerId) });
     },
   });
 
@@ -65,8 +64,7 @@ export function useCommentMutations(tournamentId: number) {
    */
   const putImageMut = useMutation({
     mutationFn: async (payload: { commentId: number; blob: Blob }) => {
-      if (!token) throw new Error("Not logged in");
-      return putCommentImage(token, payload.commentId, payload.blob, "comment.webp");
+      return putCommentImage(payload.commentId, payload.blob, "comment.webp");
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
@@ -75,8 +73,7 @@ export function useCommentMutations(tournamentId: number) {
 
   const patchMut = useMutation({
     mutationFn: async (payload: { commentId: number; author_player_id?: number | null; body: string }) => {
-      if (!token) throw new Error("Not logged in");
-      return apiPatchComment(token, payload.commentId, {
+      return apiPatchComment(payload.commentId, {
         author_player_id: payload.author_player_id,
         body: payload.body,
       });
@@ -88,20 +85,18 @@ export function useCommentMutations(tournamentId: number) {
 
   const deleteMut = useMutation({
     mutationFn: async (commentId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return apiDeleteComment(token, commentId);
+      return apiDeleteComment(commentId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, viewerId) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(viewerId) });
     },
   });
 
   const pinMut = useMutation({
     mutationFn: async (commentId: number | null) => {
-      if (!token) throw new Error("Not logged in");
-      return setPinnedTournamentComment(token, tournamentId, commentId);
+      return setPinnedTournamentComment(tournamentId, commentId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });
@@ -110,19 +105,17 @@ export function useCommentMutations(tournamentId: number) {
 
   const markReadMut = useMutation({
     mutationFn: async (commentId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return markCommentRead(token, commentId);
+      return markCommentRead(commentId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, token) });
-      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(token) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadIds(tournamentId, viewerId) });
+      await qc.invalidateQueries({ queryKey: qk.commentsReadMap(viewerId) });
     },
   });
 
   const voteMut = useMutation({
     mutationFn: async (payload: { commentId: number; value: -1 | 0 | 1 }) => {
-      if (!token) throw new Error("Not logged in");
-      return voteComment(token, payload.commentId, payload.value);
+      return voteComment(payload.commentId, payload.value);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.commentsTournament(tournamentId) });

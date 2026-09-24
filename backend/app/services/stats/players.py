@@ -150,7 +150,7 @@ def compute_stats_players(s: Session, *, mode: str, lastN: int, scope: str = "to
 
     # Legacy: current default cup owner (frontend uses /cup for multi-cup now).
     # Must use the configured default cup def so era scoping matches GET /cup.
-    cup_state = compute_cup(s, cup=get_cup_def("default"))
+    cup_state = compute_cup(s, cup=get_cup_def("default", s))
     cup_owner_player_id = int(cup_state.owner_id) if cup_state and cup_state.owner_id is not None else None
 
     # Build per-player rows

@@ -27,14 +27,15 @@ import { readStored, removeStored, writeStored } from "../utils/safeStorage";
 export type PushSetupState = "needs-setup" | "resubscribe" | "blocked" | "ok" | "none";
 
 export function pushSetupState(i: {
-  token: string | null;
+  /** A session exists — the app never asks about push on behalf of nobody. */
+  loggedIn: boolean;
   supported: boolean;
   serverEnabled: boolean;
   permission: NotificationPermission | "unsupported";
   browserEndpoint: string | null;
   userDisabled: boolean;
 }): PushSetupState {
-  if (!i.token || !i.supported || !i.serverEnabled) return "none";
+  if (!i.loggedIn || !i.supported || !i.serverEnabled) return "none";
   // Denied, unless this device also said no in Settings — that reader turned push off
   // here on purpose and is never told about it twice (P5's rule, kept).
   if (i.permission === "denied") return i.userDisabled ? "none" : "blocked";

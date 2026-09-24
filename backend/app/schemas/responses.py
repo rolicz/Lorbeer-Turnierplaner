@@ -7,6 +7,7 @@ as response_model= documents the contract without changing the payloads.
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -42,20 +43,139 @@ class VotersOut(BaseModel):
 
 
 # ---- auth / me ---------------------------------------------------------
-class LoginOut(BaseModel):
-    token: str
+class MeGroupOut(BaseModel):
+    """One of the caller's groups: `role` is the membership role (`owner` | `member`)."""
+
+    id: int
+    slug: str
+    name: str
     role: str
-    player_id: int
-    player_name: str
 
 
 class MeOut(BaseModel):
-    role: str | None
-    player_id: int | None
-    player_name: str | None
-    sub: str | None
-    iat: int | None
-    exp: int | None
+    """Who the caller is on this device — answered by `GET /me`, `POST /auth/login` and
+    `POST /auth/exchange` and `POST /auth/passkeys/login/verify` alike (L2, L8). `role` is
+    the effective role in the current group (`none` | `editor` | `owner` | `admin`).
+    `has_passkey` reads the `Passkey` table (L8)."""
+
+    role: str
+    player_id: int
+    player_name: str
+    site_admin: bool
+    groups: list[MeGroupOut]
+    has_password: bool
+    has_passkey: bool
+    password_migrated: bool
+    session_id: int | None
+    #: E1 — whether the account can be recovered, and what is still missing. Built by
+    #: `services/sessions.py::me_payload`; the strip, Settings and the admin page read
+    #: these and never re-derive them.
+    email: str | None  # the verified address
+    email_pending: str | None  # an address waiting for its link to be opened
+    email_verified: bool
+    email_available: bool  # this server can send mail (the transport is configured)
+    login_secure: bool  # a passkey, or a password set on this code (≥ 15 characters)
+
+
+class SessionOut(BaseModel):
+    """One logged-in device of the caller (`GET /auth/sessions`, L2)."""
+
+    id: int
+    kind: str
+    device_label: str
+    created_at: datetime
+    last_seen_at: datetime
+    current: bool
+
+
+class RevokedOut(BaseModel):
+    revoked: int
+
+
+class PasskeyOut(BaseModel):
+    """One of the caller's passkeys (`GET /auth/passkeys`, `POST /auth/passkeys/register/verify`,
+    L8). `device_type` is `single_device` | `multi_device` (the authenticator's backup
+    eligibility — a synced passkey is `multi_device`); `backed_up` is its current backup
+    state, refreshed on every sign-in. Never the credential id or the public key."""
+
+    id: int
+    label: str
+    device_type: str
+    backed_up: bool
+    created_at: datetime
+    last_used_at: datetime | None
+
+
+# ---- accounts, invites, admin (L3) --------------------------------------
+class AdminAccountOut(BaseModel):
+    """One account on the admin page (`GET /admin/accounts`). `role` is the effective role
+    in the current group (`none` | `editor` | `owner` | `admin`); `password_origin` is
+    `none` | `migrated` | `set`; `session_count` / `last_seen_at` cover live sessions only."""
+
+    player_id: int
+    display_name: str
+    site_admin: bool
+    role: str
+    password_origin: str
+    has_passkey: bool
+    session_count: int
+    last_seen_at: datetime | None
+    email_state: str  # "none" | "pending" | "verified" (E1)
+    login_secure: bool  # the same rule as `MeOut.login_secure` (E1)
+
+
+class EmailStatusOut(BaseModel):
+    """`PUT/DELETE /auth/email`, `POST /auth/email/resend` (E1): the verified address, the
+    pending one (a link sent and not yet opened), and whether an address is verified."""
+
+    email: str | None
+    email_pending: str | None
+    email_verified: bool
+
+
+class EmailVerifiedOut(BaseModel):
+    """`POST /auth/email/verify` (E1): the address that is now verified."""
+
+    ok: bool
+    email: str
+
+
+class MailStatusOut(BaseModel):
+    """`GET /admin/mail-status` (E1): whether this server can send, and the transport's
+    one-line description (host and sender — never the login mailbox or the password)."""
+
+    configured: bool
+    description: str
+
+
+class InviteCreatedOut(BaseModel):
+    """A fresh invite code — **the only time the code is readable**, formatted `ABCD-EFGH`."""
+
+    id: int
+    code: str
+    group_slug: str
+    note: str
+    expires_at: datetime
+
+
+class InviteOut(BaseModel):
+    """A live (unredeemed, unexpired) invite, without its code."""
+
+    id: int
+    group_slug: str
+    note: str
+    created_at: datetime
+    expires_at: datetime
+    created_by: PlayerRef | None
+
+
+class ResetLinkOut(BaseModel):
+    """A fresh one-hour reset link — the only time it is readable. The token rides in the
+    URL fragment (`…/g/<slug>/reset#<token>`)."""
+
+    player_id: int
+    url: str
+    expires_at: datetime
 
 
 class MyNotificationOut(BaseModel):
@@ -233,12 +353,17 @@ class ClubStarHistoryEntryOut(BaseModel):
     # "live" (a star edit), "seed" (the club's opening row) or "recovered"
     # (reconstructed from a backup snapshot — the day is an upper bound, not exact).
     source: str
+    # "global" (every group counts it) or "group" (the current group's own rating, L12).
+    scope: Literal["group", "global"] = "global"
 
 
 class ClubStarHistoryOut(BaseModel):
     club_id: int
     current_stars: float
     entries: list[ClubStarHistoryEntryOut]
+    # Is the rating the current group counts today the global one? False = promoting it
+    # (`POST /clubs/{id}/stars/promote`, admin) would change what other groups count.
+    current_is_global: bool = True
 
 
 class ClubCrestMetaOut(BaseModel):

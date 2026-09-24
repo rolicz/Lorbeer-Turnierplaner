@@ -20,15 +20,15 @@ def _cup_def_payload(d: CupDef) -> dict:
     }
 
 @router.get("/defs", response_model=CupDefsOut)
-def list_cup_defs():
-    defs = load_cup_defs()
+def list_cup_defs(s: Session = Depends(get_session)):
+    defs = load_cup_defs(s)
     return {"cups": [_cup_def_payload(d) for d in defs]}
 
 
 @router.get("", response_model=CupOut)
 def get_cup(request: Request, key: str | None = None, s: Session = Depends(get_session)):
     try:
-        d = get_cup_def(key)
+        d = get_cup_def(key, s)
         res = compute_cup(s, cup=d)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

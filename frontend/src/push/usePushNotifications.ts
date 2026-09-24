@@ -10,6 +10,7 @@ import {
 import type { PushNotificationLanguage, PushNotificationMode } from "../api/types";
 import { qk } from "../api/queryKeys";
 import { ApiError } from "../api/client";
+import { useAuth } from "../auth/AuthContext";
 import { readStored, writeStored } from "../utils/safeStorage";
 import type { PushPlatform } from "./push";
 import {
@@ -80,19 +81,21 @@ function storePushMode(value: PushNotificationMode) {
  * lost) go through here; there is no second copy of this rule.
  */
 async function putSubscriptionRotatingOn410(args: {
-  token: string;
   subscription: PushSubscription;
   language: PushNotificationLanguage;
   mode: PushNotificationMode;
   vapidPublicKey: string;
 }): Promise<string> {
   try {
-    await putPushSubscription(args.token, serializePushSubscription(args.subscription, args.language, args.mode));
+    await putPushSubscription(serializePushSubscription(args.subscription, args.language, args.mode));
     return args.subscription.endpoint;
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 410 || !args.vapidPublicKey) throw error;
     const rotated = await rotateBrowserPushSubscription(args.vapidPublicKey);
-    await putPushSubscription(args.token, serializePushSubscription(rotated, args.language, args.mode));
+    // Name the corpse (L10): the server keeps this device's settings on the new row.
+    await putPushSubscription(
+      serializePushSubscription(rotated, args.language, args.mode, args.subscription.endpoint),
+    );
     return rotated.endpoint;
   }
 }
@@ -139,8 +142,16 @@ export type PushNotificationsState = {
   refresh: () => Promise<void>;
 };
 
-export function usePushNotifications(token: string | null): PushNotificationsState {
+/**
+ * Reads the session itself (L4): it is mounted only inside the shell, where the account
+ * is known, and the subscriptions key names the viewer so one account's devices are
+ * never shown to the next. Logout no longer needs a hook to race it — `POST /auth/logout`
+ * carries this device's endpoint and the server disables it in the same request.
+ */
+export function usePushNotifications(): PushNotificationsState {
   const qc = useQueryClient();
+  const { status, playerId: viewerId } = useAuth();
+  const loggedIn = status === "authed";
   const supported = useMemo(() => isPushSupported(), []);
   const platform = useMemo(() => detectPushPlatform(), []);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(() => getPushPermission());
@@ -155,7 +166,6 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
   const autoSyncKeyRef = useRef("");
   const autoSyncInFlightRef = useRef(false);
   const autoResubscribeRef = useRef("");
-  const previousTokenRef = useRef<string | null>(token);
 
   const configQ = useQuery({
     queryKey: qk.push.config(),
@@ -163,9 +173,9 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     staleTime: 60_000,
   });
   const mySubscriptionsQ = useQuery({
-    queryKey: qk.push.subscriptions(token),
-    queryFn: () => listMyPushSubscriptions(token as string),
-    enabled: !!token,
+    queryKey: qk.push.subscriptions(viewerId),
+    queryFn: listMyPushSubscriptions,
+    enabled: loggedIn,
     staleTime: 15_000,
   });
   const defaultLanguage = normalizePushLanguage(configQ.data?.default_notification_language, FALLBACK_PUSH_LANGUAGE);
@@ -218,7 +228,7 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
       void refreshBrowserState();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [refreshBrowserState, token]);
+  }, [refreshBrowserState, viewerId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -235,21 +245,6 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [refreshBrowserState]);
-
-  useEffect(() => {
-    const previousToken = previousTokenRef.current;
-    previousTokenRef.current = token;
-    if (!previousToken || token) return;
-    void (async () => {
-      const subscription = await getBrowserPushSubscription().catch(() => null);
-      const endpoint = subscription?.endpoint ?? browserEndpoint;
-      if (!endpoint) return;
-      await deletePushSubscription(previousToken, endpoint).catch(() => {
-        // logout cleanup is best-effort
-      });
-      await qc.invalidateQueries({ queryKey: qk.push.subscriptionsAll() });
-    })();
-  }, [browserEndpoint, qc, token]);
 
   useEffect(() => {
     if (currentSubscription?.notification_language) {
@@ -277,7 +272,7 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
 
   const enableMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Login required for push notifications.");
+      if (!loggedIn) throw new Error("Login required for push notifications.");
       if (!supported) throw new Error("This browser does not support push notifications.");
       const config = configQ.data;
       if (!config?.enabled || !config.vapid_public_key) {
@@ -294,7 +289,6 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
       }
       const subscription = await subscribeBrowserToPush(config.vapid_public_key);
       return putSubscriptionRotatingOn410({
-        token,
         subscription,
         language: selectedLanguage,
         mode: selectedMode,
@@ -317,11 +311,11 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
 
   const disableMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Login required for push notifications.");
+      if (!loggedIn) throw new Error("Login required for push notifications.");
       const subscription = await getBrowserPushSubscription().catch(() => null);
       const endpoint = subscription?.endpoint ?? browserEndpoint;
       if (endpoint) {
-        await deletePushSubscription(token, endpoint);
+        await deletePushSubscription(endpoint);
       }
       if (subscription) {
         await subscription.unsubscribe();
@@ -342,8 +336,8 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
 
   const testMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Login required for push notifications.");
-      await sendPushTest(token);
+      if (!loggedIn) throw new Error("Login required for push notifications.");
+      await sendPushTest();
     },
     onSuccess: () => {
       setError(null);
@@ -354,10 +348,10 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
   });
 
   useEffect(() => {
-    if (!token || !supported || permission !== "granted") return;
+    if (!loggedIn || !supported || permission !== "granted") return;
     if (!configQ.data?.enabled || !browserEndpoint) return;
 
-      const key = `${token}:${browserEndpoint}:${configQ.data.vapid_public_key}`;
+    const key = `${viewerId ?? ""}:${browserEndpoint}:${configQ.data.vapid_public_key}`;
     const endpoints = mySubscriptionsQ.data?.endpoints ?? [];
     if (endpoints.includes(browserEndpoint)) {
       autoSyncKeyRef.current = key;
@@ -374,14 +368,13 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
         return;
       }
       const endpoint = await putSubscriptionRotatingOn410({
-        token,
         subscription,
         language: selectedLanguage,
         mode: selectedMode,
         vapidPublicKey: configQ.data?.vapid_public_key ?? "",
       });
       setBrowserEndpoint(endpoint);
-      await qc.invalidateQueries({ queryKey: qk.push.subscriptions(token) });
+      await qc.invalidateQueries({ queryKey: qk.push.subscriptions(viewerId) });
     })()
       .catch((syncError) => {
         autoSyncKeyRef.current = "";
@@ -400,13 +393,14 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     selectedLanguage,
     selectedMode,
     supported,
-    token,
+    loggedIn,
+    viewerId,
   ]);
 
   const deviceEnabled = !!browserEndpoint && permission === "granted" && (mySubscriptionsQ.data?.endpoints ?? []).includes(browserEndpoint);
 
   const setupState = pushSetupState({
-    token,
+    loggedIn,
     supported,
     serverEnabled: !!configQ.data?.enabled,
     permission,
@@ -416,33 +410,33 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
 
   // Permission is granted but the subscription is gone — the browser dropped it, or
   // `pushsubscriptionchange` fired and the service worker re-subscribed without being
-  // able to tell the server (it has no bearer token). Subscribing again needs no
-  // prompt, so repair it here, once per token+key, rather than asking the reader to
-  // notice. `browserChecked` keeps "not asked yet" from looking like "gone".
+  // able to tell the server — L10 closes that gap with the cookie). Subscribing again
+  // needs no prompt, so repair it here, once per account+key, rather than asking the
+  // reader to notice. `browserChecked` keeps "not asked yet" from looking like "gone".
   useEffect(() => {
     if (!browserChecked || setupState !== "resubscribe") return;
-    const key = `${token ?? ""}:${configQ.data?.vapid_public_key ?? ""}`;
+    const key = `${viewerId ?? ""}:${configQ.data?.vapid_public_key ?? ""}`;
     if (autoResubscribeRef.current === key) return;
     autoResubscribeRef.current = key;
     enableMut.mutate();
     // `enableMut` is stable enough for this: the ref, not the dependency list, is what
     // makes it fire once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [browserChecked, configQ.data?.vapid_public_key, setupState, token]);
+  }, [browserChecked, configQ.data?.vapid_public_key, setupState, viewerId]);
 
   const syncSubscriptionPreferences = useCallback(
     async (language: PushNotificationLanguage, mode: PushNotificationMode) => {
       const nextLanguage = normalizePushLanguage(language, defaultLanguage);
       const nextMode = normalizePushMode(mode, defaultMode);
-      if (!token || !supported) return;
+      if (!loggedIn || !supported) return;
       const subscription = await getBrowserPushSubscription().catch(() => null);
       const endpoint = subscription?.endpoint ?? browserEndpoint;
       if (!subscription || !endpoint) return;
       if (!(mySubscriptionsQ.data?.endpoints ?? []).includes(endpoint)) return;
       setPreferencesSyncing(true);
       try {
-        await putPushSubscription(token, serializePushSubscription(subscription, nextLanguage, nextMode));
-        await qc.invalidateQueries({ queryKey: qk.push.subscriptions(token) });
+        await putPushSubscription(serializePushSubscription(subscription, nextLanguage, nextMode));
+        await qc.invalidateQueries({ queryKey: qk.push.subscriptions(viewerId) });
         setError(null);
       } catch (preferencesError) {
         setError(errText(preferencesError));
@@ -450,7 +444,7 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
         setPreferencesSyncing(false);
       }
     },
-    [browserEndpoint, defaultLanguage, defaultMode, mySubscriptionsQ.data?.endpoints, qc, supported, token],
+    [browserEndpoint, defaultLanguage, defaultMode, mySubscriptionsQ.data?.endpoints, qc, supported, loggedIn, viewerId],
   );
 
   const updateLanguage = useCallback(
@@ -486,7 +480,7 @@ export function usePushNotifications(token: string | null): PushNotificationsSta
     serverReason: configQ.data?.reason ?? null,
     serverSubscriptionCount: mySubscriptionsQ.data?.count ?? 0,
     setupState,
-    loading: configQ.isLoading || (!!token && mySubscriptionsQ.isLoading) || (supported && !browserChecked),
+    loading: configQ.isLoading || (loggedIn && mySubscriptionsQ.isLoading) || (supported && !browserChecked),
     syncing: enableMut.isPending || disableMut.isPending || preferencesSyncing,
     testing: testMut.isPending,
     availableLanguages,

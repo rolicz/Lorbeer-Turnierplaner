@@ -45,10 +45,13 @@ def _png() -> bytes:
 # ---- reading is public --------------------------------------------------
 
 
-def test_reader_can_read_and_gets_no_capabilities(client, editor_headers):
+def test_another_member_can_read_and_gets_no_capabilities(client, anon, editor_headers, editor2_headers):
     created = _create(client, editor_headers)
 
-    r = client.get("/ideas")
+    # No session: no board (L2 — there is no reader any more).
+    assert anon.get("/ideas").status_code == 401
+
+    r = client.get("/ideas", headers=editor2_headers)
     assert r.status_code == 200
     body = r.json()
     assert len(body["ideas"]) == 1
@@ -78,16 +81,16 @@ def test_area_catalog_is_public_and_labels_every_key(client):
 # ---- the permission matrix ---------------------------------------------
 
 
-def test_reader_may_not_write_anything(client, editor_headers):
+def test_nobody_may_write_anything(client, anon, editor_headers):
     idea = _create(client, editor_headers)
     iid = idea["id"]
 
-    assert client.post("/ideas", json={"title": "x", "areas": ["stats"]}).status_code == 401
-    assert client.patch(f"/ideas/{iid}", json={"title": "x"}).status_code == 401
-    assert client.delete(f"/ideas/{iid}").status_code == 401
-    assert client.put(f"/ideas/{iid}/vote", json={"value": 1}).status_code == 401
-    assert client.put(f"/ideas/{iid}/status", json={"status": "done"}).status_code == 401
-    assert client.put(f"/ideas/{iid}/image", files={"file": ("a.png", _png(), "image/png")}).status_code == 401
+    assert anon.post("/ideas", json={"title": "x", "areas": ["stats"]}).status_code == 401
+    assert anon.patch(f"/ideas/{iid}", json={"title": "x"}).status_code == 401
+    assert anon.delete(f"/ideas/{iid}").status_code == 401
+    assert anon.put(f"/ideas/{iid}/vote", json={"value": 1}).status_code == 401
+    assert anon.put(f"/ideas/{iid}/status", json={"status": "done"}).status_code == 401
+    assert anon.put(f"/ideas/{iid}/image", files={"file": ("a.png", _png(), "image/png")}).status_code == 401
 
 
 def test_logged_in_non_author_may_create_and_vote_but_not_edit(client, editor_headers, editor2_headers):
@@ -352,7 +355,7 @@ def test_a_new_idea_is_pushed_to_the_admins_only_and_never_to_its_author(client,
     assert [pid for pid, _ in sent] == [admin_id]
     message = sent[0][1]
     assert message.event_type == "idea_created"
-    assert message.path.startswith("/ideas?idea=")
+    assert message.path.startswith("/g/altherren/ideas?idea=")
     assert message.text_context["author_name"] == "Editor"
     assert message.text_context["title"] == "Ideas page"
     assert message.text_context["meta_line"] == "Bug · Stats, Players"
@@ -473,8 +476,6 @@ def test_the_idea_push_is_delivered_to_the_admin_devices_in_each_language(client
             Settings(
                 db_url="sqlite://",
                 player_accounts=(),
-                jwt_secret="test-jwt-secret",
-                ws_require_auth=False,
                 log_level="DEBUG",
                 push_vapid_public_key="test-public-key",
                 push_vapid_private_key="test-private-key",
@@ -547,7 +548,7 @@ def test_a_comment_a_vote_and_a_status_are_pushed_to_the_idea_author_only(
     assert [pid for pid, _ in sent] == [editor_id]
     message = sent[0][1]
     assert message.event_type == "idea_commented"
-    assert message.path == f"/ideas?idea={iid}"
+    assert message.path == f"/g/altherren/ideas?idea={iid}"
     assert message.tag == f"idea-comment-{iid}"
     assert message.data == {"idea_id": iid, "comment_id": comment_id}
     assert message.text_context["author_name"] == "Editor2"
@@ -714,8 +715,6 @@ def test_the_idea_comment_push_is_delivered_to_the_author_and_not_the_commenter(
             Settings(
                 db_url="sqlite://",
                 player_accounts=(),
-                jwt_secret="test-jwt-secret",
-                ws_require_auth=False,
                 log_level="DEBUG",
                 push_vapid_public_key="test-public-key",
                 push_vapid_private_key="test-private-key",

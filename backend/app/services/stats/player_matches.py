@@ -152,7 +152,7 @@ def compute_stats_player_matches(s: Session, *, player_id: int, scope: str = "to
 
     # What each club was worth *on the day the match was played* (R4) — a club
     # re-rated since must not rewrite what an old match counted as.
-    stars = StarRatingResolver.load(s)
+    stars = StarRatingResolver.for_current_group(s)
 
     cup_stakes_by_tid = compute_all_cup_tournament_stakes_by_tournament(s) if include_tournaments(scope_norm) else {}
     grouped: dict[int, dict[str, Any]] = {}

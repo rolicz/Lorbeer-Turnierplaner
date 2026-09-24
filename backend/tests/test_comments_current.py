@@ -334,7 +334,7 @@ def test_comment_image_editor_or_admin_and_image_only_comment_allowed(client, ed
     assert r6.status_code == 400, r6.text
 
 
-def test_comment_image_follows_the_text_edit_rule(client, editor_headers, admin_headers):
+def test_comment_image_follows_the_text_edit_rule(client, anon, editor_headers, admin_headers):
     """Replacing/deleting an image obeys the same rule as editing the text: author (in the
     window) or admin -- an editor may not touch someone else's picture."""
     p1 = client.post("/players", json={"display_name": "IA1"}, headers=admin_headers).json()["id"]
@@ -351,8 +351,8 @@ def test_comment_image_follows_the_text_edit_rule(client, editor_headers, admin_
     # A comment authored by the admin.
     cid = client.post(f"/tournaments/{tid}/comments", json={"body": "admins"}, headers=admin_headers).json()["id"]
 
-    r_reader = client.put(f"/comments/{cid}/image", files=files)
-    assert r_reader.status_code in (401, 403), r_reader.text
+    r_reader = anon.put(f"/comments/{cid}/image", files=files)
+    assert r_reader.status_code == 401, r_reader.text
 
     r_editor = client.put(f"/comments/{cid}/image", files=files, headers=editor_headers)
     assert r_editor.status_code == 403, r_editor.text

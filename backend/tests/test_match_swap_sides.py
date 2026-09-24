@@ -39,14 +39,14 @@ def test_swap_sides_swaps_players_and_goals(client, editor_headers, admin_header
     assert (after[0]["goals"], after[1]["goals"]) == (1, 3)
 
 
-def test_swap_sides_requires_editor(client, editor_headers, admin_headers):
+def test_swap_sides_requires_editor(client, anon, editor_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["SW4", "SW5", "SW6"]]
     tid = create_tournament(client, editor_headers, "swap-auth", "1v1", ids)
     generate(client, editor_headers, tid, randomize=False)
 
     mid = _first_match(client, tid)["id"]
 
-    r_reader = client.patch(f"/matches/{mid}/swap-sides")
+    r_reader = anon.patch(f"/matches/{mid}/swap-sides")
     assert r_reader.status_code in (401, 403), r_reader.text
 
 

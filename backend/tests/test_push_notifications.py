@@ -207,8 +207,6 @@ def test_notification_modes_filter_delivery(client, monkeypatch):
             Settings(
                 db_url="sqlite://",
                 player_accounts=(),
-                jwt_secret="test-jwt-secret",
-                ws_require_auth=False,
                 log_level="DEBUG",
                 push_vapid_public_key="test-public-key",
                 push_vapid_private_key="test-private-key",
@@ -351,7 +349,7 @@ def test_comment_creation_enqueues_push(client, editor_headers, admin_headers, m
     assert len(messages) == 1
     message = messages[0]
     assert message.event_type == "comment_created"
-    assert message.path == f"/live/{tournament_id}?comment={comment_id}"
+    assert message.path == f"/g/altherren/live/{tournament_id}?comment={comment_id}"
     assert "Push Comments" in message.title
 
 
@@ -393,7 +391,7 @@ def test_goal_comment_creation_enqueues_goal_push(client, editor_headers, admin_
     assert len(messages) == 1
     message = messages[0]
     assert message.event_type == "goal_comment_created"
-    assert message.path == f"/live/{tournament_id}?comment={created.json()['id']}"
+    assert message.path == f"/g/altherren/live/{tournament_id}?comment={created.json()['id']}"
     payload = message.to_payload("english")
     assert payload["title"] == "Goal update in Match 1"
     assert "12' 1-0 Ronaldo" in payload["body"]
@@ -550,8 +548,6 @@ def test_poke_push_digest_summarizes_within_cooldown(tmp_path):
             settings=Settings(
                 db_url=f"sqlite:///{tmp_path / 'poke-digest.db'}",
                 player_accounts=(),
-                jwt_secret="test-jwt-secret",
-                ws_require_auth=False,
                 log_level="DEBUG",
                 push_vapid_public_key="test-public",
                 push_vapid_private_key="test-private",

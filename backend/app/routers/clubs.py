@@ -17,7 +17,16 @@ from ..schemas.responses import (
     ClubStarHistoryOut,
     LeagueOut,
 )
-from ..services.club_stars import record_star_rating, star_history
+from ..services.club_stars import (
+    AlreadyGlobal,
+    StarDayTaken,
+    StarRatingResolver,
+    current_group_id,
+    promote_to_global,
+    record_star_rating,
+    star_history,
+    today,
+)
 from ..services.file_storage import (
     delete_media,
     media_path_for_club_crest,
@@ -118,7 +127,7 @@ def get_club_crest(club_id: int):
         raise HTTPException(status_code=404, detail="Crest file missing")
 
     # Crests change basically never; the frontend appends updated_at as a cache buster.
-    headers = {"Cache-Control": "public, max-age=2592000"}
+    headers = {"Cache-Control": "private, max-age=2592000"}
     return Response(content=data, media_type=content_type, headers=headers)
 
 
@@ -207,8 +216,13 @@ def create_club(body: ClubCreateBody, s: Session = Depends(get_session)):
     s.commit()
     s.refresh(c)
 
-    # The club's history starts here (R4) — needs the id, so it is a second commit.
-    record_star_rating(s, int(c.id), stars)
+    # The club's history starts here (R4) — needs the id, so it is a second commit. A
+    # live write is the current group's own rating (L12).
+    try:
+        record_star_rating(s, int(c.id), stars, group_id=current_group_id(s))
+    except StarDayTaken as e:  # only a reused club id (A9) carrying a stale row could
+        s.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
     s.commit()
     s.refresh(c)
 
@@ -287,8 +301,11 @@ def patch_club(
         # The rating a club carries today is `Club.star_rating`; what it carried when a
         # past match was played comes from this row (R4). Same transaction as the club.
         if stars_written is not None:
-            record_star_rating(s, club_id, stars_written)
+            record_star_rating(s, club_id, stars_written, group_id=current_group_id(s))
         s.commit()
+    except StarDayTaken as e:
+        s.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
     except IntegrityError:
         s.rollback()
         raise HTTPException(status_code=409, detail="Club with same name and game already exists")
@@ -300,15 +317,18 @@ def patch_club(
 @router.get("/{club_id}/star-history", response_model=ClubStarHistoryOut)
 def get_club_star_history(club_id: int, s: Session = Depends(get_session)):
     """
-    Every recorded rating of one club, oldest first — a public read like `GET /clubs`.
+    Every recorded rating of one club the current group sees — the global rows and the
+    group's own, each saying which (`scope`, L12) — oldest first.
 
     `current_stars` is `Club.star_rating`, so a caller never has to guess whether the
-    last row is still in force.
+    last row is still in force; `current_is_global` says whether what this group counts
+    today is the global rating, i.e. whether promoting it would change anything.
     """
     c = s.get(Club, club_id)
     if not c:
         raise HTTPException(status_code=404, detail="Club not found")
-    rows = star_history(s, club_id)
+    gid = current_group_id(s)
+    rows = star_history(s, club_id, group_id=gid)
     return ClubStarHistoryOut(
         club_id=club_id,
         current_stars=float(c.star_rating),
@@ -318,10 +338,45 @@ def get_club_star_history(club_id: int, s: Session = Depends(get_session)):
                 valid_from=r.valid_from,
                 changed_at=r.changed_at,
                 source=r.source,
+                scope="global" if r.group_id is None else "group",
             )
             for r in rows
         ],
+        current_is_global=_current_is_global(s, club_id, gid),
     )
+
+
+def _current_is_global(s: Session, club_id: int, group_id: int | None) -> bool:
+    day = today()
+    resolver = StarRatingResolver.load(s, group_id=group_id, club_id=club_id)
+    global_now = resolver.as_of(club_id, day, None, strict=True)
+    return global_now is not None and global_now == resolver.as_of(club_id, day)
+
+
+@router.post("/{club_id}/stars/promote", response_model=ClubStarHistoryOut)
+def promote_club_stars(
+    club_id: int,
+    s: Session = Depends(get_session),
+    role: str = Depends(require_admin),
+):
+    """
+    Site admin only (L12): the rating the current group counts today becomes the global
+    rating, **from today on**. Forward-only — no past row is rewritten, so no finished
+    match of any group resolves differently. 409 when the global rating already has that
+    value, or when another group set this club's rating today. Answers the new history.
+    """
+    if s.get(Club, club_id) is None:
+        raise HTTPException(status_code=404, detail="Club not found")
+    gid = current_group_id(s)
+    try:
+        row = promote_to_global(s, club_id, gid)
+        s.commit()
+    except (AlreadyGlobal, StarDayTaken) as e:
+        s.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
+    log.info("Club stars promoted to global: club_id=%s stars=%s group_id=%s by=%s", club_id, row.stars, gid, role)
+    return get_club_star_history(club_id, s)
+
 
 @router.delete("/{club_id}", dependencies=[Depends(require_admin)])
 def delete_club(

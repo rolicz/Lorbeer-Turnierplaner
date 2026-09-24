@@ -25,6 +25,7 @@ import {
 import { countCurrentSubjectEntries } from "./guestbookSubjects";
 import { type GuestbookCardContextValue } from "./GuestbookEntryCard";
 import { type GuestbookSectionProps } from "./GuestbookSection";
+import { atLeast } from "../../auth/AuthContext";
 
 export type FocusGuestbookEntry = (
   entryId: number,
@@ -40,7 +41,6 @@ export type FocusGuestbookEntry = (
  */
 export function useProfileGuestbook({
   targetPlayerId,
-  token,
   role,
   actorPlayerId,
   currentPlayerId,
@@ -48,7 +48,6 @@ export function useProfileGuestbook({
   avatarUpdatedAtByPlayerId,
 }: {
   targetPlayerId: number | null;
-  token: string | null;
   role: Role | null;
   actorPlayerId: number | null;
   currentPlayerId: number | null;
@@ -56,26 +55,28 @@ export function useProfileGuestbook({
   avatarUpdatedAtByPlayerId: Map<number, string | null>;
 }) {
   const qc = useQueryClient();
+  /** Whose answers the rows carry: the session's player (`null` = nobody, only in tests). */
+  const viewerId = currentPlayerId;
 
   /**
-   * The feed is a public read that carries per-caller answers: `can_edit` and `my_vote`
-   * are computed from the bearer token, so reading it anonymously told every logged-in
-   * reader they could edit nothing and had voted on nothing (G4). The token therefore goes
-   * with the request **and** into the key — the `commentsTournamentFull` / `friendliesList`
-   * / `ideas` shape — because `["players","guestbook",id]` alone would let a logged-out
-   * payload (or the previous account's) be served after a login, which is the same bug with
-   * an extra step. Every invalidation in this file keeps using the short prefix, which
-   * matches every token's entry.
+   * The feed carries per-caller answers: `can_edit` and `my_vote` are computed from the
+   * session, so reading it as nobody told every logged-in reader they could edit nothing
+   * and had voted on nothing (G4). The cookie now goes with the request by itself, and the
+   * viewer goes into the key — the `commentsTournamentFull` / `friendliesList` / `ideas`
+   * shape — because `["players","guestbook",id]` alone would let the previous account's
+   * payload be served after a login, which is the same bug with an extra step. Every
+   * invalidation in this file keeps using the short prefix, which matches every viewer's
+   * entry.
    */
   const guestbookQ = useQuery({
-    queryKey: qk.playerGuestbookFull(targetPlayerId ?? "none", token),
-    queryFn: () => listPlayerGuestbook(targetPlayerId as number, token),
+    queryKey: qk.playerGuestbookFull(targetPlayerId ?? "none", viewerId),
+    queryFn: () => listPlayerGuestbook(targetPlayerId as number),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
   const guestbookReadQ = useQuery({
-    queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token),
-    queryFn: () => listPlayerGuestbookReadIds(token as string, targetPlayerId as number),
-    enabled: !!token && Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+    queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", viewerId),
+    queryFn: () => listPlayerGuestbookReadIds(targetPlayerId as number),
+    enabled: viewerId != null && Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
   });
 
   const [guestbookDraftByPlayerId, setGuestbookDraftByPlayerId] = useState<Record<number, string>>({});
@@ -117,7 +118,7 @@ export function useProfileGuestbook({
     [targetPlayerId, collapsedEntryByProfileId]
   );
 
-  const canPostGuestbook = !!token && role !== "reader";
+  const canPostGuestbook = role != null && atLeast(role, "editor");
   /**
    * Bumped whenever the caret belongs in the composer: after a posted message, and when
    * an item's trigger arms it for a subject. `AutoTextarea`'s focus effect also runs on
@@ -131,33 +132,33 @@ export function useProfileGuestbook({
   );
 
   const unreadGuestbookCount = useMemo(() => {
-    if (!token) return 0;
+    if (viewerId == null) return 0;
     let n = 0;
     for (const row of guestbookQ.data ?? []) {
       if (!seenGuestbook.has(row.id)) n++;
     }
     return n;
-  }, [guestbookQ.data, seenGuestbook, token]);
+  }, [guestbookQ.data, seenGuestbook, viewerId]);
   const unreadGuestbookIds = useMemo(
-    () => (!token ? [] : (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id)).map((row) => row.id)),
-    [guestbookQ.data, seenGuestbook, token]
+    () => (viewerId == null ? [] : (guestbookQ.data ?? []).filter((row) => !seenGuestbook.has(row.id)).map((row) => row.id)),
+    [guestbookQ.data, seenGuestbook, viewerId]
   );
   const totalGuestbookCount = Number(guestbookQ.data?.length ?? 0);
   const isGuestbookUnread = useCallback(
-    (id: number) => !!token && !seenGuestbook.has(id),
-    [token, seenGuestbook]
+    (id: number) => viewerId != null && !seenGuestbook.has(id),
+    [viewerId, seenGuestbook]
   );
   const unreadGuestbookAuthorsText = useMemo(() => {
-    if (!token || !isOwnProfile) return "";
+    if (!isOwnProfile) return "";
     return summarizeUnreadGuestbookAuthors(guestbookQ.data ?? [], isGuestbookUnread);
-  }, [guestbookQ.data, isOwnProfile, isGuestbookUnread, token]);
+  }, [guestbookQ.data, isOwnProfile, isGuestbookUnread]);
   const unreadGuestbookAuthorCount = useMemo(() => {
-    if (!token || !isOwnProfile) return 0;
+    if (!isOwnProfile) return 0;
     return countUnreadGuestbookAuthors(guestbookQ.data ?? [], isGuestbookUnread);
-  }, [guestbookQ.data, isOwnProfile, isGuestbookUnread, token]);
+  }, [guestbookQ.data, isOwnProfile, isGuestbookUnread]);
   const latestUnreadGuestbookEntryId = useMemo(
-    () => (!token ? null : latestUnreadGuestbookId(guestbookQ.data ?? [], isGuestbookUnread)),
-    [guestbookQ.data, isGuestbookUnread, token]
+    () => (viewerId == null ? null : latestUnreadGuestbookId(guestbookQ.data ?? [], isGuestbookUnread)),
+    [guestbookQ.data, isGuestbookUnread, viewerId]
   );
   const guestbookRootsAndChildren = useMemo(
     () => buildGuestbookTree(guestbookQ.data ?? []),
@@ -239,10 +240,8 @@ export function useProfileGuestbook({
       /** Roots only — the server answers 400 for a reply that carries one. */
       subjectKind: GuestbookSubjectKind | null;
     }) => {
-      if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
       return createPlayerGuestbookEntry(
-        token,
         targetPlayerId,
         body,
         parentEntryId,
@@ -276,25 +275,23 @@ export function useProfileGuestbook({
       }
       await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId ?? "none") });
       await qc.invalidateQueries({ queryKey: qk.playerGuestbookSummary() });
-      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token) });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", viewerId) });
     },
   });
 
   const deleteGuestbookMut = useMutation({
     mutationFn: async (entryId: number) => {
-      if (!token) throw new Error("Not logged in");
-      await deletePlayerGuestbookEntry(token, entryId);
+      await deletePlayerGuestbookEntry(entryId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId ?? "none") });
       await qc.invalidateQueries({ queryKey: qk.playerGuestbookSummary() });
-      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token) });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", viewerId) });
     },
   });
   const editGuestbookMut = useMutation({
     mutationFn: async ({ entryId, body }: { entryId: number; body: string }) => {
-      if (!token) throw new Error("Not logged in");
-      return editPlayerGuestbookEntry(token, entryId, body);
+      return editPlayerGuestbookEntry(entryId, body);
     },
     onSuccess: async (_result, vars) => {
       if (targetPlayerId != null) {
@@ -308,28 +305,26 @@ export function useProfileGuestbook({
   });
   const markGuestbookReadMut = useMutation({
     mutationFn: async (entryId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return markPlayerGuestbookEntryRead(token, entryId);
+      return markPlayerGuestbookEntryRead(entryId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token) });
-      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadMap(token) });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", viewerId) });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadMap(viewerId) });
     },
   });
   const markGuestbookReadAllMut = useMutation({
     mutationFn: async () => {
-      if (!token || !targetPlayerId) throw new Error("Not logged in");
-      return markAllPlayerGuestbookEntriesRead(token, targetPlayerId);
+      if (!targetPlayerId) throw new Error("Not logged in");
+      return markAllPlayerGuestbookEntriesRead(targetPlayerId);
     },
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", token) });
-      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadMap(token) });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadIds(targetPlayerId ?? "none", viewerId) });
+      await qc.invalidateQueries({ queryKey: qk.playerGuestbookReadMap(viewerId) });
     },
   });
   const voteGuestbookMut = useMutation({
     mutationFn: async (payload: { entryId: number; value: -1 | 0 | 1 }) => {
-      if (!token) throw new Error("Not logged in");
-      return votePlayerGuestbookEntry(token, payload.entryId, payload.value);
+      return votePlayerGuestbookEntry(payload.entryId, payload.value);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.playerGuestbook(targetPlayerId ?? "none") });
@@ -349,7 +344,7 @@ export function useProfileGuestbook({
       canPostGuestbook,
       isUnread: isGuestbookUnread,
       canDelete: (entry) =>
-        !!token && (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id),
+        viewerId != null && (role === "admin" || isOwnProfile || currentPlayerId === entry.author_player_id),
       // The server owns the rule (`guestbook_can_edit`: the author inside the hour, or an
       // admin) and this never re-derives it — but the flag is computed from the *account*,
       // while "view as lower role" is a frontend-only convenience, so the effective role
@@ -361,9 +356,9 @@ export function useProfileGuestbook({
       votePending: voteGuestbookMut.isPending,
       createPending: createGuestbookMut.isPending,
       editPending: editGuestbookMut.isPending,
-      voteEnabled: !!token && !voteGuestbookMut.isPending,
+      voteEnabled: viewerId != null && !voteGuestbookMut.isPending,
       markRead: (entryId) => {
-        if (!token || markGuestbookReadMut.isPending) return;
+        if (markGuestbookReadMut.isPending) return;
         markGuestbookReadMut.mutate(entryId);
       },
       toggleReply: (entryId) => {
@@ -382,7 +377,7 @@ export function useProfileGuestbook({
       },
       requestDelete: (entry) => setPendingDeleteEntry(entry),
       vote: (entryId, value) => {
-        if (!token || voteGuestbookMut.isPending) return;
+        if (voteGuestbookMut.isPending) return;
         voteGuestbookMut.mutate({ entryId, value });
       },
       showVoters: (entryId) => setVoteVotersEntryId(entryId),
@@ -444,7 +439,7 @@ export function useProfileGuestbook({
       collapsedEntryIds,
       canPostGuestbook,
       isGuestbookUnread,
-      token,
+      viewerId,
       role,
       isOwnProfile,
       currentPlayerId,

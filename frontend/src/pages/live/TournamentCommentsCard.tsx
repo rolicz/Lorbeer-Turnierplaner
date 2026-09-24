@@ -18,7 +18,7 @@ import { fmtTs } from "../../utils/format";
 import { joinNames } from "../../utils/matchDisplay";
 import { listTournamentComments, listCommentVoters } from "../../api/comments.api";
 import { qk } from "../../api/queryKeys";
-import { useAuth } from "../../auth/AuthContext";
+import { atLeast, useAuth } from "../../auth/AuthContext";
 import { useSeenSet } from "../../hooks/useSeenComments";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import { type CommentCardContextValue } from "./TournamentCommentParts";
@@ -76,8 +76,8 @@ export default function TournamentCommentsCard({
    */
   headerAction?: ReactNode;
 }) {
-  const { token, role, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
-  const canAttachImage = role === "admin" || role === "editor";
+  const { role, playerId: viewerId, actorPlayerId: currentPlayerId, actorPlayerName: currentPlayerName } = useAuth();
+  const canAttachImage = atLeast(role, "editor");
   const { ids: seen } = useSeenSet(tournamentId);
 
   const { avatarUpdatedAtById: avatarUpdatedAtByPlayerId } = usePlayerAvatarMap();
@@ -154,8 +154,8 @@ export default function TournamentCommentsCard({
     });
 
   const commentsQ = useQuery({
-    queryKey: qk.commentsTournamentFull(tournamentId, token),
-    queryFn: () => listTournamentComments(tournamentId, token),
+    queryKey: qk.commentsTournamentFull(tournamentId, viewerId),
+    queryFn: () => listTournamentComments(tournamentId),
     enabled: !!tournamentId,
   });
 
@@ -331,7 +331,7 @@ export default function TournamentCommentsCard({
   }
   async function submitReply(parent: TournamentComment) {
     const body = replyDraft.trim();
-    if (!body || !token) return;
+    if (!body) return;
     try {
       const created = await createMut.mutateAsync({
         scope: parent.scope,
@@ -405,7 +405,7 @@ export default function TournamentCommentsCard({
             : { scope, author_player_id, body, has_image: hasImage },
       );
       const imageBlob = draftImageBlob;
-      if (draftMode === "comment" && hasImage && token && imageBlob) {
+      if (draftMode === "comment" && hasImage && imageBlob) {
         try {
           await putImageMut.mutateAsync({ commentId: created.id, blob: imageBlob });
         } catch (e: unknown) {
@@ -749,8 +749,7 @@ export default function TournamentCommentsCard({
 
   // --- chips / filtered feed ---
   const generalComments = grouped.tournament;
-  const generalUnseen =
-    !!token && comments.some((c) => grouped.rootScopeKey.get(c.id) === "general" && !seen.has(c.id));
+  const generalUnseen = comments.some((c) => grouped.rootScopeKey.get(c.id) === "general" && !seen.has(c.id));
   const matchBlocksWithComments = grouped.blocks.filter((b) => b.comments.length > 0);
   const totalComments = comments.length;
 
@@ -832,7 +831,6 @@ export default function TournamentCommentsCard({
   // that are recreated every render, so memoizing here would either recompute every render
   // anyway or — if under-declared as deps — reintroduce the stale-closure trap fixed in F1.
   const commentCardCtx: CommentCardContextValue = {
-    token,
     seen,
     canWrite,
     canDelete,
@@ -851,7 +849,7 @@ export default function TournamentCommentsCard({
     replyDraft,
     replySubmitting: createMut.isPending,
     onMarkSeen: (id) => {
-      if (!token || markReadMut.isPending) return;
+      if (markReadMut.isPending) return;
       markReadMut.mutate(id);
     },
     onTogglePin: (c) => {
@@ -859,7 +857,7 @@ export default function TournamentCommentsCard({
       void pinMut.mutateAsync(next);
     },
     onVote: (id, value) => {
-      if (!token || voteMut.isPending) return;
+      if (voteMut.isPending) return;
       voteMut.mutate({ commentId: id, value });
     },
     onOpenVoters: (id) => setVoteVotersCommentId(id),
@@ -926,7 +924,7 @@ export default function TournamentCommentsCard({
               matchId: b.matchId,
               label: `Match ${matchIndexById.get(b.matchId) ?? b.matchId}`,
               count: b.comments.length,
-              unseen: !!token && b.comments.some((c) => !seen.has(c.id)),
+              unseen: b.comments.some((c) => !seen.has(c.id)),
             }))}
           />
         </div>

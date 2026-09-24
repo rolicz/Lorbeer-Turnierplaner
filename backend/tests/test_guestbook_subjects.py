@@ -90,7 +90,7 @@ def test_a_subject_comment_pins_a_copy_of_the_current_header_image(
     r_img = client.get(f"/players/guestbook-subjects/{snapshot_id}/image")
     assert r_img.status_code == 200, r_img.text
     assert r_img.content == HEADER_A
-    assert r_img.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert r_img.headers["cache-control"] == "private, max-age=31536000, immutable"
     assert len(_subject_files(tmp_path)) == 1
 
     # The picture moves on; the entry does not.
@@ -321,7 +321,7 @@ def test_a_tagged_entry_notifies_exactly_once(client, editor_headers, editor2_he
     assert {i["kind"] for i in items} == {"guestbook"}
     tagged = [i for i in guestbook_items if int(i["id"]) == int(created.json()["id"])]
     assert len(tagged) == 1
-    assert tagged[0]["path"] == f"/profiles/{owner_id}?tab=guestbook&entry={created.json()['id']}"
+    assert tagged[0]["path"] == f"/g/altherren/profiles/{owner_id}?tab=guestbook&entry={created.json()['id']}"
 
 
 def test_orphans_are_swept_at_startup(client, editor_headers, editor2_headers, tmp_path):

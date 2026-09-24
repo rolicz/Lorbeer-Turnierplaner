@@ -439,7 +439,250 @@ def parse_args() -> argparse.Namespace:
         help="Remote repo root, e.g. hetzner:/home/rczerny/projects/Lorbeer-Turnierplaner",
     )
 
+    preflight = sub.add_parser(
+        "auth-preflight",
+        help="Dry-run the auth boot migration against a database (opened read-only) and report; exit 1 on a problem",
+    )
+    # Accepted after the subcommand too (`auth-preflight --secrets … --db-url …`), which is
+    # how the deploy notes spell it; SUPPRESS keeps the global value when they are absent.
+    preflight.add_argument("--secrets", default=argparse.SUPPRESS)
+    preflight.add_argument("--db-url", default=argparse.SUPPRESS)
+
+    # The escape hatch's five commands (FEATURES_2026-09-auth.md, "The escape hatch"): Roli's
+    # way back in if login breaks on deploy day. Shape fixed by L1, bodies by L3. Each
+    # resolves the player by login name (case-insensitive), prints one line, commits.
+    def _hatch(name: str, help_text: str) -> argparse.ArgumentParser:
+        cmd = sub.add_parser(name, help=help_text)
+        cmd.add_argument("--secrets", default=argparse.SUPPRESS)
+        cmd.add_argument("--db-url", default=argparse.SUPPRESS)
+        return cmd
+
+    reset_link = _hatch("reset-link", "Print a one-hour, single-use password reset link for a player")
+    reset_link.add_argument("--player", required=True)
+    reset_link.add_argument("--origin", help="Origin the link points at (default: the configured auth_origin)")
+    set_password = _hatch("set-password", "Prompt (no echo, twice) for a new password and store its argon2id hash")
+    set_password.add_argument("--player", required=True)
+    make_admin = _hatch("make-admin", "Make a player's account a site admin (or, with --revoke, take it away)")
+    make_admin.add_argument("--player", required=True)
+    make_admin.add_argument("--revoke", action="store_true")
+    invite = _hatch("invite", "Print a one-hour, single-use invite code for a group")
+    invite.add_argument("--group", required=True, help="The group's slug, e.g. altherren")
+    invite.add_argument("--note", default="")
+    sessions = _hatch("sessions", "List a player's live sessions, or revoke them all")
+    sessions.add_argument("--player", required=True)
+    sessions.add_argument("--revoke-all", action="store_true")
+    verify_email = _hatch("verify-email", "Mark an email address verified for a player by hand (the DNS-is-broken hatch)")
+    verify_email.add_argument("--player", required=True)
+    verify_email.add_argument("--email", required=True)
+
+    # The deliverability gate (E1). With --host, the four flags replace the configured SMTP
+    # settings and the password is prompted (never a flag), so the gate can run before the
+    # app is configured; the boot guard still decides whether this server may send at all.
+    mail_test = _hatch("mail-test", "Send one test email through the configured (or given) transport")
+    mail_test.add_argument("--to", required=True, help="Where to send it (a Gmail address shows SPF/DKIM/DMARC)")
+    mail_test.add_argument("--host", help="SMTP host (then --user and --from are needed; the password is prompted)")
+    mail_test.add_argument("--port", type=int, help="SMTP port (default 465, implicit TLS)")
+    mail_test.add_argument("--user", help="SMTP login mailbox")
+    mail_test.add_argument("--from", dest="from_addr", help="Sender address, e.g. no-reply@lorbeerkranz.xyz")
+
     return p.parse_args()
+
+
+ESCAPE_HATCH_COMMANDS = {"reset-link", "set-password", "make-admin", "invite", "sessions", "verify-email"}
+
+
+def _hatch_player(s, name: str):
+    """The `(Player, Account)` whose login name is `name`, or None (the caller reports)."""
+    from app.models import Player
+    from app.services.accounts import find_account_by_name
+
+    account = find_account_by_name(s, name)
+    player = s.get(Player, int(account.player_id)) if account is not None else None
+    return (player, account) if player is not None else (None, None)
+
+
+def _run_escape_hatch(args, settings) -> int:
+    """The five escape-hatch commands. Returns the exit code: 0 done, 1 refused."""
+    import datetime as dt
+    import getpass
+
+    from fastapi import HTTPException
+
+    from app.models import AuthSession
+    from app.services.accounts import set_password as store_password
+    from app.services.groups import group_by_slug
+    from app.services.invites import create_invite
+    from app.services.passwords import hasher_for
+    from app.services.reset_links import create_reset, reset_url
+    from app.services.sessions import list_sessions, revoke_all_sessions
+
+    with Session(get_engine()) as s:
+        if args.cmd == "invite":
+            group = group_by_slug(s, args.group)
+            if group is None:
+                print(f"invite: no group with the slug {args.group!r}", file=sys.stderr)
+                return 1
+            row, code = create_invite(s, group_id=int(group.id), created_by=None, note=args.note)
+            s.commit()
+            print(f"{code}  (group {group.slug}, single use, expires {row.expires_at.isoformat(timespec='minutes')} UTC)")
+            return 0
+
+        player, account = _hatch_player(s, args.player)
+        if account is None:
+            print(f"{args.cmd}: no account answers to {args.player!r}", file=sys.stderr)
+            return 1
+        who = f"{player.display_name} (id={player.id})"
+
+        if args.cmd == "reset-link":
+            row, token = create_reset(s, player_id=int(player.id), created_by=None)
+            s.commit()
+            print(f"{reset_url(args.origin or settings.auth_origin, token)}  ({who}, single use, expires {row.expires_at.isoformat(timespec='minutes')} UTC)")
+            return 0
+
+        if args.cmd == "set-password":
+            if sys.stdin.isatty():
+                first = getpass.getpass(f"New password for {player.display_name}: ")
+                second = getpass.getpass("Again: ")
+            else:  # piped (`docker compose exec -T`, a test): two lines on stdin, never echoed back
+                first = sys.stdin.readline().rstrip("\r\n")
+                second = sys.stdin.readline().rstrip("\r\n")
+            if first != second:
+                print("set-password: the two entries differ — nothing stored", file=sys.stderr)
+                return 1
+            try:
+                store_password(s, account, first, hasher_for(settings.password_hash_profile), origin="set")
+            except HTTPException as exc:
+                print(f"set-password: {exc.detail} — nothing stored", file=sys.stderr)
+                return 1
+            s.commit()
+            print(f"Password set for {who}; existing sessions stay signed in")
+            return 0
+
+        if args.cmd == "verify-email":
+            from app.services.account_email import email_key, ensure_email_free, mark_verified_by_hand, validate_email
+
+            try:
+                email = validate_email(args.email)
+                ensure_email_free(s, email_key(email), except_player_id=int(player.id))
+            except HTTPException as exc:
+                print(f"verify-email: {exc.detail} — nothing stored", file=sys.stderr)
+                return 1
+            previous = mark_verified_by_hand(s, account, email)
+            s.commit()
+            replaced = f" (replacing {previous}; no notice was sent)" if previous else ""
+            print(f"Email {email} verified by hand for {who}{replaced}")
+            return 0
+
+        if args.cmd == "make-admin":
+            account.site_admin = not args.revoke
+            account.updated_at = dt.datetime.utcnow()
+            s.add(account)
+            s.commit()
+            print(f"{who} is {'no longer' if args.revoke else 'now'} a site admin")
+            return 0
+
+        if args.cmd == "sessions":
+            if args.revoke_all:
+                n = revoke_all_sessions(s, int(player.id))
+                s.commit()
+                print(f"Revoked {n} session(s) of {who}")
+                return 0
+            rows: list[AuthSession] = list_sessions(s, int(player.id))
+            print(f"{len(rows)} live session(s) of {who}")
+            for row in rows:
+                print(
+                    f"  #{row.id}  {row.kind:<9} {row.device_label or '—':<20} "
+                    f"last seen {row.last_seen_at.isoformat(timespec='minutes')}  from {row.ip or '?'}"
+                )
+            return 0
+
+    raise AssertionError(f"unhandled escape-hatch command {args.cmd!r}")  # pragma: no cover
+
+
+def _run_mail_test(args, settings) -> int:
+    """`mail-test`: send one `test_message` and say what to read in Gmail. Exit 0 sent,
+    1 refused or failed. Never prints the password or the message body."""
+    import dataclasses
+    import getpass
+
+    from app.services.mail import MailNotConfigured, MailSendError, mail_transport_for
+    from app.services.mail_texts import test_message
+    from app.settings import AuthConfigError, assert_auth_config_safe
+
+    if args.host:
+        if sys.stdin.isatty():
+            password = getpass.getpass(f"SMTP password for {args.user or '(no --user)'}: ")
+        else:  # piped: one line on stdin, never echoed back
+            password = sys.stdin.readline().rstrip("\r\n")
+        settings = dataclasses.replace(
+            settings,
+            smtp_host=str(args.host).strip().lower(),
+            smtp_port=int(args.port or 465),
+            smtp_user=str(args.user or "").strip(),
+            smtp_pass=password,
+            smtp_from=str(args.from_addr or "").strip(),
+        )
+    try:
+        assert_auth_config_safe(settings)
+    except AuthConfigError as exc:
+        print(f"mail-test: refused — {exc}", file=sys.stderr)
+        return 1
+    transport = mail_transport_for(settings)
+    print(f"Mail: {transport.description}")
+    if not transport.configured:
+        print("mail-test: this server has no way to send mail — nothing sent", file=sys.stderr)
+        return 1
+    to = str(args.to or "").strip()
+    try:
+        transport.send(test_message(to=to, description=transport.description))
+    except (MailSendError, MailNotConfigured) as exc:
+        print(f"mail-test: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"Sent to {to} via {transport.description}. Open it in Gmail → ⋮ → Show original and read the "
+        "SPF, DKIM and DMARC lines: all three must say PASS (DMARC once its record is published)."
+    )
+    return 0
+
+
+def _read_only_engine(db_path: Path):
+    """A SQLAlchemy engine over `mode=ro` — the recovery command's precedent: nothing it
+    runs can write, even by mistake."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.pool import NullPool
+
+    uri = f"file:{db_path}?mode=ro"
+    return create_engine("sqlite://", creator=lambda: sqlite3.connect(uri, uri=True), poolclass=NullPool)
+
+
+def _render_preflight(report, *, db_path: Path) -> str:
+    lines = [f"Auth preflight against {db_path} (read-only, nothing written)", ""]
+    lines.append(f"  group to create:            {'altherren' if report.groups_created else '— (exists)'}")
+    lines.append(f"  memberships to create:      {report.memberships_created}")
+    lines.append(
+        f"  accounts with a password:   {report.accounts_migrated}"
+        + (f"  ({', '.join(report.migrated_names)})" if report.migrated_names else "")
+    )
+    lines.append(f"  accounts without a password: {report.accounts_created - report.accounts_migrated}")
+    lines.append(
+        f"  owners (site admins):       {report.owners_promoted}"
+        + (f"  ({', '.join(report.admin_names)})" if report.admin_names else "")
+    )
+    backfill = ", ".join(f"{t}={n}" for t, n in report.backfilled.items()) or "—"
+    lines.append(f"  group_id backfill:          {backfill}")
+    for name in report.duplicate_entries:
+        lines.append(f"  note: player_accounts entry {name!r} repeats an earlier name; the first one wins")
+    if report.accounts_with_password_after == 0:
+        lines.append("  WARNING: no account would have a password afterwards — nobody could log in with one.")
+    lines.append("")
+    if report.unmatched_names:
+        lines.append("PROBLEM: player_accounts names that match no player (they would be skipped):")
+        lines.extend(f"  - {name}" for name in report.unmatched_names)
+    if report.case_collisions:
+        lines.append("PROBLEM: players whose names differ only in case (the backend would refuse to boot):")
+        lines.extend(f"  - {' / '.join(names)}" for names in report.case_collisions)
+    lines.append("RESULT: " + ("FAIL" if report.problems else "OK"))
+    return "\n".join(lines)
 
 
 def main() -> None:
@@ -460,7 +703,28 @@ def main() -> None:
         db_commands = db_commands | {args.cmd}
     if args.cmd in db_commands:
         configure_db(settings.db_url)
-        init_db()
+        init_db(settings)
+
+    if args.cmd == "mail-test":
+        raise SystemExit(_run_mail_test(args, settings))
+
+    if args.cmd in ESCAPE_HATCH_COMMANDS:
+        configure_db(settings.db_url)
+        raise SystemExit(_run_escape_hatch(args, settings))
+
+    if args.cmd == "auth-preflight":
+        from app.services.auth_migration import migrate_from_settings
+
+        db_path = _sqlite_path_from_settings(settings.db_url)
+        if db_path is None or not db_path.is_file():
+            raise RuntimeError(f"auth-preflight needs an existing SQLite file; db_url={settings.db_url!r}")
+        engine = _read_only_engine(db_path)
+        try:
+            report = migrate_from_settings(engine, settings, dry_run=True)
+        finally:
+            engine.dispose()
+        print(_render_preflight(report, db_path=db_path))
+        raise SystemExit(1 if report.problems else 0)
 
     if args.cmd == "seed":
         data = load_seed_file(args.file)

@@ -7,13 +7,11 @@ import { PUSH_BLOCKED_HINT, PUSH_BLOCKED_TITLE } from "../../push/pushSetup";
 
 function statusLabel(opts: {
   supported: boolean;
-  token: string | null;
   configured: boolean;
   serverEnabled: boolean;
   permission: NotificationPermission | "unsupported";
   deviceEnabled: boolean;
 }): string {
-  if (!opts.token) return "Login required";
   if (!opts.supported) return "Unsupported";
   if (!opts.configured) return "Server setup missing";
   if (!opts.serverEnabled) return "Server unavailable";
@@ -24,20 +22,19 @@ function statusLabel(opts: {
 }
 
 /** Inline notifications controls for the Settings page (no dropdown/portal). */
-export default function PushNotificationsSettings({ token }: { token: string | null }) {
-  const push = usePushNotifications(token);
+export default function PushNotificationsSettings() {
+  const push = usePushNotifications();
 
   const label = useMemo(
     () =>
       statusLabel({
         supported: push.supported,
-        token,
         configured: push.configured,
         serverEnabled: push.serverEnabled,
         permission: push.permission,
         deviceEnabled: push.deviceEnabled,
       }),
-    [push.configured, push.deviceEnabled, push.permission, push.serverEnabled, push.supported, token],
+    [push.configured, push.deviceEnabled, push.permission, push.serverEnabled, push.supported],
   );
 
   // `warn`, not `error`: nothing failed and nothing is about to be destroyed — the reader
@@ -48,10 +45,6 @@ export default function PushNotificationsSettings({ token }: { token: string | n
     : push.permission === "denied"
       ? "text-warn"
       : "text-text-muted";
-
-  if (!token) {
-    return <div className="text-sm text-text-muted">Log in to manage notifications on this device.</div>;
-  }
 
   return (
     <div className="space-y-4">

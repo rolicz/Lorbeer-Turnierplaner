@@ -10,6 +10,126 @@ class LoginBody(BaseModel):
     password: str = ""
 
 
+class LogoutBody(BaseModel):
+    """`push_endpoint`: this device's push subscription, disabled in the same request (L2)."""
+
+    push_endpoint: str | None = None
+
+
+class RegisterBody(BaseModel):
+    """`POST /auth/register` (L3): an invite code, the new display name, a password."""
+
+    code: str = ""
+    display_name: str = ""
+    password: str = ""
+
+
+class RedeemBody(BaseModel):
+    """`POST /auth/redeem` (L3): an invite code, redeemed by an existing account."""
+
+    code: str = ""
+
+
+class ResetBody(BaseModel):
+    """`POST /auth/reset` (L3): the long token from a reset link and the new password."""
+
+    token: str = ""
+    password: str = ""
+
+
+class EmailBody(BaseModel):
+    """`PUT /auth/email` (E1): the address to verify."""
+
+    email: str = ""
+
+
+class EmailVerifyBody(BaseModel):
+    """`POST /auth/email/verify` (E1): the token from the link's fragment."""
+
+    token: str = ""
+
+
+class RecoverBody(BaseModel):
+    """`POST /auth/recover` (E2): the address a recovery link should go to. The answer is
+    the same whatever the address."""
+
+    email: str = ""
+
+
+class ResetPasskeyOptionsBody(BaseModel):
+    """`POST /auth/reset/passkey/options` (E2): the token from a reset link's fragment."""
+
+    token: str = ""
+
+
+class ResetPasskeyVerifyBody(BaseModel):
+    """`POST /auth/reset/passkey/verify` (E2): the same token and the JSON form of the
+    `PublicKeyCredential` `navigator.credentials.create()` returned; `label` as on the
+    logged-in register pair (empty → the device's name)."""
+
+    token: str = ""
+    credential: dict[str, Any] = Field(default_factory=dict)
+    label: str = ""
+
+
+class RegisterPasskeyOptionsBody(BaseModel):
+    """`POST /auth/register/passkey/options` (E2): an invite code and the new display name.
+    Both are checked here and remembered server-side; the verify step never takes them again."""
+
+    code: str = ""
+    display_name: str = ""
+
+
+class RegisterPasskeyVerifyBody(BaseModel):
+    """`POST /auth/register/passkey/verify` (E2): the credential only — the invite and the
+    name were remembered with the challenge."""
+
+    credential: dict[str, Any] = Field(default_factory=dict)
+    label: str = ""
+
+
+class PasswordChangeBody(BaseModel):
+    """`POST /auth/password` (L3). `current_password` is required when the account has one."""
+
+    current_password: str | None = None
+    new_password: str = ""
+
+
+class PasskeyRegisterVerifyBody(BaseModel):
+    """`POST /auth/passkeys/register/verify` (L8): `credential` is the JSON form of the
+    `PublicKeyCredential` `navigator.credentials.create()` returned (what
+    `@simplewebauthn/browser`'s `startRegistration` resolves to), passed through untouched;
+    `label` is what the list calls it (empty → the device's name)."""
+
+    credential: dict[str, Any] = Field(default_factory=dict)
+    label: str = ""
+
+
+class PasskeyLoginVerifyBody(BaseModel):
+    """`POST /auth/passkeys/login/verify` (L8): the JSON form of the assertion
+    `navigator.credentials.get()` returned. No identifier — the credential says who."""
+
+    credential: dict[str, Any] = Field(default_factory=dict)
+
+
+class InviteCreateBody(BaseModel):
+    """`POST /admin/invites` (L3): an optional note — who the code is for."""
+
+    note: str = ""
+
+
+class ResetLinkCreateBody(BaseModel):
+    """`POST /admin/reset-links` (L3)."""
+
+    player_id: int
+
+
+class MemberRoleBody(BaseModel):
+    """`PUT /admin/groups/{slug}/members/{player_id}/role` (L3)."""
+
+    role: Literal["owner", "member"]
+
+
 class PlayerCreateBody(BaseModel):
     display_name: str
 
@@ -170,6 +290,10 @@ class PushSubscriptionBody(BaseModel):
     user_agent: str | None = None
     notification_language: str | None = None
     notification_mode: str | None = None
+    #: The endpoint this subscription replaces on this device (L10): a rotation after a 410,
+    #: or the service worker's own `pushsubscriptionchange`. Owned by the caller → its
+    #: preference moves to the new row and the old row is disabled in the same PUT.
+    replaces_endpoint: str | None = None
 
 
 class PushSubscriptionDeleteBody(BaseModel):

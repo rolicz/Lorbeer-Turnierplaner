@@ -12,28 +12,30 @@ export function clubCrestUrl(clubId: number, updatedAt?: string | null): string 
   return mediaUrl(`/clubs/${clubId}/crest`, updatedAt);
 }
 
-export function createClub(
-  token: string,
-  body: { name: string; game: string; star_rating: number; league_id: number }
-): Promise<Club> {
-  return apiFetch(`/clubs`, { method: "POST", token, body: JSON.stringify(body) });
+export function createClub(body: { name: string; game: string; star_rating: number; league_id: number }): Promise<Club> {
+  return apiFetch(`/clubs`, { method: "POST", body: JSON.stringify(body) });
 }
 
 export function patchClub(
-  token: string,
   id: number,
   body: Partial<{ name: string; game: string; star_rating: number; league_id: number }>
 ): Promise<Club> {
-  return apiFetch(`/clubs/${id}`, { method: "PATCH", token, body: JSON.stringify(body) });
+  return apiFetch(`/clubs/${id}`, { method: "PATCH", body: JSON.stringify(body) });
 }
 
-/** Every recorded rating of one club, oldest first (R4). Public read, like the list. */
+/** Every recorded rating of one club, oldest first (R4). */
 export function getClubStarHistory(id: number): Promise<ClubStarHistory> {
   return apiFetch(`/clubs/${id}/star-history`);
 }
 
-export function deleteClub(token: string, id: number): Promise<void> {
-  return apiFetch(`/clubs/${id}`, { method: "DELETE", token });
+/** Site admin (L12): the rating the current group counts today becomes the global one,
+ * from today on. Answers the club's new history. */
+export function promoteClubStars(id: number): Promise<ClubStarHistory> {
+  return apiFetch(`/clubs/${id}/stars/promote`, { method: "POST" });
+}
+
+export function deleteClub(id: number): Promise<void> {
+  return apiFetch(`/clubs/${id}`, { method: "DELETE" });
 }
 
 // Leagues (backend-managed)

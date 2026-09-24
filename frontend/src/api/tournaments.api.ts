@@ -1,14 +1,13 @@
 import { apiFetch } from "./client";
 import type { ReassignPreview, TournamentSummary, TournamentDetail } from "./types";
 
-/** `token` is optional (the list is a public read) but decides the per-caller
- * `can_edit` / `can_delete` / `can_set_decider` flags each row carries (A10). */
-export function listTournaments(token?: string | null): Promise<TournamentSummary[]> {
-  return apiFetch("/tournaments", { method: "GET", token });
+/** The session decides the per-caller `can_edit` / `can_delete` / `can_set_decider`
+ * flags each row carries (A10). */
+export function listTournaments(): Promise<TournamentSummary[]> {
+  return apiFetch("/tournaments", { method: "GET" });
 }
 
 export function createTournament(
-  token: string,
   body: {
     name: string;
     mode: "1v1" | "2v2";
@@ -19,22 +18,20 @@ export function createTournament(
 ) {
   return apiFetch<{ id: number } & TournamentSummary>("/tournaments", {
     method: "POST",
-    token,
     body: JSON.stringify(body),
   });
 }
 
-export function generateSchedule(token: string, id: number, randomize = true) {
+export function generateSchedule(id: number, randomize = true) {
   return apiFetch(`/tournaments/${id}/generate`, {
     method: "POST",
-    token,
     body: JSON.stringify({ randomize }),
   });
 }
 
-/** Public read; `token` only decides the capability flags in the payload (A10). */
-export function getTournament(id: number, token?: string | null): Promise<TournamentDetail> {
-  return apiFetch(`/tournaments/${id}`, { method: "GET", token });
+/** The session decides the capability flags in the payload (A10). */
+export function getTournament(id: number): Promise<TournamentDetail> {
+  return apiFetch(`/tournaments/${id}`, { method: "GET" });
 }
 
 /**
@@ -43,18 +40,16 @@ export function getTournament(id: number, token?: string | null): Promise<Tourna
  *
  * NOTE: If your backend expects a different body key, adjust here.
  */
-export function enableSecondLegAll(token: string, tournamentId: number) {
+export function enableSecondLegAll(tournamentId: number) {
   return apiFetch(`/tournaments/${tournamentId}/second-leg`, {
     method: "PATCH",
-    token,
     body: JSON.stringify({ enabled: true }),
   });
 }
 
-export function disableSecondLegAll(token: string, tournamentId: number) {
+export function disableSecondLegAll(tournamentId: number) {
   return apiFetch(`/tournaments/${tournamentId}/second-leg`, {
     method: "PATCH",
-    token,
     body: JSON.stringify({ enabled: false }),
   });
 }
@@ -65,39 +60,32 @@ export function disableSecondLegAll(token: string, tournamentId: number) {
  *
  * NOTE: If your backend expects a different body key, adjust here.
  */
-export function reorderTournamentMatches(token: string, tournamentId: number, matchIdsInOrder: number[]) {
+export function reorderTournamentMatches(tournamentId: number, matchIdsInOrder: number[]) {
   return apiFetch(`/tournaments/${tournamentId}/reorder`, {
     method: "PATCH",
-    token,
     body: JSON.stringify({ match_ids: matchIdsInOrder }),
   });
 }
 
-export function deleteTournament(token: string, tournamentId: number) {
-return apiFetch(`/tournaments/${tournamentId}`, {
-  method: "DELETE",
-  token,
-});
+export function deleteTournament(tournamentId: number) {
+  return apiFetch(`/tournaments/${tournamentId}`, { method: "DELETE" });
 }
 
-export function patchTournamentDate(token: string, tournamentId: number, date: string) {
+export function patchTournamentDate(tournamentId: number, date: string) {
   return apiFetch(`/tournaments/${tournamentId}/date`, {
     method: "PATCH",
-    token,
     body: JSON.stringify({ date }),
   });
 }
 
-export function patchTournamentName(token: string, tournamentId: number, name: string) {
+export function patchTournamentName(tournamentId: number, name: string) {
   return apiFetch(`/tournaments/${tournamentId}`, {
     method: "PATCH",
-    token,
     body: JSON.stringify({ "name" : name }),
   });
 }
 
 export function patchTournamentDecider(
-  token: string,
   tournamentId: number,
   body: {
     type: "none" | "penalties" | "match" | "scheresteinpapier";
@@ -109,18 +97,16 @@ export function patchTournamentDecider(
 ) {
   return apiFetch(`/tournaments/${tournamentId}/decider`, {
     method: "PATCH",
-    token,
     body: JSON.stringify(body),
   });
 }
 
 /** What a re-assign would clear — asked for when the confirmation opens, never guessed. */
-export function getReassignPreview(token: string, tournamentId: number) {
-  return apiFetch<ReassignPreview>(`/tournaments/${tournamentId}/reassign-preview`, { token });
+export function getReassignPreview(tournamentId: number) {
+  return apiFetch<ReassignPreview>(`/tournaments/${tournamentId}/reassign-preview`);
 }
 
 export function reassign2v2Schedule(
-  token: string,
   tournamentId: number,
   randomize_order: boolean = true
 ) {
@@ -128,7 +114,6 @@ export function reassign2v2Schedule(
     `/tournaments/${tournamentId}/reassign`,
     {
       method: "POST",
-      token,
       body: JSON.stringify({ randomize_order }),
     }
   );

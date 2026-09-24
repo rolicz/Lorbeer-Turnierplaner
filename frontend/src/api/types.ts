@@ -10,7 +10,13 @@ import type { components } from "./generated/schema";
 type S = components["schemas"];
 
 // ---- FE-only enums / literals ------------------------------------------
-export type Role = "reader" | "editor" | "admin";
+/**
+ * The effective role the server computed for this group (L2 `effective_role`): `none` is
+ * an account with no membership here. There is no `reader` any more — nothing is readable
+ * without a login. `GroupRole` is the raw membership role a `MeGroup` carries.
+ */
+export type Role = "none" | "editor" | "owner" | "admin";
+export type GroupRole = "owner" | "member";
 export type TournamentMode = "1v1" | "2v2";
 export type TournamentStatus = "draft" | "live" | "done";
 export type MatchState = "scheduled" | "playing" | "finished";
@@ -113,11 +119,42 @@ export type IdeaAreasResponse = S["IdeaAreasOut"];
 // edit: `can_delete` is its whole permission surface.
 export type IdeaComment = S["IdeaCommentOut"];
 
-// Auth
-// Login endpoint never returns "reader" (that is the unauthenticated default, not a credential).
-export type LoginResponse = Omit<S["LoginOut"], "role"> & { role: Exclude<Role, "reader"> };
-// /me returns role: null when the caller has no player profile yet.
-export type MeResponse = Omit<S["MeOut"], "role"> & { role: Role | null };
+// Auth (L2/L4). `POST /auth/login`, `/auth/exchange` and `GET /me` all answer `MeOut`; the
+// session itself is the `lk_session` cookie and never appears in a body. `role` and the
+// groups' `role` are plain strings on the wire and are narrowed here, once, for every
+// consumer (`AuthProvider.normalizeMe` is where an unknown value becomes `none`).
+export type MeGroup = Omit<S["MeGroupOut"], "role"> & { role: GroupRole };
+export type MeResponse = Omit<S["MeOut"], "role" | "groups"> & { role: Role; groups: MeGroup[] };
+/** One logged-in device (`GET /auth/sessions`, L7; `GET /admin/accounts/{pid}/sessions`, L6). */
+export type AuthSession = S["SessionOut"];
+/** `POST /auth/sessions/revoke-others` and the admin's revoke-all: how many rows went. */
+export type RevokedCount = S["RevokedOut"];
+/** One of my passkeys (`GET /auth/passkeys`, L8) — never the credential id or the public key. */
+export type Passkey = S["PasskeyOut"];
+/** Where an account's password came from: never set, the one migrated from `secrets.json`, or set by the person. */
+export type PasswordOrigin = "none" | "migrated" | "set";
+/** An account's email (E1): `PUT`/`DELETE /auth/email`, `POST /auth/email/resend`. */
+export type EmailStatus = S["EmailStatusOut"];
+/** `POST /auth/email/verify` (E1): the address that is now verified. */
+export type EmailVerified = S["EmailVerifiedOut"];
+/** `GET /admin/mail-status` (E1): whether this server can send, and how (host and sender only). */
+export type MailStatus = S["MailStatusOut"];
+/** An account's email as the admin page sees it (E1): none, a link sent and not opened, or verified. */
+export type EmailState = "none" | "pending" | "verified";
+
+// The admin page (L3's `*Out`s, aliased here so L6 imports types and never `S[...]`).
+/** One row of `GET /admin/accounts`; `role` is the effective role in the current group. */
+export type AdminAccount = Omit<S["AdminAccountOut"], "role" | "password_origin" | "email_state"> & {
+  role: Role;
+  password_origin: PasswordOrigin;
+  email_state: EmailState;
+};
+/** `POST /admin/invites` — the only time the code itself is readable. */
+export type InviteCreated = S["InviteCreatedOut"];
+/** A live invite code as `GET /admin/invites` lists it — without the code. */
+export type Invite = S["InviteOut"];
+/** `POST /admin/reset-links` — the URL, shown once. */
+export type ResetLink = S["ResetLinkOut"];
 
 // Personal notifications (the bell). `kind` is a string in the generated schema; the
 // backend builds exactly these seven, so narrow it here — once, for every consumer.

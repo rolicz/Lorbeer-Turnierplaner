@@ -1,3 +1,6 @@
+// First, before anything reads the URL: puts a group-less URL under `/g/<slug>` and
+// decides the router's basename (L10).
+import { APP_BASENAME } from "./app/basename";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
@@ -44,7 +47,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <AppCrashBoundary>
       <QueryClientProvider client={qc}>
         <AuthProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={APP_BASENAME}>
             <App />
           </BrowserRouter>
         </AuthProvider>

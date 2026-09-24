@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import Session, select
 
 from ..api_utils import bad_request, conflict, forbidden, get_or_404
-from ..auth import decode_token, require_admin, require_auth_claims, require_editor, require_editor_claims
+from ..auth import require_admin, require_auth_claims, require_editor, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
     Comment,
@@ -55,6 +55,7 @@ from ..services.file_storage import (
 )
 from ..services.media_derivatives import MediaWidthParam, media_response, version_token
 from ..services.notifications import enqueue_global_push, localized_push_message
+from ..services.paths import group_path
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["comments"])
@@ -272,7 +273,7 @@ def _format_shots_comment_body(shots_a: int, shots_b: int) -> str:
 def list_comments(
     tournament_id: int,
     s: Session = Depends(get_session),
-    claims: dict | None = Depends(decode_token),
+    claims: dict = Depends(require_auth_claims),
 ) -> dict:
     get_or_404(s, Tournament, tournament_id, name="Tournament")
     return list_comments_for_tournament(s, tournament_id, claims)
@@ -605,7 +606,7 @@ async def create_comment(
         request,
         localized_push_message(
             push_key,
-            path=f"/live/{tournament_id}?comment={int(c.id)}",
+            path=group_path(f"/live/{tournament_id}?comment={int(c.id)}"),
             tag=f"comment-{tournament_id}",
             event_type=push_event_type,
             data={"tournament_id": tournament_id, "comment_id": int(c.id), "match_id": match_id},
@@ -700,7 +701,7 @@ def get_comment_image(
         content_type=content_type,
         token=version_token(updated_at),
         width=w,
-        cache_control="public, max-age=604800",
+        cache_control="private, max-age=604800",
         missing="Comment image file missing",
     )
 

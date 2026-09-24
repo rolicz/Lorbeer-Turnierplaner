@@ -13,6 +13,7 @@ import { rememberLocation, resetForgottenPaths } from "../ui/shell/lastLocation"
 import { currentArrival, resetNavStack } from "../ui/shell/navStack";
 import { NAV_JUMP_STATE } from "../ui/shell/backNavigation";
 import { useRememberLocation } from "../ui/shell/useRememberLocation";
+import { seedSession } from "./authFixtures";
 
 /**
  * Q6b — **every way into a destination is marked a jump, and none is missed.**
@@ -67,6 +68,8 @@ describe("every nav destination is entered as a jump", () => {
   beforeEach(() => {
     live.current = null;
     localStorage.clear();
+    // Every shell renders for a member only (L4); destinations need a role to show.
+    seedSession();
     resetForgottenPaths();
     resetNavStack();
   });
@@ -88,6 +91,7 @@ describe("every nav destination is entered as a jump", () => {
 
     resetNavStack();
     localStorage.clear();
+    seedSession();
     live.current = null;
     rememberLocation("/profiles/1", "?tab=guestbook");
     const remembered = renderShell(<BottomTabBar />, "/dashboard");

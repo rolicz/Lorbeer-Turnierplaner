@@ -11,14 +11,12 @@ import { ErrorToastOnError } from "../../ui/primitives/ErrorToast";
 import { listPlayers } from "../../api/players.api";
 import { createTournament } from "../../api/tournaments.api";
 import { qk } from "../../api/queryKeys";
-import { useAuth } from "../../auth/AuthContext";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 
 /** Inline create-tournament form (used as the "New" tab on the Tournaments page). */
 export default function NewTournamentForm({ onCancel }: { onCancel?: () => void }) {
   const nav = useNavigate();
   const qc = useQueryClient();
-  const { token } = useAuth();
 
   const [name, setName] = useState("");
   const [mode, setMode] = useState<"1v1" | "2v2">("1v1");
@@ -34,10 +32,9 @@ export default function NewTournamentForm({ onCancel }: { onCancel?: () => void 
 
   const createMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!name.trim()) throw new Error("Name required");
       if (selectedIds.length < 3) throw new Error("Select at least 3 players");
-      return createTournament(token, {
+      return createTournament({
         name: name.trim(),
         mode,
         player_ids: selectedIds,

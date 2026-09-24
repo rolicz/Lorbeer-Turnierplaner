@@ -15,9 +15,9 @@ def _legacy_settings(db_path) -> Settings:
     return Settings(
         db_url=f"sqlite:///{db_path}",
         player_accounts=(PlayerAccount(name="Admin", password="admin-secret", admin=True),),
-        jwt_secret="test-jwt-secret",
-        ws_require_auth=False,
         log_level="DEBUG",
+        password_hash_profile="test",
+        app_env="test",
     )
 
 

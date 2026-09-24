@@ -50,11 +50,11 @@ def test_create_friendly_and_stats_scope_filters(client, editor_headers, admin_h
     assert len(s2.json()["tournaments"]) == 1
 
 
-def test_create_friendly_requires_editor_or_admin(client, admin_headers):
+def test_create_friendly_requires_editor_or_admin(client, anon, admin_headers):
     p1 = client.post("/players", json={"display_name": "F-C"}, headers=admin_headers).json()["id"]
     p2 = client.post("/players", json={"display_name": "F-D"}, headers=admin_headers).json()["id"]
 
-    r = client.post(
+    r = anon.post(
         "/friendlies",
         json={
             "mode": "1v1",

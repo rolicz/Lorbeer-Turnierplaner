@@ -8,6 +8,11 @@
  * Invalidation with a prefix (e.g. qk.stats.all()) invalidates all queries
  * under that namespace because TanStack matches any query whose key starts
  * with the given array.
+ *
+ * A key that names a `viewerId` is a per-caller payload (capability flags, `my_vote`,
+ * read state): one identity's answer must never be handed to another, so the viewer is
+ * part of the key even though the request itself carries nothing — the session is a
+ * cookie the browser attaches (L4). `"anon"` is nobody; the shell never queries as it.
  */
 
 export const qk = {
@@ -22,18 +27,18 @@ export const qk = {
   commentsSummary: () => ["comments", "summary"] as const,
   /** Prefix key — invalidates/matches all comment queries for a tournament. */
   commentsTournament: (tournamentId: number) => ["comments", tournamentId] as const,
-  /** Full key including viewer token — use in useQuery. */
-  commentsTournamentFull: (tournamentId: number, token: string | null) =>
-    ["comments", tournamentId, token ?? "none"] as const,
-  commentsReadIds: (tournamentId: number, token: string | null) =>
-    ["comments", "read", tournamentId, token ?? "none"] as const,
-  commentsReadMap: (token: string | null) => ["comments", "read-map", token ?? "none"] as const,
+  /** Full key including the viewer — use in useQuery. */
+  commentsTournamentFull: (tournamentId: number, viewerId: number | null) =>
+    ["comments", tournamentId, viewerId ?? "anon"] as const,
+  commentsReadIds: (tournamentId: number, viewerId: number | null) =>
+    ["comments", "read", tournamentId, viewerId ?? "anon"] as const,
+  commentsReadMap: (viewerId: number | null) => ["comments", "read-map", viewerId ?? "anon"] as const,
 
   // ---- ideas / feature requests -------------------------------------------
   /** Prefix key — invalidates every ideas query regardless of viewer. */
   ideasAll: () => ["ideas"] as const,
-  /** Full key including the viewer token: rows carry per-caller capability flags and my_vote. */
-  ideas: (token: string | null) => ["ideas", "list", token ?? "none"] as const,
+  /** Full key including the viewer: rows carry per-caller capability flags and my_vote. */
+  ideas: (viewerId: number | null) => ["ideas", "list", viewerId ?? "anon"] as const,
   ideaAreas: () => ["ideas", "areas"] as const,
   ideaVoters: (ideaId: number | string) => ["ideas", "voters", ideaId] as const,
 
@@ -46,34 +51,34 @@ export const qk = {
   /** Prefix key — invalidates a profile's guestbook regardless of who is looking at it. */
   playerGuestbook: (playerId: number | string) => ["players", "guestbook", playerId] as const,
   /**
-   * Full key including the viewer token — use in `useQuery`. The rows carry per-caller
+   * Full key including the viewer — use in `useQuery`. The rows carry per-caller
    * answers (`can_edit` from `guestbook_can_edit`, `my_vote`), so one identity's payload
    * must never be handed to another: the `commentsTournamentFull` / `friendliesList` /
    * `ideas` shape, and the prefix above still reaches every one of them (G4).
    */
-  playerGuestbookFull: (playerId: number | string, token: string | null) =>
-    ["players", "guestbook", playerId, token ?? "none"] as const,
+  playerGuestbookFull: (playerId: number | string, viewerId: number | null) =>
+    ["players", "guestbook", playerId, viewerId ?? "anon"] as const,
   playerGuestbookSummary: () => ["players", "guestbook", "summary"] as const,
-  playerGuestbookReadIds: (playerId: number | string, token: string | null) =>
-    ["players", "guestbook", "read", playerId, token ?? "none"] as const,
-  playerGuestbookReadMap: (token: string | null) =>
-    ["players", "guestbook", "read-map", token ?? "none"] as const,
+  playerGuestbookReadIds: (playerId: number | string, viewerId: number | null) =>
+    ["players", "guestbook", "read", playerId, viewerId ?? "anon"] as const,
+  playerGuestbookReadMap: (viewerId: number | null) =>
+    ["players", "guestbook", "read-map", viewerId ?? "anon"] as const,
   playerPokes: (playerId: number | string) => ["players", "pokes", playerId] as const,
   playerPokesSummary: () => ["players", "pokes", "summary"] as const,
-  /** Prefix key — invalidates poke-read state for a player across all tokens. */
+  /** Prefix key — invalidates poke-read state for a player across all viewers. */
   playerPokesReadPrefix: (playerId: number | string) =>
     ["players", "pokes", "read", playerId] as const,
-  playerPokesReadIds: (playerId: number | string, token: string | null) =>
-    ["players", "pokes", "read", playerId, token ?? "none"] as const,
-  playerPokesReadMap: (token: string | null) =>
-    ["players", "pokes", "read-map", token ?? "none"] as const,
-  playerPokesAuthoredUnread: (token: string | null) =>
-    ["players", "pokes", "authored-unread", token ?? "none"] as const,
+  playerPokesReadIds: (playerId: number | string, viewerId: number | null) =>
+    ["players", "pokes", "read", playerId, viewerId ?? "anon"] as const,
+  playerPokesReadMap: (viewerId: number | null) =>
+    ["players", "pokes", "read-map", viewerId ?? "anon"] as const,
+  playerPokesAuthoredUnread: (viewerId: number | null) =>
+    ["players", "pokes", "authored-unread", viewerId ?? "anon"] as const,
 
   // ---- personal notifications (in-app feed) ------------------------------
-  /** Prefix key — invalidates all notification queries regardless of token. */
+  /** Prefix key — invalidates all notification queries regardless of viewer. */
   notificationsAll: () => ["me", "notifications"] as const,
-  notifications: (token: string | null) => ["me", "notifications", token ?? "none"] as const,
+  notifications: (viewerId: number | null) => ["me", "notifications", viewerId ?? "anon"] as const,
 
   // ---- clubs / leagues ----------------------------------------------------
   clubs: (game?: string) => (game ? (["clubs", game] as const) : (["clubs"] as const)),
@@ -89,16 +94,39 @@ export const qk = {
   // ---- friendlies ---------------------------------------------------------
   /** Prefix key — invalidates every friendlies query regardless of mode/viewer. */
   friendlies: (mode?: string) => (mode ? (["friendlies", mode] as const) : (["friendlies"] as const)),
-  /** Full key including the viewer token: the rows carry per-caller capability flags (A10). */
-  friendliesList: (mode: string, token: string | null) =>
-    ["friendlies", mode, token ?? "none"] as const,
+  /** Full key including the viewer: the rows carry per-caller capability flags (A10). */
+  friendliesList: (mode: string, viewerId: number | null) =>
+    ["friendlies", mode, viewerId ?? "anon"] as const,
 
   // ---- push notifications -------------------------------------------------
   push: {
     config: () => ["push", "config"] as const,
-    subscriptions: (token: string | null) => ["push", "subscriptions", token] as const,
-    /** Prefix key — invalidates all subscription queries regardless of token. */
+    subscriptions: (viewerId: number | null) => ["push", "subscriptions", viewerId ?? "anon"] as const,
+    /** Prefix key — invalidates all subscription queries regardless of viewer. */
     subscriptionsAll: () => ["push", "subscriptions"] as const,
+  },
+
+  // ---- my account (L4 pre-declares; L7 / L9 read) ---------------------------
+  auth: {
+    /** Prefix key — everything about this account's login surface. */
+    all: () => ["auth"] as const,
+    /** My sessions, one per logged-in device (`GET /auth/sessions`, L7). */
+    sessions: () => ["auth", "sessions"] as const,
+    /** My passkeys (`GET /auth/passkeys`, L9). */
+    passkeys: () => ["auth", "passkeys"] as const,
+  },
+
+  // ---- the admin page (L4 pre-declares; L6 reads) ---------------------------
+  admin: {
+    /** Prefix key — everything the admin page shows. */
+    all: () => ["admin"] as const,
+    accounts: () => ["admin", "accounts"] as const,
+    /** One player's sessions, opened from the accounts list. */
+    sessions: (playerId: number | string) => ["admin", "sessions", playerId] as const,
+    /** The live invite codes — never the codes themselves, which the server shows once. */
+    invites: () => ["admin", "invites"] as const,
+    /** Whether the server can send mail (`GET /admin/mail-status`, site admin only — E4). */
+    mailStatus: () => ["admin", "mail-status"] as const,
   },
 
   // ---- stats --------------------------------------------------------------

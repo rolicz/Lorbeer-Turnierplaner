@@ -6,9 +6,11 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from sqlmodel import Session, select
 
 from ..api_utils import bad_request, conflict, forbidden
-from ..auth import decode_token, require_admin, require_auth_claims, require_editor_claims
+from ..auth import require_admin, require_auth_claims, require_editor_claims
 from ..db import get_engine, get_session
 from ..models import (
+    Account,
+    GroupMembership,
     Player,
     PlayerAvatarFile,
     PlayerGuestbookEntry,
@@ -49,6 +51,7 @@ from ..schemas.responses import (
     VoteResultOut,
     VotersOut,
 )
+from ..services.accounts import create_account_for, ensure_name_free, name_key
 from ..services.authorization import require_profile_owner, require_self_or_admin
 from ..services.file_storage import (
     delete_media,
@@ -56,6 +59,7 @@ from ..services.file_storage import (
     media_path_for_profile_header,
     upsert_media_row,
 )
+from ..services.groups import current_group, ensure_shared_group, roster_for
 from ..services.guestbook import guestbook_can_edit, guestbook_entry_payload, list_guestbook_entries
 from ..services.guestbook_subjects import (
     SubjectUnavailable,
@@ -141,22 +145,29 @@ def _upsert_profile_header_file(
 
 
 @router.get("", response_model=list[PlayerRef])
-def list_players(s: Session = Depends(get_session)):
-    return s.exec(select(Player).order_by(Player.display_name)).all()
+def list_players(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)):
+    """The roster: members of the caller's groups (a site admin sees everyone), so an account
+    nobody has invited yet is in no picker and no stat (L3)."""
+    return roster_for(s, claims)
 
 
 @router.post("", response_model=PlayerRef, dependencies=[Depends(require_admin)])
 def create_player(body: PlayerCreateBody, s: Session = Depends(get_session)):
+    """An admin-created player: the `Player`, its passwordless `Account` and its membership
+    in the current group, in one transaction (a player committed without an account would be
+    swept into the group by the next boot's migration anyway — but a name that clashes by
+    case would stop that boot). 409 when the name is taken, compared case-insensitively.
+    The player gets a login through a reset link."""
     name = (body.display_name or "").strip()
     if not name:
         bad_request("Missing display_name")
-
-    existing = s.exec(select(Player).where(Player.display_name == name)).first()
-    if existing:
-        return existing
+    ensure_name_free(s, name)
 
     p = Player(display_name=name)
     s.add(p)
+    s.flush()
+    create_account_for(s, p)
+    s.add(GroupMembership(group_id=int(current_group(s).id), player_id=int(p.id), role="member"))
     s.commit()
     s.refresh(p)
     log.info("Created player '%s' (id=%s)", p.display_name, p.id)
@@ -185,13 +196,17 @@ def patch_player(
     if not new_name:
         bad_request("display_name cannot be empty")
 
-    # Avoid duplicate names (important if you treat names as “identity” in UI)
-    existing = s.exec(select(Player).where(Player.display_name == new_name, Player.id != player_id)).first()
-    if existing:
-        conflict("A player with this name already exists")
+    # The display name is the login name: unique case-insensitively, and the account's
+    # `name_key` follows a rename in the same transaction (L3).
+    ensure_name_free(s, new_name, except_player_id=player_id)
 
     p.display_name = new_name
     s.add(p)
+    account = s.get(Account, int(player_id))
+    if account is not None:
+        account.name_key = name_key(new_name)
+        account.updated_at = dt.datetime.utcnow()
+        s.add(account)
     s.commit()
     s.refresh(p)
 
@@ -318,10 +333,15 @@ def list_player_poke_read_map(
 
 
 @router.get("/{player_id}/profile", response_model=ProfileOut)
-def get_player_profile(player_id: int, s: Session = Depends(get_session)):
+def get_player_profile(
+    player_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+):
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
     profile = s.get(PlayerProfile, player_id)
     payload = _profile_payload(player, profile)
     header = s.get(PlayerHeaderImageFile, player_id)
@@ -341,6 +361,7 @@ def patch_player_profile(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     profile = s.get(PlayerProfile, player_id)
     if profile is None:
@@ -357,19 +378,33 @@ def patch_player_profile(
     return _profile_payload(player, profile)
 
 
+def _roster_ids(s: Session, claims: dict) -> list[int]:
+    return [int(p.id) for p in roster_for(s, claims)]
+
+
 @router.get("/avatars", response_model=list[PlayerMediaMetaOut])
-def list_player_avatar_meta(s: Session = Depends(get_session)):
+def list_player_avatar_meta(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)):
     """
     Lightweight avatar metadata used by the frontend to avoid spamming 404 requests.
-    Returns only player_id + updated_at for players who have an avatar.
+    Returns only player_id + updated_at for players who have an avatar — and only for the
+    caller's roster (L11): the picture itself is refused to anyone outside it
+    (`ensure_shared_group`), so a stranger's avatar must never be *announced* either, or the
+    browser asks for it, gets a 403 and draws a broken image where the monogram belongs.
     """
-    rows = s.exec(select(PlayerAvatarFile.player_id, PlayerAvatarFile.updated_at)).all()
+    rows = s.exec(
+        select(PlayerAvatarFile.player_id, PlayerAvatarFile.updated_at).where(PlayerAvatarFile.player_id.in_(_roster_ids(s, claims)))
+    ).all()
     return [{"player_id": int(pid), "updated_at": updated_at} for pid, updated_at in rows]
 
 
 @router.get("/headers", response_model=list[PlayerMediaMetaOut])
-def list_player_header_meta(s: Session = Depends(get_session)):
-    rows = s.exec(select(PlayerHeaderImageFile.player_id, PlayerHeaderImageFile.updated_at)).all()
+def list_player_header_meta(s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)):
+    """The same for header images, and for the same reason."""
+    rows = s.exec(
+        select(PlayerHeaderImageFile.player_id, PlayerHeaderImageFile.updated_at).where(
+            PlayerHeaderImageFile.player_id.in_(_roster_ids(s, claims))
+        )
+    ).all()
     return [{"player_id": int(pid), "updated_at": updated_at} for pid, updated_at in rows]
 
 
@@ -377,8 +412,10 @@ def list_player_header_meta(s: Session = Depends(get_session)):
 def get_player_avatar(
     player_id: int,
     w: MediaWidthParam = None,
+    claims: dict = Depends(require_auth_claims),
 ):
     with Session(get_engine()) as s:
+        ensure_shared_group(s, claims, player_id)
         fs_row = s.get(PlayerAvatarFile, player_id)
         if not fs_row:
             raise HTTPException(status_code=404, detail="Avatar not found")
@@ -393,7 +430,7 @@ def get_player_avatar(
         content_type=content_type,
         token=version_token(updated_at),
         width=w,
-        cache_control="public, max-age=604800",
+        cache_control="private, max-age=604800",
         missing="Avatar file missing",
     )
 
@@ -454,8 +491,10 @@ def delete_player_avatar(
 def get_player_header_image(
     player_id: int,
     w: MediaWidthParam = None,
+    claims: dict = Depends(require_auth_claims),
 ):
     with Session(get_engine()) as s:
+        ensure_shared_group(s, claims, player_id)
         fs_row = s.get(PlayerHeaderImageFile, player_id)
         if not fs_row:
             raise HTTPException(status_code=404, detail="Header image not found")
@@ -468,7 +507,7 @@ def get_player_header_image(
         content_type=content_type,
         token=version_token(updated_at),
         width=w,
-        cache_control="public, max-age=604800",
+        cache_control="private, max-age=604800",
         missing="Header image file missing",
     )
 
@@ -477,10 +516,11 @@ def get_player_header_image(
 def get_guestbook_subject_image(
     snapshot_id: int,
     w: MediaWidthParam = None,
+    claims: dict = Depends(require_auth_claims),
 ):
     """The pinned copy a guestbook entry is about (K1).
 
-    Public read, like the avatar. Immutable: a snapshot never changes and its URL carries
+    Read like the avatar: only by someone who shares a group with its player (L11). Immutable: a snapshot never changes and its URL carries
     its id, so the browser may keep it for a year — this is the one picture in the app
     that is *guaranteed* not to be replaced under its own URL. A `?w=` derivative of it is
     exactly as immutable, which is why it carries the same header (W1).
@@ -489,6 +529,7 @@ def get_guestbook_subject_image(
         snap = s.get(PlayerSubjectSnapshot, snapshot_id)
         if not snap or not snap.file_path:
             raise HTTPException(status_code=404, detail="Guestbook subject image not found")
+        ensure_shared_group(s, claims, int(snap.player_id))
         content_type = snap.content_type
         file_path = snap.file_path
         captured_at = snap.captured_at
@@ -498,7 +539,7 @@ def get_guestbook_subject_image(
         content_type=content_type,
         token=version_token(captured_at),
         width=w,
-        cache_control="public, max-age=31536000, immutable",
+        cache_control="private, max-age=31536000, immutable",
         missing="Guestbook subject image file missing",
     )
 
@@ -576,11 +617,12 @@ def _poke_payload(
 def list_player_guestbook(
     player_id: int,
     s: Session = Depends(get_session),
-    claims: dict | None = Depends(decode_token),
+    claims: dict = Depends(require_auth_claims),
 ):
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
     return list_guestbook_entries(s, player_id, claims)
 
 
@@ -589,10 +631,12 @@ def list_player_pokes(
     player_id: int,
     limit: int = 40,
     s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
 ):
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     lim = max(1, min(int(limit), 250))
     rows = s.exec(
@@ -635,6 +679,7 @@ def list_player_guestbook_reads(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     viewer_player_id = int(claims.get("player_id"))
     rows = s.exec(
@@ -658,6 +703,7 @@ def list_player_poke_reads(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     viewer_player_id = int(claims.get("player_id"))
     rows = s.exec(
@@ -683,6 +729,7 @@ def create_player_guestbook_entry(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     text = str(body.body or "").strip()
     if not text:
@@ -834,6 +881,7 @@ def create_player_poke(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     claims_player_id = int(claims.get("player_id"))
     req_author_player_id = None if body is None or body.author_player_id in (None, "") else int(body.author_player_id)
@@ -893,6 +941,7 @@ def mark_player_guestbook_entry_read(
     row = s.get(PlayerGuestbookEntry, entry_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Guestbook entry not found")
+    ensure_shared_group(s, claims, int(row.profile_player_id))
     player_id = int(claims.get("player_id"))
     now = dt.datetime.utcnow()
     read_row = s.get(PlayerGuestbookRead, (player_id, int(entry_id)))
@@ -915,6 +964,7 @@ def vote_player_guestbook_entry(
     row = s.get(PlayerGuestbookEntry, entry_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Guestbook entry not found")
+    ensure_shared_group(s, claims, int(row.profile_player_id))
 
     player_id = int(claims.get("player_id"))
     raw = body.value
@@ -949,10 +999,15 @@ def vote_player_guestbook_entry(
 
 
 @router.get("/guestbook/{entry_id}/voters", response_model=VotersOut)
-def list_player_guestbook_entry_voters(entry_id: int, s: Session = Depends(get_session)) -> dict:
+def list_player_guestbook_entry_voters(
+    entry_id: int,
+    s: Session = Depends(get_session),
+    claims: dict = Depends(require_auth_claims),
+) -> dict:
     row = s.get(PlayerGuestbookEntry, entry_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Guestbook entry not found")
+    ensure_shared_group(s, claims, int(row.profile_player_id))
     votes = s.exec(
         select(PlayerGuestbookVote.value, Player.id, Player.display_name)
         .join(Player, Player.id == PlayerGuestbookVote.player_id)
@@ -979,6 +1034,7 @@ def mark_player_guestbook_read_all(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     viewer_player_id = int(claims.get("player_id"))
     entry_ids = [
@@ -1018,6 +1074,7 @@ def mark_player_poke_read_all(
     player = s.get(Player, player_id)
     if not player:
         raise HTTPException(status_code=404, detail="Player not found")
+    ensure_shared_group(s, claims, player_id)
 
     viewer_player_id = int(claims.get("player_id"))
     poke_ids = [

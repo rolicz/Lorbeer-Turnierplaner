@@ -78,7 +78,7 @@ export function placeOf(pathname: string, search = "", state?: unknown): Place {
     if (parent) return { parent, inside: true, drillParam: "vs", sameParams: ["view"] };
   }
 
-  // Everything else is a destination: the nav bar's seven, `/login`, and any URL
+  // Everything else is a destination: the nav's eight (`/admin` included, L6), `/login`, and any URL
   // that matched nothing (the 404). Home is the only one with nothing above it.
   if (path === HOME) return { parent: null, inside: false };
   return { parent: HOME, inside: false };

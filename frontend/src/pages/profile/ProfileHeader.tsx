@@ -52,7 +52,6 @@ const BANNER_SIZES = "(min-width: 1024px) 1104px, (min-width: 640px) calc(100vw 
  */
 export default function ProfileHeader({
   targetPlayerId,
-  token,
   canEdit,
   isOwnProfile,
   displayName,
@@ -70,7 +69,6 @@ export default function ProfileHeader({
   onCommentOn,
 }: {
   targetPlayerId: number;
-  token: string | null;
   canEdit: boolean;
   isOwnProfile: boolean;
   displayName: string | null;
@@ -111,9 +109,8 @@ export default function ProfileHeader({
 
   const putAvatarMut = useMutation({
     mutationFn: async (blob: Blob) => {
-      if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
-      return putPlayerAvatar(token, targetPlayerId, blob);
+      return putPlayerAvatar(targetPlayerId, blob);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.playerAvatars() });
@@ -126,9 +123,8 @@ export default function ProfileHeader({
 
   const delAvatarMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
-      await deletePlayerAvatar(token, targetPlayerId);
+      await deletePlayerAvatar(targetPlayerId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.playerAvatars() });
@@ -141,9 +137,8 @@ export default function ProfileHeader({
 
   const putHeaderMut = useMutation({
     mutationFn: async (blob: Blob) => {
-      if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
-      return putPlayerHeaderImage(token, targetPlayerId, blob);
+      return putPlayerHeaderImage(targetPlayerId, blob);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.playerHeaders() });
@@ -158,9 +153,8 @@ export default function ProfileHeader({
 
   const delHeaderMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
-      await deletePlayerHeaderImage(token, targetPlayerId);
+      await deletePlayerHeaderImage(targetPlayerId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.playerHeaders() });

@@ -8,6 +8,7 @@ import Button from "../ui/primitives/Button";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
 import AvatarCircle from "../ui/primitives/AvatarCircle";
+import PlayerLink from "../ui/primitives/PlayerLink";
 import { Pill } from "../ui/primitives/Pill";
 import { List, ListRow } from "../ui/primitives/List";
 import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
@@ -35,7 +36,7 @@ type PlayersTab = "players" | "add";
 const PLAYERS_TAB_KEYS = ["players", "add"] as const satisfies readonly PlayersTab[];
 
 export default function PlayersAdminPage() {
-  const { token, role } = useAuth();
+  const { role } = useAuth();
   const pageEntered = useRouteEntryLoading();
   const isAdmin = role === "admin";
   const navigate = useNavigate();
@@ -66,9 +67,8 @@ export default function PlayersAdminPage() {
   const [newName, setNewName] = useState("");
   const createMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("No token");
       if (!isAdmin) throw new Error("Admin only");
-      return createPlayer(token, newName.trim());
+      return createPlayer(newName.trim());
     },
     onSuccess: async () => {
       setNewName("");
@@ -82,12 +82,11 @@ export default function PlayersAdminPage() {
   const [editName, setEditName] = useState("");
   const patchMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("No token");
       if (!isAdmin) throw new Error("Admin only");
       if (!editId) throw new Error("No player selected");
       const n = editName.trim();
       if (!n) throw new Error("Name cannot be empty");
-      return patchPlayer(token, editId, n);
+      return patchPlayer(editId, n);
     },
     onSuccess: async () => {
       setEditId(null);
@@ -145,12 +144,17 @@ export default function PlayersAdminPage() {
     );
   }
 
-  const openProfile = (playerId: number, jumpUnread: boolean) => {
-    navigate(`/profiles/${playerId}${jumpUnread ? "?unread=1" : ""}`);
-    // Keep row-click behavior consistent with profile subnav scroll positioning.
+  // Keep row-click behavior consistent with profile subnav scroll positioning. The row
+  // itself is a `PlayerLink` (L11), whose `onClick` runs before its navigation, so this
+  // lands on the profile once it has rendered — exactly as it did from `openProfile`.
+  const scrollToProfileMain = () => {
     window.setTimeout(() => {
       scrollToSectionById("profile-section-main", 24);
     }, 0);
+  };
+  const openProfile = (playerId: number, jumpUnread: boolean) => {
+    navigate(`/profiles/${playerId}${jumpUnread ? "?unread=1" : ""}`);
+    scrollToProfileMain();
   };
 
   return (
@@ -187,7 +191,7 @@ export default function PlayersAdminPage() {
             const seen = seenGuestbookByPid.get(p.id) ?? new Set<number>();
             const entryIds = guestbookSummaryByPid.get(p.id)?.entry_ids ?? [];
             const unseenCount = entryIds.filter((eid) => !seen.has(eid)).length;
-            const hasUnseen = !!token && unseenCount > 0;
+            const hasUnseen = unseenCount > 0;
             const unseenPokes = Number(pokeSummaryByPid.get(p.id)?.unread_by_profile_owner_count ?? 0);
             const hasUnreadPokes = unseenPokes > 0;
             const heldCups = cupsHeldByPlayerId.get(p.id) ?? [];
@@ -195,8 +199,7 @@ export default function PlayersAdminPage() {
             return (
               <div key={p.id}>
                 <ListRow
-                  onClick={() => openProfile(p.id, false)}
-                  ariaLabel={`Open ${p.display_name}'s profile`}
+                  overlay={<PlayerLink stretched playerId={p.id} name={p.display_name} onClick={() => scrollToProfileMain()} />}
                   leading={
                     <AvatarCircle playerId={p.id} name={p.display_name} updatedAt={updatedAt} sizeClass="h-10 w-10" cups={heldCups} />
                   }

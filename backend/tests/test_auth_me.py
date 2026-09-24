@@ -1,22 +1,23 @@
-def test_login_and_me(client):
-    # bad password
-    r = client.post("/auth/login", json={"username": "Editor", "password": "wrong"})
-    assert r.status_code == 401
+def test_login_and_me(anon):
+    # /me with no session
+    r0 = anon.get("/me")
+    assert r0.status_code == 401
 
-    # editor
-    r = client.post("/auth/login", json={"username": "Editor", "password": "editor-secret"})
+    # bad password
+    r = anon.post("/auth/login", json={"username": "Editor", "password": "wrong"})
+    assert r.status_code == 401
+    assert anon.get("/me").status_code == 401  # a refused login sets no cookie
+
+    # editor: the body is MeOut, the credential is the cookie (L2) — which the client's
+    # jar now carries, so the next /me is a logged-in call
+    r = anon.post("/auth/login", json={"username": "Editor", "password": "editor-secret"})
     assert r.status_code == 200
     assert r.json()["role"] == "editor"
     assert r.json()["player_name"] == "Editor"
-    token = r.json()["token"]
+    assert "token" not in r.json()
 
-    # /me without token
-    r2 = client.get("/me")
-    assert r2.status_code == 401
-
-    # /me with token
-    r3 = client.get("/me", headers={"Authorization": f"Bearer {token}"})
+    r3 = anon.get("/me")
     assert r3.status_code == 200
     assert r3.json()["role"] == "editor"
     assert r3.json()["player_name"] == "Editor"
-    assert "exp" in r3.json()
+    assert "session_id" in r3.json()

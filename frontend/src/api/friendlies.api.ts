@@ -36,29 +36,23 @@ export type FriendlyMatchResponse = {
   }>;
 };
 
-/** Public read; `token` only decides the `can_edit` / `can_delete` flags per row (A10). */
-export function listFriendlies(
-  opts?: { mode?: "1v1" | "2v2"; limit?: number; token?: string | null }
-): Promise<FriendlyMatchResponse[]> {
+/** The session decides the `can_edit` / `can_delete` flags per row (A10). */
+export function listFriendlies(opts?: { mode?: "1v1" | "2v2"; limit?: number }): Promise<FriendlyMatchResponse[]> {
   const qs = new URLSearchParams();
   if (opts?.mode) qs.set("mode", String(opts.mode));
   if (opts?.limit != null) qs.set("limit", String(opts.limit));
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
-  return apiFetch(`/friendlies${suffix}`, { method: "GET", token: opts?.token });
+  return apiFetch(`/friendlies${suffix}`, { method: "GET" });
 }
 
-export function createFriendlyMatch(token: string, body: FriendlyMatchCreateBody): Promise<FriendlyMatchResponse> {
-  return apiFetch("/friendlies", { method: "POST", token, body: JSON.stringify(body) });
+export function createFriendlyMatch(body: FriendlyMatchCreateBody): Promise<FriendlyMatchResponse> {
+  return apiFetch("/friendlies", { method: "POST", body: JSON.stringify(body) });
 }
 
-export function patchFriendlyMatch(
-  token: string,
-  friendlyId: number,
-  body: FriendlyMatchPatchBody
-): Promise<FriendlyMatchResponse> {
-  return apiFetch(`/friendlies/${friendlyId}`, { method: "PATCH", token, body: JSON.stringify(body) });
+export function patchFriendlyMatch(friendlyId: number, body: FriendlyMatchPatchBody): Promise<FriendlyMatchResponse> {
+  return apiFetch(`/friendlies/${friendlyId}`, { method: "PATCH", body: JSON.stringify(body) });
 }
 
-export function deleteFriendlyMatch(token: string, friendlyId: number): Promise<{ ok: boolean }> {
-  return apiFetch(`/friendlies/${friendlyId}`, { method: "DELETE", token });
+export function deleteFriendlyMatch(friendlyId: number): Promise<{ ok: boolean }> {
+  return apiFetch(`/friendlies/${friendlyId}`, { method: "DELETE" });
 }

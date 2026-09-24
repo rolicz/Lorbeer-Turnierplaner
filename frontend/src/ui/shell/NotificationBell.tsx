@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, BellOff, BookOpen, Hand, Lightbulb, ListChecks, MessageSquare, Reply, ThumbsUp } from "lucide-react";
 
 import { useAuth } from "../../auth/AuthContext";
+import { toRouterPath } from "../../app/basename";
 import { qk } from "../../api/queryKeys";
 import { listMyNotifications } from "../../api/notifications.api";
 import { usePushNotifications } from "../../push/usePushNotifications";
@@ -78,13 +79,14 @@ export default function NotificationBell({
    */
   onOpenChange?: (open: boolean) => void;
 }) {
-  const { token } = useAuth();
+  const { status, playerId: viewerId } = useAuth();
+  const loggedIn = status === "authed";
   const navigate = useNavigate();
   // The app's one answer to "does this device receive push" (P5's module, Q-E's state).
   // Never a second boolean computed here: `permission === "denied"` alone would nag the
   // reader who turned push off in Settings, and would speak before the server's config
   // has said whether push exists at all.
-  const blocked = usePushNotifications(token).setupState === "blocked";
+  const blocked = usePushNotifications().setupState === "blocked";
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -95,16 +97,16 @@ export default function NotificationBell({
   }, [open, onOpenChange]);
 
   const q = useQuery({
-    queryKey: qk.notifications(token),
-    queryFn: () => listMyNotifications(token as string),
-    enabled: !!token,
+    queryKey: qk.notifications(viewerId),
+    queryFn: listMyNotifications,
+    enabled: loggedIn,
     staleTime: 30_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
 
-  if (!token) return null;
+  if (!loggedIn) return null;
 
   const items = q.data?.items ?? [];
   const count = q.data?.unread_count ?? 0;
@@ -112,7 +114,7 @@ export default function NotificationBell({
   function openItem(n: MyNotification) {
     // Optimistically drop it so the badge updates immediately; the destination
     // marks the underlying item read, and a refetch confirms.
-    qc.setQueryData<MyNotificationsResponse>(qk.notifications(token), (prev) =>
+    qc.setQueryData<MyNotificationsResponse>(qk.notifications(viewerId), (prev) =>
       prev
         ? {
             items: prev.items.filter((x) => !(x.kind === n.kind && x.id === n.id)),
@@ -121,7 +123,9 @@ export default function NotificationBell({
         : prev,
     );
     setOpen(false);
-    navigate(n.path);
+    // The backend emits absolute, group-prefixed paths (L10); the router wants its own.
+    const to = toRouterPath(n.path);
+    if (to) navigate(to);
   }
 
   return (

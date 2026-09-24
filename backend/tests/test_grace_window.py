@@ -49,13 +49,13 @@ def _create_friendly(client, headers, names: list[int]) -> int:
 # ---- tournament: edit ---------------------------------------------------
 
 
-def test_tournament_edit_matrix(client, editor_headers, editor2_headers, admin_headers):
+def test_tournament_edit_matrix(client, anon, editor_headers, editor2_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["GW1", "GW2", "GW3"]]
     tid = create_tournament(client, editor_headers, "grace-edit", "1v1", ids)
     generate(client, editor_headers, tid, randomize=False)
     body = {"name": "renamed"}
 
-    assert client.patch(f"/tournaments/{tid}", json=body).status_code == 401
+    assert anon.patch(f"/tournaments/{tid}", json=body).status_code == 401
 
     # Live: any editor may edit, creator or not.
     assert client.patch(f"/tournaments/{tid}", json=body, headers=editor2_headers).status_code == 200
@@ -109,7 +109,7 @@ def test_match_result_and_reorder_follow_the_same_window(client, editor_headers,
 # ---- tournament: decider ------------------------------------------------
 
 
-def test_decider_matrix(client, editor_headers, editor2_headers, admin_headers):
+def test_decider_matrix(client, anon, editor_headers, editor2_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["GD1", "GD2", "GD3"]]
     tid = create_tournament(client, editor_headers, "grace-decider", "1v1", ids)
     generate(client, editor_headers, tid, randomize=False)
@@ -134,7 +134,7 @@ def test_decider_matrix(client, editor_headers, editor2_headers, admin_headers):
         )
         assert r.status_code == 200, r.text
 
-    assert client.patch(f"/tournaments/{tid}/decider", json=body).status_code == 401
+    assert anon.patch(f"/tournaments/{tid}/decider", json=body).status_code == 401
 
     # This is the case A10 exists for: the tie is only knowable once the tournament is done,
     # and the editor who ran the night must be able to resolve it.
@@ -189,11 +189,11 @@ def test_a_done_tournament_without_finish_timestamps_falls_back_to_updated_at(
 # ---- tournament: delete -------------------------------------------------
 
 
-def test_tournament_delete_matrix(client, editor_headers, editor2_headers, admin_headers):
+def test_tournament_delete_matrix(client, anon, editor_headers, editor2_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["GX1", "GX2", "GX3"]]
 
     tid = create_tournament(client, editor_headers, "grace-del-1", "1v1", ids)
-    assert client.delete(f"/tournaments/{tid}").status_code == 401
+    assert anon.delete(f"/tournaments/{tid}").status_code == 401
 
     # An editor who did not create it never may, window or not.
     not_creator = client.delete(f"/tournaments/{tid}", headers=editor2_headers)
@@ -260,12 +260,12 @@ def test_an_editor_delete_notifies_exactly_like_an_admin_delete(client, editor_h
 # ---- friendlies ---------------------------------------------------------
 
 
-def test_friendly_patch_matrix(client, editor_headers, editor2_headers, admin_headers):
+def test_friendly_patch_matrix(client, anon, editor_headers, editor2_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["GY1", "GY2"]]
     fid = _create_friendly(client, editor_headers, ids)
     patch = {"state": "finished", "sideA": {"goals": 2}, "sideB": {"goals": 2}}
 
-    assert client.patch(f"/friendlies/{fid}", json=patch).status_code == 401
+    assert anon.patch(f"/friendlies/{fid}", json=patch).status_code == 401
 
     not_creator = client.patch(f"/friendlies/{fid}", json=patch, headers=editor2_headers)
     assert not_creator.status_code == 403, not_creator.text
@@ -283,11 +283,11 @@ def test_friendly_patch_matrix(client, editor_headers, editor2_headers, admin_he
     assert client.patch(f"/friendlies/{fid}", json=patch, headers=admin_headers).status_code == 200
 
 
-def test_friendly_delete_matrix(client, editor_headers, editor2_headers, admin_headers):
+def test_friendly_delete_matrix(client, anon, editor_headers, editor2_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["GZ1", "GZ2"]]
 
     fid = _create_friendly(client, editor_headers, ids)
-    assert client.delete(f"/friendlies/{fid}").status_code == 401
+    assert anon.delete(f"/friendlies/{fid}").status_code == 401
     assert client.delete(f"/friendlies/{fid}", headers=editor2_headers).status_code == 403
     assert client.delete(f"/friendlies/{fid}", headers=editor_headers).status_code == 200
     assert all(int(x["id"]) != fid for x in client.get("/friendlies").json())
@@ -306,7 +306,7 @@ def test_friendly_delete_matrix(client, editor_headers, editor2_headers, admin_h
 # ---- the flags in the payloads -----------------------------------------
 
 
-def test_capability_flags_match_the_guards(client, editor_headers, editor2_headers, admin_headers):
+def test_capability_flags_match_the_guards(client, anon, editor_headers, editor2_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["GC1", "GC2", "GC3"]]
     tid = create_tournament(client, editor_headers, "grace-flags", "1v1", ids)
     generate(client, editor_headers, tid, randomize=False)
@@ -320,9 +320,9 @@ def test_capability_flags_match_the_guards(client, editor_headers, editor2_heade
         rows = client.get("/tournaments", headers=headers or {}).json()
         return next(t for t in rows if t["id"] == tid)
 
-    # Reader: no token, nothing offered.
-    for row in (detail(), item()):
-        assert (row["can_edit"], row["can_delete"], row["can_set_decider"]) == (False, False, False)
+    # Nobody: no session, no payload at all (L2 — there is no reader any more).
+    assert anon.get(f"/tournaments/{tid}").status_code == 401
+    assert anon.get("/tournaments").status_code == 401
 
     for row in (detail(editor_headers), item(editor_headers)):
         assert (row["can_edit"], row["can_delete"], row["can_set_decider"]) == (True, True, True)
@@ -346,7 +346,7 @@ def test_capability_flags_match_the_guards(client, editor_headers, editor2_heade
     assert detail(admin_headers)["can_edit"] is True
 
 
-def test_friendly_flags_match_the_guards(client, editor_headers, editor2_headers, admin_headers):
+def test_friendly_flags_match_the_guards(client, anon, editor_headers, editor2_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["GV1", "GV2"]]
     fid = _create_friendly(client, editor_headers, ids)
 
@@ -354,7 +354,7 @@ def test_friendly_flags_match_the_guards(client, editor_headers, editor2_headers
         rows = client.get("/friendlies", headers=headers or {}).json()
         return next(f for f in rows if int(f["id"]) == fid)
 
-    assert (row()["can_edit"], row()["can_delete"]) == (False, False)
+    assert anon.get("/friendlies").status_code == 401  # nobody: no list at all (L2)
     assert (row(editor_headers)["can_edit"], row(editor_headers)["can_delete"]) == (True, True)
     assert (row(editor2_headers)["can_edit"], row(editor2_headers)["can_delete"]) == (False, False)
     assert (row(admin_headers)["can_edit"], row(admin_headers)["can_delete"]) == (True, True)

@@ -18,6 +18,7 @@ import BottomTabBar from "./BottomTabBar";
 import { ErrorToastViewport } from "../primitives/ErrorToast";
 import RouteErrorBoundary from "./RouteErrorBoundary";
 import PushSetupNotice from "./PushSetupNotice";
+import SecureAccountNotice from "./SecureAccountNotice";
 import { useSwipeNav } from "./useSwipeNav";
 import { readStored, writeStored } from "../../utils/safeStorage";
 import { useLocationRestore } from "./useLocationRestore";
@@ -28,7 +29,9 @@ import { useKeyboardWatcher } from "./keyboardOpen";
 const COLLAPSE_KEY = "sidebar-collapsed";
 
 function ShellInner({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
+  // The shell mounts only behind `RequireAuth` (L4): there is always a session here, and
+  // the viewer's id is what the per-caller read-map keys are named after.
+  const { playerId: viewerId } = useAuth();
   const qc = useQueryClient();
   const location = useLocation();
 
@@ -71,12 +74,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
     qc.prefetchQuery({ queryKey: qk.commentsSummary(), queryFn: listTournamentCommentsSummary, ...opts }).catch(() => {});
     qc.prefetchQuery({ queryKey: qk.playerGuestbookSummary(), queryFn: listPlayerGuestbookSummary, ...opts }).catch(() => {});
     qc.prefetchQuery({ queryKey: qk.playerPokesSummary(), queryFn: listPlayerPokeSummary, ...opts }).catch(() => {});
-    if (token) {
-      qc.prefetchQuery({ queryKey: qk.commentsReadMap(token), queryFn: () => listTournamentCommentReadMap(token), ...opts }).catch(() => {});
-      qc.prefetchQuery({ queryKey: qk.playerGuestbookReadMap(token), queryFn: () => listPlayerGuestbookReadMap(token), ...opts }).catch(() => {});
-      qc.prefetchQuery({ queryKey: qk.playerPokesReadMap(token), queryFn: () => listPlayerPokeReadMap(token), ...opts }).catch(() => {});
-    }
-  }, [qc, token]);
+    qc.prefetchQuery({ queryKey: qk.commentsReadMap(viewerId), queryFn: listTournamentCommentReadMap, ...opts }).catch(() => {});
+    qc.prefetchQuery({ queryKey: qk.playerGuestbookReadMap(viewerId), queryFn: listPlayerGuestbookReadMap, ...opts }).catch(() => {});
+    qc.prefetchQuery({ queryKey: qk.playerPokesReadMap(viewerId), queryFn: listPlayerPokeReadMap, ...opts }).catch(() => {});
+  }, [qc, viewerId]);
 
   return (
     <div className="min-h-screen lg:flex">
@@ -118,7 +119,10 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           {/* A device whose push subscription is gone says so on whatever page the
               reader is on — the one surface that finds someone who does not know
               they have a problem (P5). It renders nothing in every other case. */}
-          <PushSetupNotice token={token} />
+          <PushSetupNotice />
+          {/* An account still on the password it was given, with no passkey (L9). Not
+              dismissible; it stops when a passkey exists. Renders nothing otherwise. */}
+          <SecureAccountNotice />
           <RouteErrorBoundary resetKey={location.pathname}>{children}</RouteErrorBoundary>
         </main>
 

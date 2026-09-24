@@ -2,7 +2,11 @@ import { lazy, Suspense } from "react";
 import { MotionConfig } from "framer-motion";
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "../ui/shell/AppShell";
-import LoginPage from "../pages/LoginPage";
+import LoginPage from "../pages/auth/LoginPage";
+import RegisterPage from "../pages/auth/RegisterPage";
+import RecoverPage from "../pages/auth/RecoverPage";
+import ResetPage from "../pages/auth/ResetPage";
+import VerifyEmailPage from "../pages/auth/VerifyEmailPage";
 import TournamentsPage from "../pages/TournamentsPage";
 import LiveTournamentPage from "../pages/live/LiveTournamentPage";
 import DashboardPage from "../pages/dashboard/DashboardPage";
@@ -12,6 +16,7 @@ import MatchDetailPage from "../pages/live/MatchDetailPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import PageLayout from "../ui/layout/PageLayout";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
+import { RequireAuth } from "../auth/RequireAuth";
 import { RequireRole } from "../auth/RequireRole";
 
 const StatsPage = lazy(() => import("../pages/StatsPage"));
@@ -19,107 +24,125 @@ const ProfilePage = lazy(() => import("../pages/ProfilePage"));
 const ClubsPage = lazy(() => import("../pages/ClubsPage"));
 const PlayersAdminPage = lazy(() => import("../pages/PlayersAdminPage"));
 const IdeasPage = lazy(() => import("../pages/ideas/IdeasPage"));
+const AdminPage = lazy(() => import("../pages/admin/AdminPage"));
 
 // `PageLayout`, so a lazy route still carries its back chevron while it loads (Q6).
 const pageFallback = <PageLayout><PageLoadingScreen /></PageLayout>;
 
+/**
+ * Everything behind the login (L4). Every route here is reached only through
+ * `RequireAuth`, so being logged in is not something a page checks; `RequireRole` is left
+ * where a page needs *more* than membership.
+ */
+function ShellRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/tournaments" element={<TournamentsPage />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/tournaments/new" element={<Navigate to="/tournaments?tab=new" replace />} />
+      <Route path="/live/:id" element={<LiveTournamentPage />} />
+      <Route path="/live/:id/match/:mid" element={<MatchDetailPage />} />
+
+      <Route
+        path="/stats"
+        element={
+          <Suspense fallback={pageFallback}>
+            <StatsPage />
+          </Suspense>
+        }
+      />
+
+      <Route
+        path="/clubs"
+        element={
+          <RequireRole minRole="editor">
+            <Suspense fallback={pageFallback}>
+              <ClubsPage />
+            </Suspense>
+          </RequireRole>
+        }
+      />
+
+      <Route
+        path="/players"
+        element={
+          <Suspense fallback={pageFallback}>
+            <PlayersAdminPage />
+          </Suspense>
+        }
+      />
+
+      <Route
+        path="/profile"
+        element={
+          <Suspense fallback={pageFallback}>
+            <ProfilePage />
+          </Suspense>
+        }
+      />
+
+      <Route
+        path="/profiles/:id"
+        element={
+          <Suspense fallback={pageFallback}>
+            <ProfilePage />
+          </Suspense>
+        }
+      />
+
+      <Route path="/friendlies" element={<FriendliesPage />} />
+
+      <Route
+        path="/ideas"
+        element={
+          <Suspense fallback={pageFallback}>
+            <IdeasPage />
+          </Suspense>
+        }
+      />
+
+      <Route
+        path="/admin"
+        element={
+          <RequireRole minRole="owner">
+            <Suspense fallback={pageFallback}>
+              <AdminPage />
+            </Suspense>
+          </RequireRole>
+        }
+      />
+
+      <Route path="/tools" element={<Navigate to="/friendlies" replace />} />
+
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
+}
+
 export default function App() {
   return (
     <MotionConfig reducedMotion="user">
-    <AppShell>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        {/* Bare, outside the shell: nobody is logged in here, so there is no top bar,
+            no tab bar, no global websocket and no prefetch — `AuthScreen` is the layout. */}
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/tournaments" element={<TournamentsPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/tournaments/new" element={<Navigate to="/tournaments?tab=new" replace />} />
-        <Route path="/live/:id" element={<LiveTournamentPage />} />
-        <Route path="/live/:id/match/:mid" element={<MatchDetailPage />} />
-
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/reset" element={<ResetPage />} />
+        <Route path="/recover" element={<RecoverPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route
-          path="/stats"
+          path="/*"
           element={
-            <RequireRole minRole="reader">
-              <Suspense fallback={pageFallback}>
-                <StatsPage />
-              </Suspense>
-            </RequireRole>
+            <RequireAuth>
+              <AppShell>
+                <ShellRoutes />
+              </AppShell>
+            </RequireAuth>
           }
         />
-
-        <Route
-          path="/clubs"
-          element={
-            <RequireRole minRole="editor">
-              <Suspense fallback={pageFallback}>
-                <ClubsPage />
-              </Suspense>
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="/players"
-          element={
-            <RequireRole minRole="reader">
-              <Suspense fallback={pageFallback}>
-                <PlayersAdminPage />
-              </Suspense>
-            </RequireRole>
-          }
-        />
-
-        {/* reader: ProfilePage itself asks for a login when there is no player,
-            so "My profile" from Settings must not bounce a viewer to /login. */}
-        <Route
-          path="/profile"
-          element={
-            <RequireRole minRole="reader">
-              <Suspense fallback={pageFallback}>
-                <ProfilePage />
-              </Suspense>
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="/profiles/:id"
-          element={
-            <RequireRole minRole="reader">
-              <Suspense fallback={pageFallback}>
-                <ProfilePage />
-              </Suspense>
-            </RequireRole>
-          }
-        />
-
-        <Route
-          path="/friendlies"
-          element={
-            <RequireRole minRole="reader">
-              <FriendliesPage />
-            </RequireRole>
-          }
-        />
-
-        {/* Reading the board is public; posting and voting need a login (R5). */}
-        <Route
-          path="/ideas"
-          element={
-            <RequireRole minRole="reader">
-              <Suspense fallback={pageFallback}>
-                <IdeasPage />
-              </Suspense>
-            </RequireRole>
-          }
-        />
-
-        <Route path="/tools" element={<Navigate to="/friendlies" replace />} />
-
-        <Route path="*" element={<NotFoundPage />} />
       </Routes>
-    </AppShell>
     </MotionConfig>
   );
 }

@@ -11,14 +11,16 @@ import httpx
 from fastapi import Request
 from sqlmodel import Session, select
 
-from ..models import Player, PushSubscription, PushSubscriptionPreference
+from ..models import Account, Player, PushSubscription, PushSubscriptionPreference
 from ..settings import Settings
+from .groups import group_prefix_for_push
 from .idea_events import idea_event_audience
 from .notification_texts import (
     default_notification_language,
     normalize_notification_language,
     render_notification_text,
 )
+from .paths import group_path
 from .stats.records import record_kind
 from .webpush import (
     WebPushConfig,
@@ -142,7 +144,7 @@ def notification_mode_options() -> list[dict[str, str]]:
 def _poke_push_message(*, profile_player_id: int, profile_player_name: str, author_player_name: str, poke_id: int) -> PushMessage:
     return localized_push_message(
         "poke_created",
-        path=f"/profiles/{profile_player_id}",
+        path=group_path(f"/profiles/{profile_player_id}"),
         tag=f"poke-{profile_player_id}",
         event_type="poke_created",
         data={"profile_player_id": profile_player_id, "poke_id": poke_id},
@@ -154,7 +156,7 @@ def _poke_push_message(*, profile_player_id: int, profile_player_name: str, auth
 def _poke_summary_message(*, profile_player_id: int, profile_player_name: str, latest_poke_id: int, extra_count: int, author_names: list[str]) -> PushMessage:
     return localized_push_message(
         "poke_summary",
-        path=f"/profiles/{profile_player_id}",
+        path=group_path(f"/profiles/{profile_player_id}"),
         tag=f"poke-{profile_player_id}",
         event_type="poke_summary",
         data={
@@ -238,7 +240,7 @@ def push_tournament_created(request: Request, *, tournament_id: int, tournament_
         request,
         localized_push_message(
             "tournament_created",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"tournament-created-{tournament_id}",
             event_type="tournament_created",
             data={"tournament_id": tournament_id},
@@ -252,7 +254,7 @@ def push_tournament_updated(request: Request, *, tournament_id: int, tournament_
         request,
         localized_push_message(
             "tournament_updated",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"tournament-updated-{tournament_id}",
             event_type="tournament_updated",
             data={"tournament_id": tournament_id},
@@ -266,7 +268,7 @@ def push_tournament_date_changed(request: Request, *, tournament_id: int, tourna
         request,
         localized_push_message(
             "tournament_date_changed",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"tournament-date-{tournament_id}",
             event_type="tournament_date_changed",
             data={"tournament_id": tournament_id},
@@ -281,7 +283,7 @@ def push_schedule_generated(request: Request, *, tournament_id: int, tournament_
         request,
         localized_push_message(
             "schedule_generated",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"schedule-generated-{tournament_id}",
             event_type="schedule_generated",
             data={"tournament_id": tournament_id, "matches": match_count},
@@ -296,7 +298,7 @@ def push_tournament_deleted(request: Request, *, tournament_id: int, tournament_
         request,
         localized_push_message(
             "tournament_deleted",
-            path="/tournaments",
+            path=group_path("/tournaments"),
             tag=f"tournament-deleted-{tournament_id}",
             event_type="tournament_deleted",
             data={"tournament_id": tournament_id},
@@ -312,7 +314,7 @@ def push_match_started(
         request,
         localized_push_message(
             "match_started",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"match-start-{match_id}",
             event_type="match_started",
             data={"tournament_id": tournament_id, "match_id": match_id},
@@ -329,7 +331,7 @@ def push_match_finished(
         request,
         localized_push_message(
             "match_finished",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"match-finished-{match_id}",
             event_type="match_finished",
             data={"tournament_id": tournament_id, "match_id": match_id},
@@ -347,7 +349,7 @@ def push_tournament_finished(
         request,
         localized_push_message(
             "tournament_finished",
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"tournament-finished-{tournament_id}",
             event_type="tournament_finished",
             data={"tournament_id": tournament_id, "match_id": match_id},
@@ -373,7 +375,7 @@ def push_match_score_changed(
         request,
         localized_push_message(
             text_key,
-            path=f"/live/{tournament_id}",
+            path=group_path(f"/live/{tournament_id}"),
             tag=f"match-score-{match_id}",
             event_type="match_score_changed",
             data={
@@ -404,7 +406,7 @@ def push_guestbook_created(
         int(profile_player_id),
         localized_push_message(
             "guestbook_created",
-            path=f"/profiles/{profile_player_id}",
+            path=group_path(f"/profiles/{profile_player_id}"),
             tag=f"guestbook-{profile_player_id}",
             event_type="guestbook_created",
             data={"profile_player_id": profile_player_id, "entry_id": entry_id},
@@ -416,23 +418,16 @@ def push_guestbook_created(
 
 
 def admin_player_ids(request: Request, s: Session) -> list[int]:
-    """The player ids behind the admin accounts in `secrets.json`.
+    """The player ids of the site admins: `Account.site_admin` (L2).
 
-    Admin is a property of the *account* (`player_accounts[].admin`), not of a row in
-    the database, and accounts are matched to players by display name exactly the way
-    `auth.resolve_player_login` does it — case-insensitively. Anything else here would
-    be a second definition of "who is an admin".
+    The same flag the bell reads from the session's claims (`claims["site_admin"]`), so
+    this is not a second definition of "who is an admin". `request` is kept for the
+    callers' sake and is unused: `secrets.json` is no longer consulted here — the boot
+    migration read it once (L1).
     """
-    settings = getattr(request.app.state, "settings", None)
-    wanted = {
-        str(acc.name or "").strip().casefold()
-        for acc in getattr(settings, "player_accounts", ()) or ()
-        if getattr(acc, "admin", False)
-    }
-    if not wanted:
-        return []
-    rows = s.exec(select(Player.id, Player.display_name)).all()
-    return [int(pid) for pid, name in rows if str(name or "").strip().casefold() in wanted]
+    del request
+    rows = s.exec(select(Account.player_id).where(Account.site_admin == True)).all()  # noqa: E712 - SQL, not Python
+    return [int(pid) for pid in rows]
 
 
 def push_idea_created(
@@ -460,7 +455,7 @@ def push_idea_created(
         return 0
     message = localized_push_message(
         "idea_created",
-        path=f"/ideas?idea={int(idea_id)}",
+        path=group_path(f"/ideas?idea={int(idea_id)}"),
         tag=f"idea-{int(idea_id)}",
         event_type="idea_created",
         data={"idea_id": int(idea_id)},
@@ -509,7 +504,7 @@ def push_idea_commented(
         return False
     message = localized_push_message(
         "idea_commented",
-        path=f"/ideas?idea={int(idea_id)}",
+        path=group_path(f"/ideas?idea={int(idea_id)}"),
         tag=f"idea-comment-{int(idea_id)}",
         event_type="idea_commented",
         data={"idea_id": int(idea_id), "comment_id": int(comment_id)},
@@ -553,7 +548,7 @@ def push_idea_voted(
         return False
     message = localized_push_message(
         "idea_voted",
-        path=f"/ideas?idea={int(idea_id)}",
+        path=group_path(f"/ideas?idea={int(idea_id)}"),
         tag=f"idea-vote-{int(idea_id)}",
         event_type="idea_voted",
         data={"idea_id": int(idea_id), "vote_count": int(vote_count)},
@@ -596,7 +591,7 @@ def push_idea_status(
         return False
     message = localized_push_message(
         "idea_status",
-        path=f"/ideas?idea={int(idea_id)}",
+        path=group_path(f"/ideas?idea={int(idea_id)}"),
         tag=f"idea-status-{int(idea_id)}",
         event_type="idea_status",
         data={"idea_id": int(idea_id), "status": status},
@@ -678,7 +673,7 @@ def push_friendly_created(request: Request, *, friendly_id: int, mode: str, scor
         request,
         localized_push_message(
             "friendly_created",
-            path="/friendlies",
+            path=group_path("/friendlies"),
             tag=f"friendly-created-{friendly_id}",
             event_type="friendly_created",
             data={"friendly_id": friendly_id},
@@ -693,7 +688,7 @@ def push_friendly_started(request: Request, *, friendly_id: int) -> None:
         request,
         localized_push_message(
             "friendly_started",
-            path="/friendlies",
+            path=group_path("/friendlies"),
             tag=f"friendly-started-{friendly_id}",
             event_type="friendly_started",
             data={"friendly_id": friendly_id},
@@ -706,7 +701,7 @@ def push_friendly_finished(request: Request, *, friendly_id: int, scoreline: str
         request,
         localized_push_message(
             "friendly_finished",
-            path="/friendlies",
+            path=group_path("/friendlies"),
             tag=f"friendly-finished-{friendly_id}",
             event_type="friendly_finished",
             data={"friendly_id": friendly_id},
@@ -722,13 +717,45 @@ def push_friendly_score_changed(
         request,
         localized_push_message(
             "friendly_score_changed",
-            path="/friendlies",
+            path=group_path("/friendlies"),
             tag=f"friendly-score-{friendly_id}",
             event_type="friendly_score_changed",
             data={"friendly_id": friendly_id, "score_a": score_a, "score_b": score_b},
             scoreline=scoreline,
         ),
     )
+
+
+def retire_replaced_push_subscription(
+    s: Session,
+    *,
+    player_id: int,
+    replaces_endpoint: str | None,
+    new_endpoint: str,
+) -> PushSubscriptionPreference | None:
+    """Disable the subscription a device just replaced, and hand back its preference (L10).
+
+    Only a row the **caller owns** is touched — an endpoint is not a secret worth trusting
+    from someone else's session. Returns that row's preference (or None) so the new row can
+    inherit the language and mode the device had: the service worker re-subscribes with no
+    idea what either was. Nothing is committed here.
+    """
+    old_norm = str(replaces_endpoint or "").strip()
+    if not old_norm or old_norm == str(new_endpoint or "").strip():
+        return None
+    old = s.exec(
+        select(PushSubscription).where(
+            PushSubscription.endpoint == old_norm,
+            PushSubscription.player_id == player_id,
+        )
+    ).first()
+    if old is None:
+        return None
+    if old.disabled_at is None:
+        old.disabled_at = datetime.utcnow()
+        old.updated_at = old.disabled_at
+        s.add(old)
+    return s.get(PushSubscriptionPreference, int(old.id or 0))
 
 
 def upsert_push_subscription(
@@ -1050,68 +1077,141 @@ class NotificationDispatcher:
                 log.exception("Push delivery worker failed for %s", item.message.event_type)
 
     async def _deliver(self, item: _QueuedPushMessage) -> None:
+        """Send one message to every subscription it is for — **with no database transaction
+        open across a network call** (L16).
+
+        SQLite has one write lock per file and this app runs it without WAL, so a transaction
+        that has written anything blocks every other writer until it ends. This used to keep
+        one `Session` over the whole fan-out and commit at the end: the second row's reads
+        autoflushed the first row's result, took the lock, and held it across every remaining
+        push (up to the client's 10 s timeout each) — and a login, which writes a session row,
+        waited out the 5 s busy timeout and answered 500 "database is locked". Now it is three
+        phases: read everything needed in one short session and close it; send with no session
+        open; write each result in its own short transaction."""
         if not self.enabled or self._client is None:
             return
+        for delivery in self._plan_deliveries(item):
+            await self._deliver_one(delivery)
+
+    def _plan_deliveries(self, item: _QueuedPushMessage) -> list["_PlannedDelivery"]:
+        """Phase 1: the rows to send to, each with its payload, read in one short session
+        that is closed before anything goes on the wire. The mode filter lives here."""
+        message = item.message
+        planned: list[_PlannedDelivery] = []
         with Session(self._engine) as s:
             stmt = select(PushSubscription).where(PushSubscription.disabled_at.is_(None))
             if item.player_id is not None:
                 stmt = stmt.where(PushSubscription.player_id == item.player_id)
-            rows = list(s.exec(stmt).all())
-            if not rows:
-                return
-            for row in rows:
-                await self._deliver_one(s, row, item)
-            s.commit()
+            for row in s.exec(stmt).all():
+                mode = push_subscription_mode(s, row.id)
+                if mode == "off":
+                    continue
+                if (
+                    mode == "finished_only"
+                    and message.event_type not in FINISHED_ONLY_EVENT_TYPES
+                    and not (
+                        message.event_type in PERSONAL_DEFAULT_EVENT_TYPES
+                        and item.default_mode_player_id is not None
+                        and int(row.player_id) == int(item.default_mode_player_id)
+                    )
+                ):
+                    continue
+                # A payload that cannot be built is recorded as a failed send, exactly as it
+                # was when it was built inside the send's `try`.
+                payload: dict[str, Any] | None = None
+                payload_error: Exception | None = None
+                try:
+                    payload = self._payload_for(s, row, message)
+                except Exception as exc:
+                    payload_error = exc
+                planned.append(
+                    _PlannedDelivery(
+                        subscription_id=int(row.id),
+                        subscription=WebPushSubscriptionData(
+                            endpoint=row.endpoint,
+                            p256dh=row.p256dh,
+                            auth=row.auth,
+                            content_encoding=row.content_encoding,
+                        ),
+                        payload=payload,
+                        payload_error=payload_error,
+                    )
+                )
+        return planned
 
-    async def _deliver_one(self, s: Session, row: PushSubscription, item: _QueuedPushMessage) -> None:
-        message = item.message
+    @staticmethod
+    def _payload_for(s: Session, row: PushSubscription, message: PushMessage) -> dict[str, Any]:
+        """The payload in the recipient's language, its title prefixed with the group's name
+        when the recipient is in two or more groups (`groups.group_prefix_for_push`) — the
+        one place a push learns about groups, so no text key changes (L3)."""
+        payload = message.to_payload(push_subscription_language(s, row.id))
+        prefix = group_prefix_for_push(s, int(row.player_id))
+        if prefix:
+            payload["title"] = f"{prefix}{payload['title']}"
+        return payload
+
+    async def _deliver_one(self, delivery: "_PlannedDelivery") -> None:
+        """Phase 2 and 3 for one subscription: send with no session open, then write the
+        result in its own short transaction."""
         now = datetime.utcnow()
-        mode = push_subscription_mode(s, row.id)
-        if mode == "off":
-            return
-        if (
-            mode == "finished_only"
-            and message.event_type not in FINISHED_ONLY_EVENT_TYPES
-            and not (
-                message.event_type in PERSONAL_DEFAULT_EVENT_TYPES
-                and item.default_mode_player_id is not None
-                and int(row.player_id) == int(item.default_mode_player_id)
-            )
-        ):
-            return
+        response = None
+        error: Exception | None = delivery.payload_error
+        if error is None:
+            try:
+                response = await send_web_push_message(
+                    self._client,
+                    self._config,
+                    delivery.subscription,
+                    delivery.payload or {},
+                )
+            except Exception as exc:
+                error = exc
         try:
-            response = await send_web_push_message(
-                self._client,
-                self._config,
-                WebPushSubscriptionData(
-                    endpoint=row.endpoint,
-                    p256dh=row.p256dh,
-                    auth=row.auth,
-                    content_encoding=row.content_encoding,
-                ),
-                message.to_payload(push_subscription_language(s, row.id)),
-            )
-            row.updated_at = now
-            row.last_http_status = response.status_code
-            if 200 <= response.status_code < 300:
-                row.last_success_at = now
-                row.last_error = ""
-                row.failure_count = 0
+            with Session(self._engine) as s:
+                row = s.get(PushSubscription, delivery.subscription_id)
+                if row is None:
+                    # Unsubscribed while the push was on the wire: nothing left to record.
+                    return
+                _record_delivery_result(row, now, response, error)
                 s.add(row)
-                return
+                s.commit()
+        except Exception:
+            # The push itself went out; failing to write down how it went must not cost the
+            # remaining devices their push.
+            log.exception("Recording the push result failed for subscription %s", delivery.subscription_id)
 
-            row.last_failure_at = now
-            row.last_error = f"{response.status_code} {response.text[:400]}"
-            row.failure_count += 1
-            if response.status_code in (404, 410):
-                row.disabled_at = now
-        except (WebPushUnavailableError, WebPushConfigError) as exc:
-            row.last_failure_at = now
-            row.last_error = str(exc)[:400]
-            row.failure_count += 1
-        except Exception as exc:
-            row.last_failure_at = now
-            row.last_error = f"{type(exc).__name__}: {exc}"[:400]
-            row.failure_count += 1
+
+@dataclass(frozen=True)
+class _PlannedDelivery:
+    """Everything a send needs, copied out of the database so no session stays open (L16)."""
+
+    subscription_id: int
+    subscription: WebPushSubscriptionData
+    payload: dict[str, Any] | None
+    payload_error: Exception | None = None
+
+
+def _record_delivery_result(row: PushSubscription, now: datetime, response: Any, error: Exception | None) -> None:
+    """The fields a send writes back, per outcome — unchanged by L16."""
+    if error is None and response is not None:
         row.updated_at = now
-        s.add(row)
+        row.last_http_status = response.status_code
+        if 200 <= response.status_code < 300:
+            row.last_success_at = now
+            row.last_error = ""
+            row.failure_count = 0
+            return
+        row.last_failure_at = now
+        row.last_error = f"{response.status_code} {response.text[:400]}"
+        row.failure_count += 1
+        if response.status_code in (404, 410):
+            row.disabled_at = now
+    elif isinstance(error, (WebPushUnavailableError, WebPushConfigError)):
+        row.last_failure_at = now
+        row.last_error = str(error)[:400]
+        row.failure_count += 1
+    else:
+        row.last_failure_at = now
+        row.last_error = f"{type(error).__name__}: {error}"[:400]
+        row.failure_count += 1
+    row.updated_at = now

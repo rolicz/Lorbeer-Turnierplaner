@@ -46,11 +46,11 @@ def test_live_tournament_is_null_until_a_match_is_playing(client, editor_headers
 # ---- PATCH /tournaments/{id}/date --------------------------------------
 
 
-def test_patch_date_is_admin_only(client, editor_headers, admin_headers):
+def test_patch_date_is_admin_only(client, anon, editor_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["DT1", "DT2", "DT3"]]
     tid = create_tournament(client, editor_headers, "date-auth", "1v1", ids)
 
-    r_reader = client.patch(f"/tournaments/{tid}/date", json={"date": "2026-05-04"})
+    r_reader = anon.patch(f"/tournaments/{tid}/date", json={"date": "2026-05-04"})
     assert r_reader.status_code in (401, 403), r_reader.text
 
     r_editor = client.patch(f"/tournaments/{tid}/date", json={"date": "2026-05-04"}, headers=editor_headers)
@@ -112,7 +112,7 @@ def test_reassign_rebuilds_a_2v2_draft_schedule(client, editor_headers, admin_he
         assert sorted(p["id"] for s in m["sides"] for p in s["players"]) == sorted(ids)
 
 
-def test_reassign_rejects_1v1_missing_schedule_and_touched_matches(client, editor_headers, admin_headers):
+def test_reassign_rejects_1v1_missing_schedule_and_touched_matches(client, anon, editor_headers, admin_headers):
     ids_1v1 = [create_player(client, admin_headers, n) for n in ["RB1", "RB2", "RB3"]]
     tid_1v1 = create_tournament(client, editor_headers, "reassign-1v1", "1v1", ids_1v1)
     generate(client, editor_headers, tid_1v1, randomize=False)
@@ -128,8 +128,8 @@ def test_reassign_rejects_1v1_missing_schedule_and_touched_matches(client, edito
 
     generate(client, editor_headers, tid, randomize=False)
 
-    r_reader = client.post(f"/tournaments/{tid}/reassign", json={})
-    assert r_reader.status_code in (401, 403), r_reader.text
+    r_reader = anon.post(f"/tournaments/{tid}/reassign", json={})
+    assert r_reader.status_code == 401, r_reader.text
 
     mid = client.get(f"/tournaments/{tid}").json()["matches"][0]["id"]
     rp = client.patch(f"/matches/{mid}", json={"state": "playing"}, headers=editor_headers)
@@ -145,7 +145,7 @@ def test_reassign_rejects_1v1_missing_schedule_and_touched_matches(client, edito
 # ---- PATCH /tournaments/{id}/decider -----------------------------------
 
 
-def test_decider_is_open_to_editors_until_an_hour_after_the_tournament_is_done(client, editor_headers, admin_headers):
+def test_decider_is_open_to_editors_until_an_hour_after_the_tournament_is_done(client, anon, editor_headers, admin_headers):
     ids = [create_player(client, admin_headers, n) for n in ["DC1", "DC2", "DC3"]]
     tid = create_tournament(client, editor_headers, "decider-auth", "1v1", ids)
     generate(client, editor_headers, tid, randomize=False)
@@ -170,8 +170,8 @@ def test_decider_is_open_to_editors_until_an_hour_after_the_tournament_is_done(c
     )
     assert rf.status_code == 200, rf.text
 
-    r_reader = client.patch(f"/tournaments/{tid}/decider", json=body)
-    assert r_reader.status_code in (401, 403), r_reader.text
+    r_reader = anon.patch(f"/tournaments/{tid}/decider", json=body)
+    assert r_reader.status_code == 401, r_reader.text
 
     r_editor = client.patch(f"/tournaments/{tid}/decider", json=body, headers=editor_headers)
     assert r_editor.status_code == 200, r_editor.text

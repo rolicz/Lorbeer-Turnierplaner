@@ -30,9 +30,10 @@ describe("ClubStarHistory", () => {
     getClubStarHistory.mockResolvedValue({
       club_id: 7,
       current_stars: 4,
+      current_is_global: true,
       entries: [
-        { stars: 3, valid_from: "2026-03-28", changed_at: "2026-03-28T00:00:00", source: "seed" },
-        { stars: 4, valid_from: "2026-09-12", changed_at: "2026-09-12T10:00:00", source: "live" },
+        { stars: 3, valid_from: "2026-03-28", changed_at: "2026-03-28T00:00:00", source: "seed", scope: "global" },
+        { stars: 4, valid_from: "2026-09-12", changed_at: "2026-09-12T10:00:00", source: "live", scope: "global" },
       ],
     });
 
@@ -53,9 +54,10 @@ describe("ClubStarHistory", () => {
     getClubStarHistory.mockResolvedValue({
       club_id: 7,
       current_stars: 2.5,
+      current_is_global: true,
       entries: [
-        { stars: 2, valid_from: "2026-03-28", changed_at: "2026-09-15T00:00:00", source: "recovered" },
-        { stars: 2.5, valid_from: "2026-05-31", changed_at: "2026-09-15T00:00:00", source: "recovered" },
+        { stars: 2, valid_from: "2026-03-28", changed_at: "2026-09-15T00:00:00", source: "recovered", scope: "global" },
+        { stars: 2.5, valid_from: "2026-05-31", changed_at: "2026-09-15T00:00:00", source: "recovered", scope: "global" },
       ],
     });
 
@@ -70,7 +72,8 @@ describe("ClubStarHistory", () => {
     getClubStarHistory.mockResolvedValue({
       club_id: 7,
       current_stars: 3,
-      entries: [{ stars: 3, valid_from: "2026-09-15", changed_at: "2026-09-15T00:00:00", source: "seed" }],
+      current_is_global: true,
+      entries: [{ stars: 3, valid_from: "2026-09-15", changed_at: "2026-09-15T00:00:00", source: "seed", scope: "global" }],
     });
 
     const { container } = renderHistory();

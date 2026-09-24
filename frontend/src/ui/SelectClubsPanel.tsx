@@ -43,7 +43,7 @@ import {
   useClubPanelOpen,
   type ClubSelection,
 } from "./clubControls";
-import { useAuth } from "../auth/AuthContext";
+import { atLeast, useAuth } from "../auth/AuthContext";
 import { cn } from "./cn";
 
 function DiceIcon({ spinning }: { spinning: boolean }) {
@@ -159,8 +159,8 @@ export default function SelectClubsPanel({
   extraBottom?: React.ReactNode;
   className?: string;
 }) {
-  const { role, token } = useAuth();
-  const canEditStars = (role === "editor" || role === "admin") && !!token;
+  const { role } = useAuth();
+  const canEditStars = atLeast(role, "editor");
 
   const { clubs, disabled, filters } = selection;
   const [open, setOpen] = useClubPanelOpen(storageKey, defaultOpen);

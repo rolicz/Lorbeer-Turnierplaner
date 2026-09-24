@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { atLeast, type Role } from "../../auth/AuthContext";
 import Button from "../../ui/primitives/Button";
 import ConfirmDialog from "../../ui/primitives/ConfirmDialog";
 import { fmtCount } from "../../utils/format";
@@ -62,7 +63,7 @@ export default function AdminPanel({
   onSaveDecider,
   deciderBusy,
 }: {
-  role: "reader" | "editor" | "admin";
+  role: Role;
   status: Status;
 
   /** From `TournamentDetailOut.can_edit` / `can_delete` / `can_set_decider`, already role-gated. */
@@ -119,7 +120,7 @@ export default function AdminPanel({
   deciderBusy?: boolean;
 }) {
   const isAdmin = role === "admin";
-  const isEditorOrAdmin = role === "editor" || role === "admin";
+  const isEditorOrAdmin = atLeast(role, "editor");
   const done = status === "done";
 
   // Editors: allow second-leg always (even if done) — that endpoint has its own rule.

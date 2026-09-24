@@ -89,16 +89,18 @@ def test_comments_ride_on_the_idea_payload_oldest_first(client, editor_headers, 
     assert all(c["updated_at"] == c["created_at"] for c in idea["comments"])
 
 
-def test_reader_may_not_comment_and_sees_no_comment_capabilities(client, editor_headers):
+def test_nobody_may_not_comment_and_another_member_sees_no_comment_capabilities(client, anon, editor_headers, editor2_headers):
     iid = _create(client, editor_headers)["id"]
     c = _comment(client, iid, editor_headers, "Mine.")
 
-    assert client.post(f"/ideas/{iid}/comments", json={"body": "x"}).status_code == 401
-    assert client.delete(f"/ideas/comments/{c['id']}").status_code == 401
-    assert client.put(f"/ideas/{iid}/read").status_code == 401
+    # No session: nothing at all, reading included (L2 — there is no reader any more).
+    assert anon.post(f"/ideas/{iid}/comments", json={"body": "x"}).status_code == 401
+    assert anon.delete(f"/ideas/comments/{c['id']}").status_code == 401
+    assert anon.put(f"/ideas/{iid}/read").status_code == 401
+    assert anon.get("/ideas").status_code == 401
 
-    # ...but reading the board, comments included, needs no token at all.
-    seen = _get(client, iid)["comments"]
+    # A member who did not write the comment reads it and may not delete it.
+    seen = next(i for i in client.get("/ideas", headers=editor2_headers).json()["ideas"] if i["id"] == iid)["comments"]
     assert [x["body"] for x in seen] == ["Mine."]
     assert seen[0]["can_delete"] is False
 

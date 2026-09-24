@@ -2,6 +2,10 @@ fastapi==0.115.6
 uvicorn[standard]==0.34.0
 sqlmodel==0.0.22
 PyJWT==2.10.1
+argon2-cffi==25.1.0
+# Passkeys (L8): 2.7.1 is the last webauthn that admits cryptography<46; pyOpenSSL 25.1.0 likewise.
+webauthn==2.7.1
+pyOpenSSL==25.1.0
 python-multipart==0.0.20
 Pillow==12.3.0
 cryptography>=44,<46

@@ -13,7 +13,6 @@ import {
   voteIdea,
 } from "../../api/ideas.api";
 import { qk } from "../../api/queryKeys";
-import { useAuth } from "../../auth/AuthContext";
 import type { IdeaKind, IdeaStatus } from "../../api/types";
 
 /**
@@ -21,11 +20,10 @@ import type { IdeaKind, IdeaStatus } from "../../api/types";
  * `useCommentMutations` established, so the page holds state and nothing else.
  *
  * `qk.ideasAll()` is the prefix, so one invalidation covers the list under every
- * viewer token as well as the voter lists.
+ * viewer as well as the voter lists.
  */
 export function useIdeaMutations() {
   const qc = useQueryClient();
-  const { token } = useAuth();
 
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: qk.ideasAll() });
@@ -33,8 +31,7 @@ export function useIdeaMutations() {
 
   const createMut = useMutation({
     mutationFn: async (payload: { title: string; body: string; kind: IdeaKind; areas: string[] }) => {
-      if (!token) throw new Error("Not logged in");
-      return createIdea(token, payload);
+      return createIdea(payload);
     },
     onSuccess: refresh,
   });
@@ -46,16 +43,14 @@ export function useIdeaMutations() {
    */
   const putImageMut = useMutation({
     mutationFn: async (payload: { ideaId: number; blob: Blob }) => {
-      if (!token) throw new Error("Not logged in");
-      return putIdeaImage(token, payload.ideaId, payload.blob);
+      return putIdeaImage(payload.ideaId, payload.blob);
     },
     onSuccess: refresh,
   });
 
   const deleteImageMut = useMutation({
     mutationFn: async (ideaId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return deleteIdeaImage(token, ideaId);
+      return deleteIdeaImage(ideaId);
     },
     onSuccess: refresh,
   });
@@ -68,49 +63,43 @@ export function useIdeaMutations() {
       kind?: IdeaKind;
       areas?: string[];
     }) => {
-      if (!token) throw new Error("Not logged in");
       const { ideaId, ...rest } = payload;
-      return apiPatchIdea(token, ideaId, rest);
+      return apiPatchIdea(ideaId, rest);
     },
     onSuccess: refresh,
   });
 
   const statusMut = useMutation({
     mutationFn: async (payload: { ideaId: number; status: IdeaStatus; note: string }) => {
-      if (!token) throw new Error("Not logged in");
-      return setIdeaStatus(token, payload.ideaId, { status: payload.status, note: payload.note });
+      return setIdeaStatus(payload.ideaId, { status: payload.status, note: payload.note });
     },
     onSuccess: refresh,
   });
 
   const deleteMut = useMutation({
     mutationFn: async (ideaId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return apiDeleteIdea(token, ideaId);
+      return apiDeleteIdea(ideaId);
     },
     onSuccess: refresh,
   });
 
   const voteMut = useMutation({
     mutationFn: async (payload: { ideaId: number; value: 0 | 1 }) => {
-      if (!token) throw new Error("Not logged in");
-      return voteIdea(token, payload.ideaId, payload.value);
+      return voteIdea(payload.ideaId, payload.value);
     },
     onSuccess: refresh,
   });
 
   const commentMut = useMutation({
     mutationFn: async (payload: { ideaId: number; body: string }) => {
-      if (!token) throw new Error("Not logged in");
-      return createIdeaComment(token, payload.ideaId, payload.body);
+      return createIdeaComment(payload.ideaId, payload.body);
     },
     onSuccess: refresh,
   });
 
   const deleteCommentMut = useMutation({
     mutationFn: async (commentId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return deleteIdeaComment(token, commentId);
+      return deleteIdeaComment(commentId);
     },
     onSuccess: refresh,
   });
@@ -118,8 +107,7 @@ export function useIdeaMutations() {
   /** Reading changes nothing on the board itself — only the bell's unread count. */
   const markReadMut = useMutation({
     mutationFn: async (ideaId: number) => {
-      if (!token) throw new Error("Not logged in");
-      return markIdeaRead(token, ideaId);
+      return markIdeaRead(ideaId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.notificationsAll() });

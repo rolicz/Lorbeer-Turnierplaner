@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 from sqlmodel import Session
 
-from app.cup_defs import CupDef, CupEra, load_cup_defs
+from app.cup_defs import CupDef, CupEra, read_cups_file
 from app.db import get_engine
 from app.models import Tournament
 from app.services.cup import (
@@ -164,7 +164,7 @@ def test_stakes_skip_nonqualifying(client, editor_headers, admin_headers):
     assert t2 not in stake_tids
 
 
-def test_load_cup_defs_validates_eras(tmp_path, monkeypatch):
+def test_the_cups_file_validates_eras(tmp_path, monkeypatch):
     import json
 
     # duplicate `since` per cup is rejected
@@ -175,7 +175,7 @@ def test_load_cup_defs_validates_eras(tmp_path, monkeypatch):
     ]}]}))
     monkeypatch.setenv("CUPS_CONFIG_PATH", str(dup))
     with pytest.raises(ValueError):
-        load_cup_defs()
+        read_cups_file()
 
     # invalid mode is rejected
     bad = tmp_path / "bad.json"
@@ -184,7 +184,7 @@ def test_load_cup_defs_validates_eras(tmp_path, monkeypatch):
     ]}]}))
     monkeypatch.setenv("CUPS_CONFIG_PATH", str(bad))
     with pytest.raises(ValueError):
-        load_cup_defs()
+        read_cups_file()
 
     # valid eras are parsed and sorted by `since`
     ok = tmp_path / "ok.json"
@@ -193,7 +193,7 @@ def test_load_cup_defs_validates_eras(tmp_path, monkeypatch):
         {"since": "2026-01-01", "mode": "any"},
     ]}]}))
     monkeypatch.setenv("CUPS_CONFIG_PATH", str(ok))
-    defs = load_cup_defs()
+    defs = read_cups_file()
     default = next(d for d in defs if d.key == "default")
     assert [e.since.isoformat() for e in default.eras] == ["2026-01-01", "2026-07-12"]
     assert default.active_era_mode(date(2026, 3, 1)) == "any"

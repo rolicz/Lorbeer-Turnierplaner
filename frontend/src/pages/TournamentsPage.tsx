@@ -18,7 +18,7 @@ import { listTournaments } from "../api/tournaments.api";
 import { listTournamentCommentsSummary } from "../api/comments.api";
 import { type TournamentSummary } from "../api/types";
 import { qk } from "../api/queryKeys";
-import { useAuth } from "../auth/AuthContext";
+import { atLeast, useAuth } from "../auth/AuthContext";
 import { useSeenIdsByTournamentId } from "../hooks/useSeenComments";
 import { useRouteEntryLoading } from "../ui/layout/useRouteEntryLoading";
 import { useTabParam } from "../ui/shell/useTabParam";
@@ -54,8 +54,8 @@ const T_TAB_KEYS = ["all", "new"] as const satisfies readonly TTab[];
 
 export default function TournamentsPage() {
   const navigate = useNavigate();
-  const { role, token } = useAuth();
-  const canWrite = role === "editor" || role === "admin";
+  const { role } = useAuth();
+  const canWrite = atLeast(role, "editor");
   const pageEntered = useRouteEntryLoading();
 
   // The "new" tab needs editor rights; a stale/hand-typed deep link falls back to
@@ -68,7 +68,7 @@ export default function TournamentsPage() {
     ...(canWrite ? [{ key: "new" as TTab, label: "New tournament", icon: <Plus size={14} /> }] : []),
   ];
 
-  const tournamentsQ = useQuery({ queryKey: qk.tournaments(), queryFn: () => listTournaments(token) });
+  const tournamentsQ = useQuery({ queryKey: qk.tournaments(), queryFn: () => listTournaments() });
   const summaryQ = useQuery({ queryKey: qk.commentsSummary(), queryFn: listTournamentCommentsSummary });
 
   const tournamentsSorted = useMemo(() => {
@@ -153,7 +153,7 @@ export default function TournamentsPage() {
             const sum = summaryByTid.get(t.id);
             const seen = seenIdsByTid.get(t.id) ?? new Set<number>();
             const unseenCount = (sum?.comment_ids ?? []).filter((cid) => !seen.has(cid)).length;
-            const hasUnseen = !!token && unseenCount > 0;
+            const hasUnseen = unseenCount > 0;
             const cupStakes = t.cup_stakes ?? [];
             const participants = t.participants ?? [];
 

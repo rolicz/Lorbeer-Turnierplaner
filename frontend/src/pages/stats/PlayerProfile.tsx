@@ -8,11 +8,11 @@
  * (A8). The identity block above them stays a `card`, exactly as the matchup's header is.
  */
 import { useCallback, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
+import PlayerLink from "../../ui/primitives/PlayerLink";
 import EmptyState from "../../ui/primitives/EmptyState";
 import InlineLoading from "../../ui/primitives/InlineLoading";
 import StatTile from "../../ui/primitives/StatTile";
@@ -88,7 +88,6 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
   });
   // Match history density (Compact hides the per-match meta line), like the matchup view.
   const [details, setDetails] = useState(false);
-  const nav = useNavigate();
 
   return (
     <div className="space-y-4">
@@ -97,11 +96,10 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
       {!row ? <EmptyState title="Pick a player above." className="card py-6" /> : (
         <>
           <div className="card flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => nav(`/profiles/${row.id}`)}
-              className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-ring"
-              title={`Open ${row.name}'s profile`}
+            <PlayerLink
+              playerId={row.id}
+              name={row.name}
+              className="flex min-w-0 flex-1 items-center gap-3 text-left"
             >
               <AvatarCircle playerId={row.id} name={row.name} updatedAt={avatarUpdatedAtById.get(row.id) ?? null} sizeClass="h-14 w-14" cups={cupsHeldByPlayerId.get(row.id)} />
               <div className="min-w-0 flex-1">
@@ -113,7 +111,7 @@ export default function PlayerProfile({ mode, scope, rows, selectedId, onSelect 
                   Elo {fmtRating(row.rating)} · <span className="text-win">{row.wins}</span>-<span className="text-draw">{row.draws}</span>-<span className="text-loss">{row.losses}</span> · {row.pts} pts · view profile
                 </div>
               </div>
-            </button>
+            </PlayerLink>
             <div className="flex shrink-0 flex-col items-center" title="Recent form — points per match in the last games">
               <Sparkline values={row.form} />
               <span className="mt-0.5 text-xs text-text-muted">Form (last {row.form.length})</span>

@@ -5,8 +5,9 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import VoteVotersModal from "../ui/primitives/VoteVotersModal";
 import { ErrorToastOnError } from "../ui/primitives/ErrorToast";
 import PageLoadingScreen from "../ui/primitives/PageLoadingScreen";
+import EmptyState from "../ui/primitives/EmptyState";
 
-import { useAuth } from "../auth/AuthContext";
+import { atLeast, useAuth } from "../auth/AuthContext";
 import {
   getPlayerProfile,
   listPlayerGuestbookEntryVoters,
@@ -53,7 +54,7 @@ const PROFILE_TAB_KEYS = ["overview", "stats", "matches", "guestbook"] as const 
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { token, role, playerId: currentPlayerId, actorPlayerId } = useAuth();
+  const { role, playerId: currentPlayerId, actorPlayerId } = useAuth();
   const pageEntered = useRouteEntryLoading();
   const qc = useQueryClient();
 
@@ -68,7 +69,11 @@ export default function ProfilePage() {
     queryKey: qk.playerProfile(targetPlayerId ?? "none"),
     queryFn: () => getPlayerProfile(targetPlayerId as number),
     enabled: Number.isFinite(targetPlayerId) && (targetPlayerId ?? 0) > 0,
+    // A 403 is the server's "not in your group" (L11) — an answer, not a hiccup; asking
+    // again cannot change it. Anything else keeps the app's one retry.
+    retry: (count, error) => !(error instanceof ApiError && error.status === 403) && count < 1,
   });
+  const notInYourGroup = profileQ.error instanceof ApiError && profileQ.error.status === 403;
   // A player that no longer exists must not trap the Players tab (U6).
   const { pathname: locPathname, search: locSearch } = useLocation();
   useEffect(() => {
@@ -166,7 +171,8 @@ export default function ProfilePage() {
   usePageTitle(player?.display_name ?? profileQ.data?.display_name ?? "Profile");
 
   const isOwnProfile = isOwnProfileView;
-  const canEdit = !!token && role !== "reader" && isOwnProfile;
+  // A member may edit their own profile; the server enforces it (`ensure_owner_or_admin`).
+  const canEdit = atLeast(role, "editor") && isOwnProfile;
   const displayName = player?.display_name ?? profileQ.data?.display_name ?? null;
   const avatarUpdatedAt = targetPlayerId ? avatarUpdatedAtById.get(targetPlayerId) ?? null : null;
 
@@ -213,10 +219,9 @@ export default function ProfilePage() {
     return out;
   }, [playerStatsRow?.positions_by_tournament, statsPlayersQ.data?.tournaments]);
 
-  const pokes = useProfilePokes({ targetPlayerId, token, role, actorPlayerId });
+  const pokes = useProfilePokes({ targetPlayerId, role, actorPlayerId });
   const guestbook = useProfileGuestbook({
     targetPlayerId,
-    token,
     role,
     actorPlayerId,
     currentPlayerId,
@@ -224,7 +229,7 @@ export default function ProfilePage() {
     avatarUpdatedAtByPlayerId: avatarUpdatedAtById,
   });
 
-  usePlayerProfileWS(targetPlayerId, token);
+  usePlayerProfileWS(targetPlayerId);
 
   /**
    * "Comment on this" from an item (K3). An item never hosts its own thread: it switches to
@@ -240,9 +245,8 @@ export default function ProfilePage() {
 
   const saveProfileMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("Not logged in");
       if (!targetPlayerId) throw new Error("Invalid player");
-      return patchPlayerProfile(token, targetPlayerId, { bio: bioDraft });
+      return patchPlayerProfile(targetPlayerId, { bio: bioDraft });
     },
     onSuccess: async (saved) => {
       if (targetPlayerId) {
@@ -300,6 +304,16 @@ export default function ProfilePage() {
     );
   }
 
+  // The server refused: this player shares no group with the reader (L11). Inside
+  // `PageLayout`, so the back chevron survives (Q6); nothing of the profile is drawn.
+  if (notInYourGroup) {
+    return (
+      <PageLayout title="Profile">
+        <EmptyState title="This profile is in another group." className="py-8" />
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout title={displayName ?? "Profile"}>
       <div id="profile-section-main" className="space-y-3">
@@ -313,7 +327,6 @@ export default function ProfilePage() {
 
         <ProfileHeader
           targetPlayerId={targetPlayerId}
-          token={token}
           canEdit={canEdit}
           isOwnProfile={isOwnProfile}
           displayName={displayName}

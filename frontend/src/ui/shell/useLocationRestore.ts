@@ -1,11 +1,15 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { ORIGINAL_ENTRY_PATH } from "../../app/basename";
 
 const KEY = "lk:last-location";
 const TTL_MS = 12 * 60 * 60 * 1000; // don't resume into a stale, long-abandoned session
 
-// Captured once at module load — the true cold-launch URL, before any in-app redirect.
-const ENTRY_PATH = typeof window !== "undefined" ? window.location.pathname + window.location.search : "";
+// The true cold-launch URL, before any redirect — including `basename.ts`'s, which puts
+// the manifest's `/` under the group segment before this module is even evaluated. It
+// lands on the router's own `/` (not `/dashboard`), so the first render below still sees
+// `/` and does not store it over the location this hook is about to resume.
+const ENTRY_PATH = ORIGINAL_ENTRY_PATH;
 const IS_STANDALONE =
   typeof window !== "undefined" &&
   (window.matchMedia?.("(display-mode: standalone)")?.matches ||

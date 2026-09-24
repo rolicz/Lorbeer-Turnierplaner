@@ -53,18 +53,18 @@ def test_notifications_collect_reply_guestbook_and_poke(client, editor_headers, 
 
     reply_item = next(it for it in items if it["kind"] == "comment_reply")
     assert reply_item["id"] == reply_id
-    assert reply_item["path"] == f"/live/{tid}?comment={reply_id}"
+    assert reply_item["path"] == f"/g/altherren/live/{tid}?comment={reply_id}"
     assert reply_item["author_name"] == "Admin"
 
     # The guestbook item must deep-link to the guestbook tab AND the entry, so the
     # profile can switch tabs and scroll to it (a #hash cannot do either).
     gb_item = next(it for it in items if it["kind"] == "guestbook")
     assert gb_item["id"] == gb_id
-    assert gb_item["path"] == f"/profiles/{editor_pid}?tab=guestbook&entry={gb_id}"
+    assert gb_item["path"] == f"/g/altherren/profiles/{editor_pid}?tab=guestbook&entry={gb_id}"
     assert gb_item["author_name"] == "Admin"
 
     poke_item = next(it for it in items if it["kind"] == "poke")
-    assert poke_item["path"] == f"/profiles/{editor_pid}"
+    assert poke_item["path"] == f"/g/altherren/profiles/{editor_pid}"
 
     # Admin should NOT see the reply (admin wrote it) nor a poke/guestbook to itself.
     r_admin = client.get("/me/notifications", headers=admin_headers)
@@ -105,8 +105,8 @@ def test_notifications_exclude_self_authored_and_read(client, editor_headers, ad
     assert after["items"] == []
 
 
-def test_notifications_requires_auth(client):
-    assert client.get("/me/notifications").status_code == 401
+def test_notifications_requires_auth(anon):
+    assert anon.get("/me/notifications").status_code == 401
 
 
 def _create_idea(client, headers, **overrides) -> dict:
@@ -143,7 +143,7 @@ def test_idea_events_reach_the_bell_and_drop_off_when_read(
     mine = [it for it in editor_items if it.get("idea_id") == iid]
     assert {it["kind"] for it in mine} == {"idea_comment", "idea_vote", "idea_status"}
     for it in mine:
-        assert it["path"] == f"/ideas?idea={iid}"
+        assert it["path"] == f"/g/altherren/ideas?idea={iid}"
         assert it["idea_title"] == "Dark mode for the match page"
         expected_author = "Admin" if it["kind"] == "idea_status" else "Editor2"
         assert it["author_name"] == expected_author

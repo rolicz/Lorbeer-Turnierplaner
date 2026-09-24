@@ -38,7 +38,6 @@ function renderHeader() {
     <QueryClientProvider client={qc}>
       <ProfileHeader
         targetPlayerId={1}
-        token={null}
         canEdit={false}
         isOwnProfile={false}
         displayName="Roli"

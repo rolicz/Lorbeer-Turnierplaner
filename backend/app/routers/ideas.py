@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from sqlmodel import Session, select
 
 from ..api_utils import bad_request, get_or_404
-from ..auth import decode_token, require_auth_claims, require_editor_claims
+from ..auth import require_auth_claims, require_editor_claims
 from ..db import get_engine, get_session
 from ..feature_areas import area_defs, area_label, normalize_areas
 from ..models import (
@@ -60,6 +60,7 @@ from ..services.file_storage import (
     read_media,
     upsert_media_row,
 )
+from ..services.groups import current_group
 from ..services.idea_events import (
     delete_idea_comments,
     delete_idea_events,
@@ -188,8 +189,9 @@ def list_idea_areas() -> dict:
 @router.get("/ideas", response_model=IdeaListOut)
 def list_all_ideas(
     s: Session = Depends(get_session),
-    claims: dict | None = Depends(decode_token),
+    claims: dict = Depends(require_auth_claims),
 ) -> dict:
+    # part 2: filter by group — part 1 has one, and every row carries its `group_id` (L3).
     return list_ideas(s, claims)
 
 
@@ -223,7 +225,7 @@ def get_idea_image(idea_id: int):
     data = read_media(file_path)
     if data is None:
         raise HTTPException(status_code=404, detail="Idea image file missing")
-    return Response(content=data, media_type=content_type, headers={"Cache-Control": "public, max-age=604800"})
+    return Response(content=data, media_type=content_type, headers={"Cache-Control": "private, max-age=604800"})
 
 
 # ---- write --------------------------------------------------------------
@@ -256,6 +258,7 @@ def create_idea(
         status_note="",
         created_at=now,
         updated_at=now,
+        group_id=int(current_group(s).id),
     )
     s.add(fr)
     s.commit()

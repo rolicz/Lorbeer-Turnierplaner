@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlmodel import Session, select
 
 from ..auth import require_auth_claims
@@ -16,6 +16,8 @@ from ..models import (
 )
 from ..schemas.responses import MeOut, MyNotificationsOut
 from ..services.idea_events import unread_idea_events
+from ..services.paths import group_path
+from ..services.sessions import me_payload
 
 router = APIRouter(tags=["auth"])
 
@@ -35,15 +37,8 @@ _IDEA_EVENT_KIND: dict[str, str] = {
 
 
 @router.get("/me", response_model=MeOut)
-def me(claims: dict = Depends(require_auth_claims)) -> dict:
-    return {
-        "role": claims.get("role"),
-        "player_id": claims.get("player_id"),
-        "player_name": claims.get("player_name"),
-        "sub": claims.get("sub"),
-        "iat": claims.get("iat"),
-        "exp": claims.get("exp"),
-    }
+def me(request: Request, s: Session = Depends(get_session), claims: dict = Depends(require_auth_claims)) -> dict:
+    return me_payload(s, claims, email_available=bool(request.app.state.mail.configured))
 
 
 def _snippet(body: str | None) -> str:
@@ -128,7 +123,7 @@ def my_notifications(
                         "author_player_id": int(c.author_player_id) if c.author_player_id is not None else None,
                         "snippet": _snippet(c.body),
                         "created_at": c.created_at.isoformat(),
-                        "path": f"/live/{int(c.tournament_id)}?comment={int(c.id)}",
+                        "path": group_path(f"/live/{int(c.tournament_id)}?comment={int(c.id)}"),
                     }
                 )
 
@@ -162,7 +157,7 @@ def my_notifications(
                     "author_player_id": int(e.author_player_id),
                     "snippet": _snippet(e.body),
                     "created_at": e.created_at.isoformat(),
-                    "path": f"/profiles/{me_id}?tab=guestbook&entry={int(e.id)}",
+                    "path": group_path(f"/profiles/{me_id}?tab=guestbook&entry={int(e.id)}"),
                 }
             )
 
@@ -194,15 +189,15 @@ def my_notifications(
                     "author_player_id": int(k.author_player_id),
                     "snippet": "",
                     "created_at": k.created_at.isoformat(),
-                    "path": f"/profiles/{me_id}",
+                    "path": group_path(f"/profiles/{me_id}"),
                 }
             )
 
     # --- D) Idea events: created (admins only), comment/vote/status (the idea's
     # author, and a comment also reaches everyone who has already commented) ---
-    # The token's role is the same source `admin_player_ids` reads (player_accounts
-    # in secrets.json), so this adds no second definition of "who is an admin".
-    is_admin = str(claims.get("role") or "") == "admin"
+    # `site_admin` is the same `Account.site_admin` flag `admin_player_ids` reads for the
+    # push, so this adds no second definition of "who is an admin".
+    is_admin = bool(claims.get("site_admin"))
     for event, fr, comment_body in unread_idea_events(s, player_id=me_id, is_admin=is_admin):
         author_ids.add(int(event.actor_player_id))
         if event.kind == "comment":
@@ -218,7 +213,7 @@ def my_notifications(
                 "author_player_id": int(event.actor_player_id),
                 "snippet": snippet,
                 "created_at": event.created_at.isoformat(),
-                "path": f"/ideas?idea={int(fr.id)}",
+                "path": group_path(f"/ideas?idea={int(fr.id)}"),
                 "idea_id": int(fr.id),
                 "idea_title": fr.title,
                 "idea_status": event.status or None,

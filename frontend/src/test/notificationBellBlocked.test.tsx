@@ -21,7 +21,7 @@ vi.mock("../push/usePushNotifications", () => ({
 }));
 
 vi.mock("../auth/AuthContext", () => ({
-  useAuth: () => ({ token: "tok" }),
+  useAuth: () => ({ status: "authed", playerId: 1 }),
 }));
 
 let payload: MyNotificationsResponse = { items: [], unread_count: 0 };

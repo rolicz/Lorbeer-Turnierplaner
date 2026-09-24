@@ -19,8 +19,9 @@ import { SectionTabs, type SectionTab } from "../ui/SectionTabs";
 import { useTabParam } from "../ui/shell/useTabParam";
 import { List, Plus } from "lucide-react";
 import ClubList, { type ClubGroup } from "./clubs/ClubList";
+import PromoteClubStars from "./clubs/PromoteClubStars";
 
-import { useAuth } from "../auth/AuthContext";
+import { atLeast, useAuth } from "../auth/AuthContext";
 import { createClub, deleteClub, listClubs, listLeagues, patchClub } from "../api/clubs.api";
 import { qk } from "../api/queryKeys";
 import type { Club, League } from "../api/types";
@@ -98,12 +99,12 @@ type ClubTab = "browse" | "new";
 const CLUB_TAB_KEYS = ["browse", "new"] as const satisfies readonly ClubTab[];
 
 export default function ClubsPage() {
-  const { token, role } = useAuth();
+  const { role } = useAuth();
   const qc = useQueryClient();
   const pageEntered = useRouteEntryLoading();
 
   const isAdmin = role === "admin";
-  const isEditorOrAdmin = role === "editor" || role === "admin";
+  const isEditorOrAdmin = atLeast(role, "editor");
   const canEdit = isEditorOrAdmin;
 
   // The "new" tab needs editor rights; a stale/hand-typed deep link falls back to
@@ -172,14 +173,13 @@ export default function ClubsPage() {
 
   const createMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("No token");
       const nm = name.trim();
       const gm = game.trim();
       const lid = effectiveCreateLeagueId;
       if (!nm) throw new Error("Missing club name");
       if (!gm) throw new Error("Missing game");
       if (lid === "") throw new Error("No league available (seed leagues first)");
-      return createClub(token, { name: nm, game: gm, star_rating: Number(stars), league_id: lid });
+      return createClub({ name: nm, game: gm, star_rating: Number(stars), league_id: lid });
     },
     onSuccess: async () => {
       setName("");
@@ -202,7 +202,6 @@ export default function ClubsPage() {
 
   const patchMut = useMutation({
     mutationFn: async () => {
-      if (!token) throw new Error("No token");
       if (!editId) throw new Error("No club selected");
 
       if (editLeagueId === "") throw new Error("League cannot be empty");
@@ -216,7 +215,7 @@ export default function ClubsPage() {
         if (nm && nm !== (editingClub?.name ?? "")) body.name = nm;
       }
 
-      return patchClub(token, editId, body);
+      return patchClub(editId, body);
     },
     onSuccess: async () => {
       setEditId(null);
@@ -226,8 +225,7 @@ export default function ClubsPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (clubId: number) => {
-      if (!token) throw new Error("No token");
-      return deleteClub(token, clubId);
+      return deleteClub(clubId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: qk.clubs() });
@@ -515,6 +513,7 @@ export default function ClubsPage() {
               {/* A star change appends to the record; the record is
                   right here so that is visible (R4). */}
               <ClubStarHistory clubId={c.id} />
+              <PromoteClubStars clubId={c.id} isAdmin={isAdmin} />
 
               {/* Delete is here and nowhere else: the row carries no controls, so the
                   one place that can destroy a club is the editor that row opens (Q15). */}

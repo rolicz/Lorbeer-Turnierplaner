@@ -19,8 +19,8 @@ import Button from "../primitives/Button";
  * dismissal lives in `localStorage`, which a reinstall wipes along with the
  * subscription — so the case that broke asks again, and only that case.
  */
-export default function PushSetupNotice({ token }: { token: string | null }) {
-  const push = usePushNotifications(token);
+export default function PushSetupNotice() {
+  const push = usePushNotifications();
   const [dismissed, setDismissed] = useState(() => isSetupNoticeDismissed());
 
   if (dismissed || push.loading || push.setupState !== "needs-setup") return null;

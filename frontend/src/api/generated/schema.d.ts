@@ -21,6 +21,728 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description End this device's session. With `push_endpoint`, also disable that device's push
+         *     subscription in the same request, so no client-side hook has to race the session's end.
+         */
+        post: operations["logout_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange
+         * @description Trade the pre-batch JWT (`Authorization: Bearer <token>`) for one cookie session.
+         *
+         *     This is what keeps "nobody is logged out by the deploy" true: the first boot of the new
+         *     frontend finds the old token in `localStorage` and comes here. Answers **410** once
+         *     `jwt_secret` is empty — the day a later batch retires the legacy login for good.
+         */
+        post: operations["exchange_auth_exchange_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Sessions
+         * @description The caller's own live sessions, newest activity first.
+         */
+        get: operations["my_sessions_auth_sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke My Session
+         * @description Sign one of my devices out. An id that is not mine is a 404, not a 403 — there is
+         *     nothing to learn about other people's sessions here.
+         */
+        delete: operations["revoke_my_session_auth_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/sessions/revoke-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke My Other Sessions
+         * @description Sign every other device out; this one stays.
+         */
+        post: operations["revoke_my_other_sessions_auth_sessions_revoke_others_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register
+         * @description A new account from an invite code: the player, the account, the membership in the
+         *     code's group and the code spent in one transaction, then a session. Public.
+         *
+         *     Rate-limited as *redeem* (per IP and one global bucket, no account bucket — there is no
+         *     account yet). A code that is unknown, expired or spent is one generic 400; a taken name
+         *     is 409 "That name is taken", answered only once the code has proven valid.
+         */
+        post: operations["register_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/redeem": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Redeem
+         * @description An existing account joins the code's group as a member (never as an owner). A session
+         *     is required, a membership is not — this is how a registered-but-uninvited account, or a
+         *     member of another group, gets in. Same *redeem* limits and the same generic refusal as
+         *     register; 409 when already a member (the code stays unspent).
+         */
+        post: operations["redeem_auth_redeem_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description Redeem a reset link: set the new password, spend the token, end **every** session of
+         *     that player, and start a fresh one here. Public, rate-limited as *reset*. Unknown,
+         *     expired and used tokens are one generic 400; a password that is too short is refused
+         *     before the token is spent, so the link still works for a second try.
+         */
+        post: operations["reset_password_auth_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change My Password
+         * @description Set or change my password. With a password on the account the current one is
+         *     required (403 when wrong); rate-limited like login on my own account key, so a stolen
+         *     session cannot be used to guess the password behind it. Other devices stay signed in.
+         */
+        post: operations["change_my_password_auth_password_post"];
+        /**
+         * Remove My Password
+         * @description Drop my password — 409 unless a passkey keeps a way in.
+         */
+        delete: operations["remove_my_password_auth_password_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/register/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Register Options
+         * @description Options for `navigator.credentials.create()` — a session is all it takes (no
+         *     membership needed: `/auth/` is an account path). Refuses an origin the relying party
+         *     rule does not admit (400; the caller is logged in, so naming the reason leaks nothing).
+         */
+        post: operations["passkey_register_options_auth_passkeys_register_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/register/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Register Verify
+         * @description Store the credential the browser made. 400 with the same sentence for every way a
+         *     ceremony can fail (the reason goes to the log), 409 for a credential id already stored.
+         */
+        post: operations["passkey_register_verify_auth_passkeys_register_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My Passkeys
+         * @description The caller's own passkeys, oldest first.
+         */
+        get: operations["my_passkeys_auth_passkeys_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/{passkey_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove My Passkey
+         * @description Remove one of my passkeys — found among *my* rows (404 otherwise) — and end every
+         *     session of mine, this one included, so a lost device holds nothing live. 409 when it is
+         *     the last passkey and there is no password: an account keeps one way in.
+         */
+        delete: operations["remove_my_passkey_auth_passkeys__passkey_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/login/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Login Options
+         * @description Options for `navigator.credentials.get()`: public, no identifier asked for, no
+         *     `allowCredentials` sent. Every mint counts against the *passkey* buckets (per IP and
+         *     global), so the challenge table cannot be filled from one address; a bad origin is
+         *     the same generic 401 the verify step gives.
+         */
+        post: operations["passkey_login_options_auth_passkeys_login_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkeys/login/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Login Verify
+         * @description Sign in with the assertion: one generic 401 for every refusal (unknown credential,
+         *     replayed challenge, wrong origin, bad signature, backwards counter, no user
+         *     verification — each logged with its real reason), else a session `kind="passkey"`
+         *     through the same path every other login takes.
+         */
+        post: operations["passkey_login_verify_auth_passkeys_login_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set My Email
+         * @description Ask to use an address: a 24-hour link goes to it, and the address becomes the
+         *     account's only once that link is opened (the verified one, if any, stays until then).
+         *
+         *     409 when this server cannot send, 400 for something that is not an address, 409 when
+         *     the address is verified or pending on another account; the account's own verified
+         *     address answers 200 and sends nothing (a pending change is given up). 502 when the
+         *     send fails — and then no token is left. Rate-limited as *email* on my account key.
+         */
+        put: operations["set_my_email_auth_email_put"];
+        post?: never;
+        /**
+         * Remove My Email
+         * @description Forget my address — the verified one and any pending one. The removed verified
+         *     address is told, after the answer, with no link in the message.
+         */
+        delete: operations["remove_my_email_auth_email_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email/resend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend My Email
+         * @description A fresh link for the pending address (the old link stops working). 409 "Nothing to
+         *     send" when no address is pending; the same limits as `PUT /auth/email`.
+         */
+        post: operations["resend_my_email_auth_email_resend_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/email/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email
+         * @description Open a verification link: **public** (the link opens in a mail app's browser, with
+         *     no session), and a POST — the page asks for a tap, because a mail scanner follows
+         *     links and a GET that confirmed would be confirmed by the scanner. The token proves the
+         *     mailbox: it verifies the address for the account it was minted for, whoever is logged
+         *     in here. Unknown, used, expired and lost-the-race tokens are one generic 400. Rate-
+         *     limited as *reset*. When a different verified address is replaced, it is told, with
+         *     no link.
+         */
+        post: operations["verify_email_auth_email_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recover
+         * @description "Lost your passkey or password?" — a one-hour, single-use reset link to the
+         *     account's **verified** address. **Public, and it leaks nothing**: the answer is
+         *     `{"ok": true}` for every plausible address — known, unknown, pending — and everything
+         *     that differs between a known and an unknown address (the mint, its commit, the send)
+         *     happens *after* the answer, in a background task, so neither the body nor the timing
+         *     says whether the address is anyone's: before the answer both branches only read. A 400
+         *     names only a string that is not an address.
+         *
+         *     Rate-limited as *recover* — per address (its casefolded key, counted for unknown
+         *     addresses too), per IP and globally; every request counts and no success ever clears
+         *     a bucket. The link is the reset link (`PasswordResetToken`, `created_by` NULL, the CLI's
+         *     shape), so it kills the account's earlier unused link and ends every other session when
+         *     used; passkeys stay. With mail off nothing is minted and the log says so.
+         */
+        post: operations["recover_auth_recover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Passkey Options
+         * @description Options for `navigator.credentials.create()` behind a live reset token — the
+         *     account's own `kind="register"` challenge, exactly as the logged-in pair mints it.
+         *     Public, rate-limited as *reset*; the mint counts. The token is looked at, not spent.
+         *     An unknown, used or expired token is the generic 400 before anything is minted.
+         */
+        post: operations["reset_passkey_options_auth_reset_passkey_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset/passkey/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Passkey Verify
+         * @description Store the credential and spend the token — **in this order**: the token looked at,
+         *     the challenge taken (bound to the token's account), the credential verified, *then* the
+         *     token spent (the conditional UPDATE — a token that lost a race refuses here with no
+         *     credential stored), the passkey stored, every session of the account ended, and a fresh
+         *     one started here (`kind="reset"`). One transaction from the spend to the session.
+         *
+         *     A ceremony that fails verification spends the challenge and **not** the token; a
+         *     credential already registered is 409 and the token stays live too.
+         */
+        post: operations["reset_passkey_verify_auth_reset_passkey_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Passkey Options
+         * @description Options for a new account's first passkey. Public, rate-limited as *redeem* (the
+         *     mint counts). The code is checked **first**, so nobody without a valid one learns
+         *     whether a name is taken; then the name (400 / 409). What passed is remembered on the
+         *     server with the challenge (`RegistrationIntent`) — the verify step sends only the
+         *     credential. No `Player`, no `Account`, and the code unspent after this call.
+         */
+        post: operations["register_passkey_options_auth_register_passkey_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register/passkey/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Passkey Verify
+         * @description Create the account around the verified credential. The intent and its challenge are
+         *     taken (deleted, committed) before anything is verified — a replay finds nothing — and
+         *     everything after that is one transaction, committed with the session: the invite
+         *     re-checked by id (spent or expired meanwhile → 400), the name re-checked (409),
+         *     `Player` + `Account(password_origin="none")` with the intent's user handle + `Passkey`
+         *     + `GroupMembership(member)` + the code spent + the session. 400 with one sentence for
+         *     every way the ceremony can fail, 409 for a credential already registered.
+         */
+        post: operations["register_passkey_verify_auth_register_passkey_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Accounts */
+        get: operations["list_accounts_admin_accounts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{player_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Account Sessions
+         * @description A player's live devices. `current` marks the caller's own session.
+         */
+        get: operations["list_account_sessions_admin_accounts__player_id__sessions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Any Session */
+        delete: operations["revoke_any_session_admin_sessions__session_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/accounts/{player_id}/revoke-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Account Sessions
+         * @description Sign every device of this player out — the caller's own included, when it is theirs.
+         */
+        post: operations["revoke_account_sessions_admin_accounts__player_id__revoke_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/mail-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mail Status
+         * @description Whether this server can send email, and how — the boot line's words (host and
+         *     sender, never the login mailbox or the password). Site admin only.
+         */
+        get: operations["mail_status_admin_mail_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Invites
+         * @description The live codes of the current group — never the codes themselves.
+         */
+        get: operations["list_invites_admin_invites_get"];
+        put?: never;
+        /**
+         * Create Invite Code
+         * @description A one-hour, single-use code for the current group. **The only time it is readable.**
+         */
+        post: operations["create_invite_code_admin_invites_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/invites/{invite_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Invite */
+        delete: operations["delete_invite_admin_invites__invite_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/reset-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Reset Link
+         * @description A one-hour, single-use link that sets a new password — also how a player who never
+         *     had a login gets one. Site admin only: a reset takes the account over.
+         */
+        post: operations["create_reset_link_admin_reset_links_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/groups/{slug}/members/{player_id}/role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Member Role
+         * @description Promote a member to owner or demote an owner to member. Several owners are fine; the
+         *     last one cannot be demoted (409).
+         */
+        put: operations["put_member_role_admin_groups__slug__members__player_id__role_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me": {
         parameters: {
             query?: never;
@@ -477,14 +1199,39 @@ export interface paths {
         };
         /**
          * Get Club Star History
-         * @description Every recorded rating of one club, oldest first — a public read like `GET /clubs`.
+         * @description Every recorded rating of one club the current group sees — the global rows and the
+         *     group's own, each saying which (`scope`, L12) — oldest first.
          *
          *     `current_stars` is `Club.star_rating`, so a caller never has to guess whether the
-         *     last row is still in force.
+         *     last row is still in force; `current_is_global` says whether what this group counts
+         *     today is the global rating, i.e. whether promoting it would change anything.
          */
         get: operations["get_club_star_history_clubs__club_id__star_history_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/clubs/{club_id}/stars/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Promote Club Stars
+         * @description Site admin only (L12): the rating the current group counts today becomes the global
+         *     rating, **from today on**. Forward-only — no past row is rewritten, so no finished
+         *     match of any group resolves differently. 409 when the global rating already has that
+         *     value, or when another group set this club's rating today. Answers the new history.
+         */
+        post: operations["promote_club_stars_clubs__club_id__stars_promote_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -498,10 +1245,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Players */
+        /**
+         * List Players
+         * @description The roster: members of the caller's groups (a site admin sees everyone), so an account
+         *     nobody has invited yet is in no picker and no stat (L3).
+         */
         get: operations["list_players_players_get"];
         put?: never;
-        /** Create Player */
+        /**
+         * Create Player
+         * @description An admin-created player: the `Player`, its passwordless `Account` and its membership
+         *     in the current group, in one transaction (a player committed without an account would be
+         *     swept into the group by the next boot's migration anyway — but a name that clashes by
+         *     case would stop that boot). 409 when the name is taken, compared case-insensitively.
+         *     The player gets a login through a reset link.
+         */
         post: operations["create_player_players_post"];
         delete?: never;
         options?: never;
@@ -662,7 +1420,10 @@ export interface paths {
         /**
          * List Player Avatar Meta
          * @description Lightweight avatar metadata used by the frontend to avoid spamming 404 requests.
-         *     Returns only player_id + updated_at for players who have an avatar.
+         *     Returns only player_id + updated_at for players who have an avatar — and only for the
+         *     caller's roster (L11): the picture itself is refused to anyone outside it
+         *     (`ensure_shared_group`), so a stranger's avatar must never be *announced* either, or the
+         *     browser asks for it, gets a 403 and draws a broken image where the monogram belongs.
          */
         get: operations["list_player_avatar_meta_players_avatars_get"];
         put?: never;
@@ -680,7 +1441,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Player Header Meta */
+        /**
+         * List Player Header Meta
+         * @description The same for header images, and for the same reason.
+         */
         get: operations["list_player_header_meta_players_headers_get"];
         put?: never;
         post?: never;
@@ -739,7 +1503,7 @@ export interface paths {
          * Get Guestbook Subject Image
          * @description The pinned copy a guestbook entry is about (K1).
          *
-         *     Public read, like the avatar. Immutable: a snapshot never changes and its URL carries
+         *     Read like the avatar: only by someone who shares a group with its player (L11). Immutable: a snapshot never changes and its URL carries
          *     its id, so the browser may keep it for a year — this is the one picture in the app
          *     that is *guaranteed* not to be replaced under its own URL. A `?w=` derivative of it is
          *     exactly as immutable, which is why it carries the same header (W1).
@@ -1642,6 +2406,34 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AdminAccountOut
+         * @description One account on the admin page (`GET /admin/accounts`). `role` is the effective role
+         *     in the current group (`none` | `editor` | `owner` | `admin`); `password_origin` is
+         *     `none` | `migrated` | `set`; `session_count` / `last_seen_at` cover live sessions only.
+         */
+        AdminAccountOut: {
+            /** Player Id */
+            player_id: number;
+            /** Display Name */
+            display_name: string;
+            /** Site Admin */
+            site_admin: boolean;
+            /** Role */
+            role: string;
+            /** Password Origin */
+            password_origin: string;
+            /** Has Passkey */
+            has_passkey: boolean;
+            /** Session Count */
+            session_count: number;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /** Email State */
+            email_state: string;
+            /** Login Secure */
+            login_secure: boolean;
+        };
         /** Body_put_club_crest_clubs__club_id__crest_put */
         Body_put_club_crest_clubs__club_id__crest_put: {
             /**
@@ -1771,6 +2563,12 @@ export interface components {
             changed_at: string;
             /** Source */
             source: string;
+            /**
+             * Scope
+             * @default global
+             * @enum {string}
+             */
+            scope: "group" | "global";
         };
         /** ClubStarHistoryOut */
         ClubStarHistoryOut: {
@@ -1780,6 +2578,11 @@ export interface components {
             current_stars: number;
             /** Entries */
             entries: components["schemas"]["ClubStarHistoryEntryOut"][];
+            /**
+             * Current Is Global
+             * @default true
+             */
+            current_is_global: boolean;
         };
         /** CommentCreateBody */
         CommentCreateBody: {
@@ -1994,6 +2797,51 @@ export interface components {
             decider_winner_goals: number | null;
             /** Decider Loser Goals */
             decider_loser_goals: number | null;
+        };
+        /**
+         * EmailBody
+         * @description `PUT /auth/email` (E1): the address to verify.
+         */
+        EmailBody: {
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+        };
+        /**
+         * EmailStatusOut
+         * @description `PUT/DELETE /auth/email`, `POST /auth/email/resend` (E1): the verified address, the
+         *     pending one (a link sent and not yet opened), and whether an address is verified.
+         */
+        EmailStatusOut: {
+            /** Email */
+            email: string | null;
+            /** Email Pending */
+            email_pending: string | null;
+            /** Email Verified */
+            email_verified: boolean;
+        };
+        /**
+         * EmailVerifiedOut
+         * @description `POST /auth/email/verify` (E1): the address that is now verified.
+         */
+        EmailVerifiedOut: {
+            /** Ok */
+            ok: boolean;
+            /** Email */
+            email: string;
+        };
+        /**
+         * EmailVerifyBody
+         * @description `POST /auth/email/verify` (E1): the token from the link's fragment.
+         */
+        EmailVerifyBody: {
+            /**
+             * Token
+             * @default
+             */
+            token: string;
         };
         /** EntryIdsOut */
         EntryIdsOut: {
@@ -2342,6 +3190,59 @@ export interface components {
              */
             value: number | string | null;
         };
+        /**
+         * InviteCreateBody
+         * @description `POST /admin/invites` (L3): an optional note — who the code is for.
+         */
+        InviteCreateBody: {
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /**
+         * InviteCreatedOut
+         * @description A fresh invite code — **the only time the code is readable**, formatted `ABCD-EFGH`.
+         */
+        InviteCreatedOut: {
+            /** Id */
+            id: number;
+            /** Code */
+            code: string;
+            /** Group Slug */
+            group_slug: string;
+            /** Note */
+            note: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /**
+         * InviteOut
+         * @description A live (unredeemed, unexpired) invite, without its code.
+         */
+        InviteOut: {
+            /** Id */
+            id: number;
+            /** Group Slug */
+            group_slug: string;
+            /** Note */
+            note: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            created_by: components["schemas"]["PlayerRef"] | null;
+        };
         /** KeyLabelOut */
         KeyLabelOut: {
             /** Key */
@@ -2378,16 +3279,24 @@ export interface components {
              */
             password: string;
         };
-        /** LoginOut */
-        LoginOut: {
-            /** Token */
-            token: string;
-            /** Role */
-            role: string;
-            /** Player Id */
-            player_id: number;
-            /** Player Name */
-            player_name: string;
+        /**
+         * LogoutBody
+         * @description `push_endpoint`: this device's push subscription, disabled in the same request (L2).
+         */
+        LogoutBody: {
+            /** Push Endpoint */
+            push_endpoint?: string | null;
+        };
+        /**
+         * MailStatusOut
+         * @description `GET /admin/mail-status` (E1): whether this server can send, and the transport's
+         *     one-line description (host and sender — never the login mailbox or the password).
+         */
+        MailStatusOut: {
+            /** Configured */
+            configured: boolean;
+            /** Description */
+            description: string;
         };
         /** MarkedResponse */
         MarkedResponse: {
@@ -2458,20 +3367,67 @@ export interface components {
             /** Goals */
             goals?: number | string | null;
         };
-        /** MeOut */
+        /**
+         * MeGroupOut
+         * @description One of the caller's groups: `role` is the membership role (`owner` | `member`).
+         */
+        MeGroupOut: {
+            /** Id */
+            id: number;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Role */
+            role: string;
+        };
+        /**
+         * MeOut
+         * @description Who the caller is on this device — answered by `GET /me`, `POST /auth/login` and
+         *     `POST /auth/exchange` and `POST /auth/passkeys/login/verify` alike (L2, L8). `role` is
+         *     the effective role in the current group (`none` | `editor` | `owner` | `admin`).
+         *     `has_passkey` reads the `Passkey` table (L8).
+         */
         MeOut: {
             /** Role */
-            role: string | null;
+            role: string;
             /** Player Id */
-            player_id: number | null;
+            player_id: number;
             /** Player Name */
-            player_name: string | null;
-            /** Sub */
-            sub: string | null;
-            /** Iat */
-            iat: number | null;
-            /** Exp */
-            exp: number | null;
+            player_name: string;
+            /** Site Admin */
+            site_admin: boolean;
+            /** Groups */
+            groups: components["schemas"]["MeGroupOut"][];
+            /** Has Password */
+            has_password: boolean;
+            /** Has Passkey */
+            has_passkey: boolean;
+            /** Password Migrated */
+            password_migrated: boolean;
+            /** Session Id */
+            session_id: number | null;
+            /** Email */
+            email: string | null;
+            /** Email Pending */
+            email_pending: string | null;
+            /** Email Verified */
+            email_verified: boolean;
+            /** Email Available */
+            email_available: boolean;
+            /** Login Secure */
+            login_secure: boolean;
+        };
+        /**
+         * MemberRoleBody
+         * @description `PUT /admin/groups/{slug}/members/{player_id}/role` (L3).
+         */
+        MemberRoleBody: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "owner" | "member";
         };
         /**
          * MyNotificationOut
@@ -2547,6 +3503,72 @@ export interface components {
         OkResponse: {
             /** Ok */
             ok: boolean;
+        };
+        /**
+         * PasskeyLoginVerifyBody
+         * @description `POST /auth/passkeys/login/verify` (L8): the JSON form of the assertion
+         *     `navigator.credentials.get()` returned. No identifier — the credential says who.
+         */
+        PasskeyLoginVerifyBody: {
+            /** Credential */
+            credential?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * PasskeyOut
+         * @description One of the caller's passkeys (`GET /auth/passkeys`, `POST /auth/passkeys/register/verify`,
+         *     L8). `device_type` is `single_device` | `multi_device` (the authenticator's backup
+         *     eligibility — a synced passkey is `multi_device`); `backed_up` is its current backup
+         *     state, refreshed on every sign-in. Never the credential id or the public key.
+         */
+        PasskeyOut: {
+            /** Id */
+            id: number;
+            /** Label */
+            label: string;
+            /** Device Type */
+            device_type: string;
+            /** Backed Up */
+            backed_up: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Last Used At */
+            last_used_at: string | null;
+        };
+        /**
+         * PasskeyRegisterVerifyBody
+         * @description `POST /auth/passkeys/register/verify` (L8): `credential` is the JSON form of the
+         *     `PublicKeyCredential` `navigator.credentials.create()` returned (what
+         *     `@simplewebauthn/browser`'s `startRegistration` resolves to), passed through untouched;
+         *     `label` is what the list calls it (empty → the device's name).
+         */
+        PasskeyRegisterVerifyBody: {
+            /** Credential */
+            credential?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+        };
+        /**
+         * PasswordChangeBody
+         * @description `POST /auth/password` (L3). `current_password` is required when the account has one.
+         */
+        PasswordChangeBody: {
+            /** Current Password */
+            current_password?: string | null;
+            /**
+             * New Password
+             * @default
+             */
+            new_password: string;
         };
         /** PinnedCommentOut */
         PinnedCommentOut: {
@@ -2760,6 +3782,8 @@ export interface components {
             notification_language?: string | null;
             /** Notification Mode */
             notification_mode?: string | null;
+            /** Replaces Endpoint */
+            replaces_endpoint?: string | null;
         };
         /** PushSubscriptionDeleteBody */
         PushSubscriptionDeleteBody: {
@@ -2901,6 +3925,161 @@ export interface components {
             rank: number;
             latest?: components["schemas"]["StatsRecordTournamentOut"] | null;
         };
+        /**
+         * RecoverBody
+         * @description `POST /auth/recover` (E2): the address a recovery link should go to. The answer is
+         *     the same whatever the address.
+         */
+        RecoverBody: {
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+        };
+        /**
+         * RedeemBody
+         * @description `POST /auth/redeem` (L3): an invite code, redeemed by an existing account.
+         */
+        RedeemBody: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+        };
+        /**
+         * RegisterBody
+         * @description `POST /auth/register` (L3): an invite code, the new display name, a password.
+         */
+        RegisterBody: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+            /**
+             * Password
+             * @default
+             */
+            password: string;
+        };
+        /**
+         * RegisterPasskeyOptionsBody
+         * @description `POST /auth/register/passkey/options` (E2): an invite code and the new display name.
+         *     Both are checked here and remembered server-side; the verify step never takes them again.
+         */
+        RegisterPasskeyOptionsBody: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+        };
+        /**
+         * RegisterPasskeyVerifyBody
+         * @description `POST /auth/register/passkey/verify` (E2): the credential only — the invite and the
+         *     name were remembered with the challenge.
+         */
+        RegisterPasskeyVerifyBody: {
+            /** Credential */
+            credential?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+        };
+        /**
+         * ResetBody
+         * @description `POST /auth/reset` (L3): the long token from a reset link and the new password.
+         */
+        ResetBody: {
+            /**
+             * Token
+             * @default
+             */
+            token: string;
+            /**
+             * Password
+             * @default
+             */
+            password: string;
+        };
+        /**
+         * ResetLinkCreateBody
+         * @description `POST /admin/reset-links` (L3).
+         */
+        ResetLinkCreateBody: {
+            /** Player Id */
+            player_id: number;
+        };
+        /**
+         * ResetLinkOut
+         * @description A fresh one-hour reset link — the only time it is readable. The token rides in the
+         *     URL fragment (`…/g/<slug>/reset#<token>`).
+         */
+        ResetLinkOut: {
+            /** Player Id */
+            player_id: number;
+            /** Url */
+            url: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /**
+         * ResetPasskeyOptionsBody
+         * @description `POST /auth/reset/passkey/options` (E2): the token from a reset link's fragment.
+         */
+        ResetPasskeyOptionsBody: {
+            /**
+             * Token
+             * @default
+             */
+            token: string;
+        };
+        /**
+         * ResetPasskeyVerifyBody
+         * @description `POST /auth/reset/passkey/verify` (E2): the same token and the JSON form of the
+         *     `PublicKeyCredential` `navigator.credentials.create()` returned; `label` as on the
+         *     logged-in register pair (empty → the device's name).
+         */
+        ResetPasskeyVerifyBody: {
+            /**
+             * Token
+             * @default
+             */
+            token: string;
+            /** Credential */
+            credential?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Label
+             * @default
+             */
+            label: string;
+        };
+        /** RevokedOut */
+        RevokedOut: {
+            /** Revoked */
+            revoked: number;
+        };
         /** ScheduleGeneratedOut */
         ScheduleGeneratedOut: {
             /** Ok */
@@ -2911,6 +4090,30 @@ export interface components {
             labels: {
                 [key: string]: string;
             };
+        };
+        /**
+         * SessionOut
+         * @description One logged-in device of the caller (`GET /auth/sessions`, L2).
+         */
+        SessionOut: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Device Label */
+            device_label: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Current */
+            current: boolean;
         };
         /** StatsBlockOut */
         StatsBlockOut: {
@@ -3844,7 +5047,1005 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoginOut"];
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["LogoutBody"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exchange_auth_exchange_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    my_sessions_auth_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"][];
+                };
+            };
+        };
+    };
+    revoke_my_session_auth_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_my_other_sessions_auth_sessions_revoke_others_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedOut"];
+                };
+            };
+        };
+    };
+    register_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    redeem_auth_redeem_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RedeemBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_auth_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_my_password_auth_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordChangeBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_my_password_auth_password_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    passkey_register_options_auth_passkeys_register_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    passkey_register_verify_auth_passkeys_register_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegisterVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_passkeys_auth_passkeys_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyOut"][];
+                };
+            };
+        };
+    };
+    remove_my_passkey_auth_passkeys__passkey_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                passkey_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    passkey_login_options_auth_passkeys_login_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    passkey_login_verify_auth_passkeys_login_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyLoginVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_my_email_auth_email_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_my_email_auth_email_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailStatusOut"];
+                };
+            };
+        };
+    };
+    resend_my_email_auth_email_resend_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailStatusOut"];
+                };
+            };
+        };
+    };
+    verify_email_auth_email_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailVerifiedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recover_auth_recover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoverBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_passkey_options_auth_reset_passkey_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasskeyOptionsBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_passkey_verify_auth_reset_passkey_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasskeyVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_passkey_options_auth_register_passkey_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPasskeyOptionsBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_passkey_verify_auth_register_passkey_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPasskeyVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_accounts_admin_accounts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAccountOut"][];
+                };
+            };
+        };
+    };
+    list_account_sessions_admin_accounts__player_id__sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                player_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_any_session_admin_sessions__session_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    revoke_account_sessions_admin_accounts__player_id__revoke_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                player_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RevokedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mail_status_admin_mail_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailStatusOut"];
+                };
+            };
+        };
+    };
+    list_invites_admin_invites_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteOut"][];
+                };
+            };
+        };
+    };
+    create_invite_code_admin_invites_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_invite_admin_invites__invite_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invite_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_reset_link_admin_reset_links_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetLinkCreateBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetLinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_member_role_admin_groups__slug__members__player_id__role_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+                player_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberRoleBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAccountOut"];
                 };
             };
             /** @description Validation Error */
@@ -4707,6 +6908,37 @@ export interface operations {
         };
     };
     get_club_star_history_clubs__club_id__star_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                club_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClubStarHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    promote_club_stars_clubs__club_id__stars_promote_post: {
         parameters: {
             query?: never;
             header?: never;

@@ -1,3 +1,14 @@
+import datetime as dt
+
+from sqlmodel import Session
+
+from app.db import get_engine
+from app.models import Group, GroupMembership, PlayerGuestbookEntry, PlayerPoke
+from app.routers.players import _upsert_avatar_file, _upsert_profile_header_file
+from app.services.groups import current_group
+from tests.conftest import create_nogroup_account
+
+
 def _player_id_by_name(client, name: str) -> int:
     rows = client.get("/players").json()
     row = next((p for p in rows if p.get("display_name") == name), None)
@@ -429,3 +440,107 @@ def test_profile_poke_authored_unread_summary(client, editor_headers, admin_head
     rows2 = r_sum2.json() or []
     row_admin2 = next((x for x in rows2 if int(x.get("profile_player_id", 0)) == int(admin_id)), None)
     assert row_admin2 is None or int(row_admin2.get("unread_count", 0)) == 0
+
+
+# ---- L11: a profile is openable only by someone who shares a group (site admin excepted) ----
+
+
+def _player_in_other_group_only(name: str) -> int:
+    """A player whose only membership is a second group — a stranger to `altherren`."""
+    pid = create_nogroup_account(name)
+    with Session(get_engine()) as s:
+        other = Group(slug="zweite", name="Zweite")
+        s.add(other)
+        s.flush()
+        s.add(GroupMembership(group_id=int(other.id), player_id=pid, role="member"))
+        s.commit()
+    return pid
+
+
+def _seed_wall(pid: int) -> int:
+    """A guestbook entry, a poke, an avatar and a header image on this player, written
+    straight to the DB/disk so the reads below have something to refuse."""
+    with Session(get_engine()) as s:
+        entry = PlayerGuestbookEntry(profile_player_id=pid, author_player_id=pid, body="hi", created_at=dt.datetime.utcnow(), updated_at=dt.datetime.utcnow())
+        s.add(entry)
+        s.add(PlayerPoke(profile_player_id=pid, author_player_id=pid, created_at=dt.datetime.utcnow()))
+        _upsert_avatar_file(s, player_id=pid, content_type="image/webp", data=b"a")
+        _upsert_profile_header_file(s, player_id=pid, content_type="image/webp", data=b"h")
+        s.commit()
+        return int(entry.id)
+
+
+def _reads(pid: int, entry_id: int) -> list[tuple[str, str, dict | None]]:
+    return [
+        ("GET", f"/players/{pid}/profile", None),
+        ("GET", f"/players/{pid}/guestbook", None),
+        ("GET", f"/players/{pid}/pokes", None),
+        ("GET", f"/players/{pid}/avatar", None),
+        ("GET", f"/players/{pid}/header-image", None),
+        ("GET", f"/players/{pid}/guestbook/read", None),
+        ("GET", f"/players/{pid}/pokes/read", None),
+        ("PUT", f"/players/{pid}/guestbook/read-all", None),
+        ("PUT", f"/players/{pid}/pokes/read-all", None),
+        ("GET", f"/players/guestbook/{entry_id}/voters", None),
+        ("PUT", f"/players/guestbook/{entry_id}/read", None),
+        ("PUT", f"/players/guestbook/{entry_id}/vote", {"value": 1}),
+        ("POST", f"/players/{pid}/guestbook", {"body": "hello stranger"}),
+        ("POST", f"/players/{pid}/pokes", None),
+    ]
+
+
+def test_a_member_is_refused_a_stranger_from_another_group(client, editor_headers):
+    pid = _player_in_other_group_only("Fremder")
+    entry_id = _seed_wall(pid)
+    for method, path, body in _reads(pid, entry_id):
+        r = client.request(method, path, json=body, headers=editor_headers)
+        assert r.status_code == 403, (method, path, r.status_code, r.text)
+        assert r.json()["detail"] == "Not in your group"
+    # …and a stranger is in nobody's roster, and their pictures are not announced either —
+    # the browser would ask for them, get a 403 and draw a broken image.
+    assert pid not in [p["id"] for p in client.get("/players", headers=editor_headers).json()]
+    assert pid not in [m["player_id"] for m in client.get("/players/avatars", headers=editor_headers).json()]
+    assert pid not in [m["player_id"] for m in client.get("/players/headers", headers=editor_headers).json()]
+
+
+def test_a_member_is_refused_a_no_group_account(client, editor_headers):
+
+    pid = create_nogroup_account("Uneingeladen")
+    r = client.get(f"/players/{pid}/profile", headers=editor_headers)
+    assert r.status_code == 403, r.text
+
+
+def test_the_site_admin_opens_a_stranger(client, admin_headers):
+    pid = _player_in_other_group_only("Fremder")
+    entry_id = _seed_wall(pid)
+    assert pid in [m["player_id"] for m in client.get("/players/avatars", headers=admin_headers).json()]
+    assert pid in [m["player_id"] for m in client.get("/players/headers", headers=admin_headers).json()]
+    for method, path, body in _reads(pid, entry_id):
+        r = client.request(method, path, json=body, headers=admin_headers)
+        assert r.status_code == 200, (method, path, r.status_code, r.text)
+
+
+def test_a_shared_player_opens_as_before(client, editor_headers):
+    pid = _player_id_by_name(client, "Editor2")
+    entry_id = _seed_wall(pid)
+    for method, path, body in _reads(pid, entry_id):
+        r = client.request(method, path, json=body, headers=editor_headers)
+        assert r.status_code == 200, (method, path, r.status_code, r.text)
+
+
+def test_one_shared_group_is_enough(client, editor_headers):
+    """The stranger joins `altherren` too: now they share a group and every read opens."""
+    pid = _player_in_other_group_only("Fremder")
+    assert client.get(f"/players/{pid}/profile", headers=editor_headers).status_code == 403
+    with Session(get_engine()) as s:
+        s.add(GroupMembership(group_id=int(current_group(s).id), player_id=pid, role="member"))
+        s.commit()
+    assert client.get(f"/players/{pid}/profile", headers=editor_headers).status_code == 200
+
+
+def test_your_own_profile_and_a_missing_one(client, editor_headers):
+    me = _player_id_by_name(client, "Editor")
+    assert client.get(f"/players/{me}/profile", headers=editor_headers).status_code == 200
+    # A player that does not exist keeps its 404 — the guard does not turn it into a 403.
+    assert client.get("/players/999999/profile", headers=editor_headers).status_code == 404
+    assert client.get("/players/999999/guestbook", headers=editor_headers).status_code == 404
