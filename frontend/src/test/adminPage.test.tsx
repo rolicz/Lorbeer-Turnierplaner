@@ -94,7 +94,7 @@ describe("AccountsTab", () => {
     // Mail off: the login half alone, the server's `login_secure`.
     fireEvent.click(screen.getByRole("button", { name: "Not secured" }));
     expect(names()).toEqual(["Flo", "Rumpi"]);
-    expect(within(rowOf("Flo")).getByText("migrated password", { selector: ".text-warn" })).toHaveClass("text-warn");
+    expect(within(rowOf("Flo")).getByText("not secured", { selector: ".text-warn" })).toHaveClass("text-warn");
     expect(screen.queryByRole("button", { name: "Migrated password" })).toBeNull();
   });
 

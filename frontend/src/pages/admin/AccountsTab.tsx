@@ -69,7 +69,7 @@ function AccountSubtitle({ a, emailAvailable }: { a: AdminAccount; emailAvailabl
   if (onMigratedPassword(a)) {
     parts.push(
       <span key="migrated" className="text-warn">
-        migrated password
+        not secured
       </span>,
     );
   } else if (a.password_origin === "none" && !a.has_passkey) {
