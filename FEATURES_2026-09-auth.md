@@ -3513,6 +3513,7 @@ Deviations and `AGENTS.md` §11.**
 > preflight's `RESULT: OK`, the exact first-boot log, `ce55a53` as the rollback target and
 > `docker compose up -d --build backend frontend` so Caddy is never recreated. The text below is
 > the plan as written, kept as the record.
+> **The second half of the batch — passkey-preferred credentials and email (`FEATURES_2026-09-auth-email.md`, E0–E6) — ships in this same single deploy**; its DNS step, its deliverability gate and its extension of the phone walk are in that file's "Deployment" section.
 
 Backend, schema and two dependencies change → the **full** deploy, both times.
 
