@@ -11,6 +11,7 @@ import Input from "../../ui/primitives/Input";
 import AuthScreen from "./AuthScreen";
 import PasswordField from "./PasswordField";
 import RetryCountdown from "./RetryCountdown";
+import { safeReturnPath } from "./returnPath";
 
 /** What the line under the form says for an answer the server gave; a network failure has its own. */
 function loginErrorText(e: unknown): string {
@@ -50,15 +51,8 @@ export default function LoginPage() {
   const location = useLocation();
   const auth = useAuth();
 
-  // Where RequireAuth bounced us from; ignore anything that isn't an in-app path.
-  const fromState = (location.state as { from?: unknown } | null)?.from;
-  const from =
-    typeof fromState === "string" &&
-    fromState.startsWith("/") &&
-    !fromState.startsWith("//") &&
-    !fromState.startsWith("/login")
-      ? fromState
-      : "/dashboard";
+  // Where RequireAuth bounced us from — only ever an in-app path (see `safeReturnPath`).
+  const from = safeReturnPath((location.state as { from?: unknown } | null)?.from);
 
   // Already in (a bookmark to /login, a back swipe after logging in): nothing to ask.
   if (auth.status === "authed") return <Navigate to={from} replace />;
