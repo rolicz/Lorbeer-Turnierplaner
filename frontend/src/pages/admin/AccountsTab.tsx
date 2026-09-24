@@ -2,11 +2,12 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, UserCog } from "lucide-react";
 
-import { createResetLink, listAccounts, setMemberRole } from "../../api/admin.api";
+import { createResetLink, listAccounts, mailStatus, setMemberRole } from "../../api/admin.api";
 import { ApiError } from "../../api/client";
 import { qk } from "../../api/queryKeys";
 import type { AdminAccount, ResetLink } from "../../api/types";
 import { GROUP_SLUG } from "../../app/basename";
+import { useAuth } from "../../auth/AuthContext";
 import { usePlayerAvatarMap } from "../../hooks/usePlayerAvatarMap";
 import AvatarCircle from "../../ui/primitives/AvatarCircle";
 import Button from "../../ui/primitives/Button";
@@ -22,18 +23,18 @@ import { fmtCount, fmtDateTime } from "../../utils/format";
 import SessionsSheet from "./SessionsSheet";
 import ShownOnce from "./ShownOnce";
 
-type AccountFilter = "all" | "online" | "migrated";
+type AccountFilter = "all" | "online" | "unsecured";
 
 const FILTERS: { key: AccountFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "online", label: "Logged in" },
-  { key: "migrated", label: "Migrated password" },
+  { key: "unsecured", label: "Not secured" },
 ];
 
 const EMPTY: Record<AccountFilter, string> = {
   all: "No accounts.",
   online: "Nobody is logged in.",
-  migrated: "Nobody is on a migrated password.",
+  unsecured: "Every account is secured.",
 };
 
 /** Still on the password `secrets.json` gave them, and nothing better to log in with. */
@@ -41,9 +42,18 @@ function onMigratedPassword(a: AdminAccount): boolean {
   return a.password_origin === "migrated" && !a.has_passkey;
 }
 
-function matches(a: AdminAccount, f: AccountFilter): boolean {
+/**
+ * What the "secure your account" strip still asks this account for (E4): the server's
+ * `login_secure`, and — only while the server can send mail — a verified email. The same
+ * two steps as `SecureAccountNotice`, read off the same server answers.
+ */
+function notSecured(a: AdminAccount, emailAvailable: boolean): boolean {
+  return !a.login_secure || (emailAvailable && a.email_state !== "verified");
+}
+
+function matches(a: AdminAccount, f: AccountFilter, emailAvailable: boolean): boolean {
   if (f === "online") return a.session_count > 0;
-  if (f === "migrated") return onMigratedPassword(a);
+  if (f === "unsecured") return notSecured(a, emailAvailable);
   return true;
 }
 
@@ -52,7 +62,7 @@ function errorText(e: unknown, fallback: string): string {
   return "Could not reach the server — check your connection and try again.";
 }
 
-function AccountSubtitle({ a }: { a: AdminAccount }) {
+function AccountSubtitle({ a, emailAvailable }: { a: AdminAccount; emailAvailable: boolean }) {
   // The login state leads: it is what the page is for, and at 390px beside two icon
   // buttons the line truncates — the timestamp may lose its tail, the marker may not.
   const parts: React.ReactNode[] = [];
@@ -65,6 +75,9 @@ function AccountSubtitle({ a }: { a: AdminAccount }) {
   } else if (a.password_origin === "none" && !a.has_passkey) {
     parts.push("no login");
   }
+  // The email step exists only while the server can send (the strip's own rule).
+  if (emailAvailable && a.email_state === "none") parts.push("no email");
+  else if (emailAvailable && a.email_state === "pending") parts.push("email pending");
   parts.push(fmtCount(a.session_count, "device", "devices"));
   if (a.last_seen_at) parts.push(`last seen ${fmtDateTime(a.last_seen_at)}`);
   return (
@@ -80,7 +93,7 @@ function AccountSubtitle({ a }: { a: AdminAccount }) {
 }
 
 /**
- * Who has an account, who is logged in and who is still on a migrated password (L6).
+ * Who has an account, who is logged in and who is not secured yet (L6, E4).
  * A site admin also opens an account's devices and mints reset links; an owner sees the
  * list and promotes or demotes members, and nothing that the server would refuse them.
  */
@@ -92,7 +105,10 @@ export default function AccountsTab({ siteAdmin }: { siteAdmin: boolean }) {
   const [resetLink, setResetLink] = useState<{ name: string; link: ResetLink } | null>(null);
   const [roleFor, setRoleFor] = useState<AdminAccount | null>(null);
 
+  const { emailAvailable } = useAuth();
   const accountsQ = useQuery({ queryKey: qk.admin.accounts(), queryFn: listAccounts });
+  // Site admin only (an owner gets 403), so an owner never asks.
+  const mailQ = useQuery({ queryKey: qk.admin.mailStatus(), queryFn: mailStatus, enabled: siteAdmin });
   const { avatarUpdatedAtById } = usePlayerAvatarMap();
 
   const resetMut = useMutation({ mutationFn: (pid: number) => createResetLink(pid) });
@@ -101,7 +117,7 @@ export default function AccountsTab({ siteAdmin }: { siteAdmin: boolean }) {
     onSettled: () => qc.invalidateQueries({ queryKey: qk.admin.accounts() }),
   });
 
-  const rows = (accountsQ.data ?? []).filter((a) => matches(a, filter));
+  const rows = (accountsQ.data ?? []).filter((a) => matches(a, filter, emailAvailable));
 
   async function confirmReset() {
     if (!resetFor) return;
@@ -136,6 +152,18 @@ export default function AccountsTab({ siteAdmin }: { siteAdmin: boolean }) {
       <div className="section-head">
         <span className="section-label">Accounts</span>
       </div>
+      {siteAdmin && mailQ.data ? (
+        mailQ.data.configured ? (
+          <div className="text-xs text-text-muted" data-mail-status="on">
+            Email: {mailQ.data.description}
+          </div>
+        ) : (
+          // `warn`, not `error`: nothing failed — the server was started without mail (§2).
+          <div className="text-xs text-warn" data-mail-status="off">
+            Email is not set up on this server — recovery by email is off.
+          </div>
+        )
+      ) : null}
       <ChipGroup value={filter} onChange={setFilter} options={FILTERS} ariaLabel="Show" />
 
       {accountsQ.isLoading ? (
@@ -209,7 +237,7 @@ export default function AccountsTab({ siteAdmin }: { siteAdmin: boolean }) {
                   ) : null}
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-text-muted">
-                  <AccountSubtitle a={a} />
+                  <AccountSubtitle a={a} emailAvailable={emailAvailable} />
                 </span>
               </ListRow>
             );

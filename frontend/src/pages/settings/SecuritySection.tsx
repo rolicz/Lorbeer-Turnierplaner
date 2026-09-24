@@ -28,6 +28,7 @@ import InviteCodeField from "../auth/InviteCodeField";
 import { MIN_PASSWORD_LENGTH } from "../auth/password";
 import PasswordField from "../auth/PasswordField";
 import RetryCountdown from "../auth/RetryCountdown";
+import EmailSection from "./EmailSection";
 import SettingsSection from "./SettingsSection";
 
 /** A form's error line: the server's own sentence, else what went wrong in plain words. */
@@ -298,6 +299,13 @@ function PasskeysSection() {
           {LAST_WAY_IN}.
         </div>
       ) : null}
+      {/* WebAuthn's cross-device flow needs no server change: the other device's own prompt offers "use a phone". */}
+      {supported ? (
+        <div className="mt-2 text-xs text-text-muted" data-passkey-hint>
+          Logging in on another device? Choose your passkey there and scan the code with this phone — or add a password
+          below.
+        </div>
+      ) : null}
 
       {supported ? (
         <form
@@ -429,7 +437,8 @@ function PasswordSection() {
       {/* Its advice is done once a passkey exists — the app-wide strip stops then too. */}
       {passwordMigrated && hasPassword && !hasPasskey ? (
         <div className="mb-2 text-xs text-warn" data-password-migrated>
-          This is the password you were given — change it, or add a passkey.
+          This is the password you were given — change it ({MIN_PASSWORD_LENGTH} characters or more), or add a
+          passkey.
         </div>
       ) : null}
       <Button
@@ -602,8 +611,8 @@ function GroupsSection() {
 }
 
 /**
- * Settings → Account (L7, L9): where I am logged in, my passkeys, my password, and the
- * groups I am in — four settings groups under "Account". Everything is the caller's own; the server
+ * Settings → Account (L7, L9, E4): where I am logged in, my passkeys, my password, my
+ * email and the groups I am in — five settings groups under "Account". Everything is the caller's own; the server
  * decides ownership, this page only renders what it answers.
  */
 export default function SecuritySection() {
@@ -612,6 +621,7 @@ export default function SecuritySection() {
       <DevicesSection />
       <PasskeysSection />
       <PasswordSection />
+      <EmailSection />
       <GroupsSection />
     </>
   );

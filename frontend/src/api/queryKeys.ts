@@ -125,6 +125,8 @@ export const qk = {
     sessions: (playerId: number | string) => ["admin", "sessions", playerId] as const,
     /** The live invite codes — never the codes themselves, which the server shows once. */
     invites: () => ["admin", "invites"] as const,
+    /** Whether the server can send mail (`GET /admin/mail-status`, site admin only — E4). */
+    mailStatus: () => ["admin", "mail-status"] as const,
   },
 
   // ---- stats --------------------------------------------------------------

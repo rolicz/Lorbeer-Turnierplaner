@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import type { AdminAccount, AuthSession, Invite, InviteCreated, ResetLink, RevokedCount } from "./types";
+import type { AdminAccount, AuthSession, Invite, InviteCreated, MailStatus, ResetLink, RevokedCount } from "./types";
 
 /**
  * The admin page (L6) over L3's `/admin/…` routes. `listAccounts`, the three invite calls
@@ -52,4 +52,9 @@ export function setMemberRole(slug: string, playerId: number, role: "owner" | "m
     method: "PUT",
     body: JSON.stringify({ role }),
   });
+}
+
+/** Can this server send mail, and how (`file sink …`, `SMTP via …`)? Site admin only (E4). */
+export function mailStatus(): Promise<MailStatus> {
+  return apiFetch<MailStatus>("/admin/mail-status", { method: "GET" });
 }

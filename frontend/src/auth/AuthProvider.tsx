@@ -365,6 +365,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       hasPassword: meData?.has_password ?? false,
       hasPasskey: meData?.has_passkey ?? false,
       passwordMigrated: meData?.password_migrated ?? false,
+      // A cached answer from before E1 lacks these: no email step, and the login taken as
+      // secure, until the boot's own `/me` says otherwise a moment later.
+      email: meData?.email ?? null,
+      emailPending: meData?.email_pending ?? null,
+      emailVerified: meData?.email_verified ?? false,
+      emailAvailable: meData?.email_available ?? false,
+      loginSecure: meData?.login_secure ?? true,
       sessionId: meData?.session_id ?? null,
       serverUnreachable,
       signedOutReason,

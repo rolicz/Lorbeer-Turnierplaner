@@ -23,9 +23,10 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("../api/account.api", () => api);
 // L9's passkey section sits in the same component; its own tests are passkeys.test.tsx.
+const pk = vi.hoisted(() => ({ supported: false }));
 vi.mock("../api/passkeys.api", () => ({
   listPasskeys: vi.fn().mockResolvedValue([]),
-  passkeysSupported: () => false,
+  passkeysSupported: () => pk.supported,
   registerPasskey: vi.fn(),
   removePasskey: vi.fn(),
 }));
@@ -71,6 +72,7 @@ describe("SecuritySection", () => {
     auth.hasPassword = true;
     auth.passwordMigrated = false;
     auth.refresh.mockReset().mockResolvedValue(undefined);
+    pk.supported = false;
   });
 
   it("marks this device and offers no sign-out for it", async () => {
@@ -182,7 +184,18 @@ describe("SecuritySection", () => {
     auth.passwordMigrated = true;
     const second = mount();
     expect(second.container.querySelector("[data-password-migrated]")?.textContent).toBe(
-      "This is the password you were given — change it, or add a passkey.",
+      "This is the password you were given — change it (15 characters or more), or add a passkey.",
+    );
+  });
+
+  it("offers the cross-device hint beside the passkeys only where this device can make one", () => {
+    const { container, unmount } = mount();
+    expect(container.querySelector("[data-passkey-hint]")).toBeNull();
+    unmount();
+    pk.supported = true;
+    const second = mount();
+    expect(second.container.querySelector("[data-passkey-hint]")?.textContent).toBe(
+      "Logging in on another device? Choose your passkey there and scan the code with this phone — or add a password below.",
     );
   });
 

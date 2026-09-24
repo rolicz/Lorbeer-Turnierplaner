@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import type { AuthSession, MeResponse, RevokedCount } from "./types";
+import type { AuthSession, EmailStatus, MeResponse, RevokedCount } from "./types";
 
 /** My logged-in devices, newest activity first; `current` marks this one (`GET /auth/sessions`). */
 export function listMySessions(): Promise<AuthSession[]> {
@@ -38,4 +38,23 @@ export function removePassword(): Promise<MeResponse> {
  */
 export function redeemCode(code: string): Promise<MeResponse> {
   return apiFetch<MeResponse>("/auth/redeem", { method: "POST", body: JSON.stringify({ code }) });
+}
+
+/**
+ * Set or change my email (E1): the server sends a verification link and answers with the
+ * address pending. Refusals are sentences the Email section shows verbatim — 400 not an
+ * address, 409 taken / mail off, 502 the send failed; 429 with a `retry_after`.
+ */
+export function setEmail(email: string): Promise<EmailStatus> {
+  return apiFetch<EmailStatus>("/auth/email", { method: "PUT", body: JSON.stringify({ email }) });
+}
+
+/** Send the pending address's link again (409 "Nothing to send" when nothing is pending). */
+export function resendEmail(): Promise<EmailStatus> {
+  return apiFetch<EmailStatus>("/auth/email/resend", { method: "POST" });
+}
+
+/** Drop my email — the verified address and any pending one. The old address is told. */
+export function removeEmail(): Promise<EmailStatus> {
+  return apiFetch<EmailStatus>("/auth/email", { method: "DELETE" });
 }

@@ -57,6 +57,15 @@ export type AuthState = {
   hasPasskey: boolean;
   /** The password is the one migrated from `secrets.json` — nobody has changed it yet. */
   passwordMigrated: boolean;
+  /** The verified address, or null (E1). A pending change leaves the old one here. */
+  email: string | null;
+  /** An address waiting for its link to be opened, or null. */
+  emailPending: string | null;
+  emailVerified: boolean;
+  /** The server can send mail — without it there is no email step at all (E4). */
+  emailAvailable: boolean;
+  /** The server's word: a passkey, or a password set on this code (never re-derived here). */
+  loginSecure: boolean;
   sessionId: number | null;
   /**
    * The last boot attempt (`/me` or the exchange) failed without a status — the server

@@ -4,13 +4,13 @@
  * nothing when the sheet is closed; Settings → Passkeys warns before a removal (which ends
  * this session too) and lands on the login screen after it, refuses the last way in
  * before the tap, and offers "Remove password" only with a passkey; the app-wide strip
- * shows for a migrated password with no passkey on a device that can make one — and
- * nowhere else.
+ * (E4) shows while a verified email (when the server can send) or a secure login is
+ * missing, says which, and goes away when both are there.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/client";
 import type { Passkey } from "../api/types";
@@ -44,6 +44,10 @@ const auth = vi.hoisted(() => ({
   hasPassword: true,
   hasPasskey: false,
   passwordMigrated: false,
+  // E4: the strip's inputs, straight from `MeOut`. Off by default; its describe sets them.
+  emailAvailable: false,
+  emailVerified: false,
+  loginSecure: true,
   groups: [{ id: 1, slug: "altherren", name: "Altherren", role: "member" as const }],
   setSession: vi.fn(),
   refresh: vi.fn(),
@@ -252,40 +256,78 @@ describe("Settings → Passkeys", () => {
 describe("SecureAccountNotice", () => {
   beforeEach(() => {
     auth.status = "authed";
-    auth.passwordMigrated = true;
-    auth.hasPasskey = false;
+    auth.emailAvailable = true;
+    auth.emailVerified = false;
+    auth.loginSecure = false;
+  });
+  afterEach(() => {
+    auth.emailAvailable = false;
+    auth.emailVerified = false;
+    auth.loginSecure = true;
   });
 
-  const shown = () => document.querySelector("[data-secure-account-notice]") !== null;
+  const strip = () => document.querySelector("[data-secure-account-notice]");
 
-  it("shows for a migrated password with no passkey, links to Settings, and cannot be dismissed", () => {
-    mountAt("/dashboard", <SecureAccountNotice />);
-    expect(shown()).toBe(true);
-    const link = screen.getByRole("link", { name: "Add a passkey" });
-    expect(link.getAttribute("href")).toBe("/settings?tab=account");
-    expect(screen.queryByRole("button")).toBeNull();
-  });
+  it.each([
+    [true, false, false, "Secure your account — add an email address and a passkey.", "Secure account"],
+    [false, false, false, "Secure your account — add an email address and set a new password.", "Secure account"],
+    [true, false, true, "Secure your account — add an email address.", "Add email"],
+    [false, false, true, "Secure your account — add an email address.", "Add email"],
+    [true, true, false, "Secure your account — add a passkey.", "Add a passkey"],
+    [false, true, false, "Secure your account — set a new password.", "Set a password"],
+  ])(
+    "supported=%s verified=%s secure=%s → %s",
+    (supported, verified, secure, sentence, action) => {
+      lib.browserSupportsWebAuthn.mockReturnValue(supported);
+      auth.emailVerified = verified;
+      auth.loginSecure = secure;
+      mountAt("/dashboard", <SecureAccountNotice />);
+      expect(strip()?.textContent).toBe(`${sentence}${action}`);
+      const link = screen.getByRole("link", { name: action });
+      expect(link.getAttribute("href")).toBe("/settings?tab=account");
+      // Not dismissible: the link is its only control.
+      expect(screen.queryByRole("button")).toBeNull();
+    },
+  );
 
-  it("is gone once a passkey exists, for a password that is not the given one, and on a device that cannot comply", () => {
-    auth.hasPasskey = true;
+  it("asks only for the login while the server cannot send mail — and nothing once that is secure", () => {
+    auth.emailAvailable = false;
     const a = mountAt("/dashboard", <SecureAccountNotice />);
-    expect(shown()).toBe(false);
+    expect(strip()?.textContent).toBe("Secure your account — add a passkey.Add a passkey");
     a.unmount();
 
-    auth.hasPasskey = false;
-    auth.passwordMigrated = false;
-    const b = mountAt("/dashboard", <SecureAccountNotice />);
-    expect(shown()).toBe(false);
-    b.unmount();
-
-    auth.passwordMigrated = true;
-    lib.browserSupportsWebAuthn.mockReturnValue(false);
+    auth.loginSecure = true;
     mountAt("/dashboard", <SecureAccountNotice />);
-    expect(shown()).toBe(false);
+    expect(strip()).toBeNull();
   });
 
-  it("does not point at the page that answers it", () => {
-    mountAt("/settings?tab=account", <SecureAccountNotice />);
-    expect(shown()).toBe(false);
+  it("is gone exactly when both steps are done", () => {
+    auth.emailVerified = true;
+    auth.loginSecure = true;
+    mountAt("/dashboard", <SecureAccountNotice />);
+    expect(strip()).toBeNull();
+  });
+
+  it("does not point at the page that answers it, and is absent while not logged in", () => {
+    const a = mountAt("/settings?tab=account", <SecureAccountNotice />);
+    expect(strip()).toBeNull();
+    a.unmount();
+    auth.status = "anonymous";
+    mountAt("/dashboard", <SecureAccountNotice />);
+    expect(strip()).toBeNull();
+  });
+
+  it("asks /me again when the reader comes back — the link was opened in Safari", () => {
+    mountAt("/dashboard", <SecureAccountNotice />);
+    expect(auth.refresh).not.toHaveBeenCalled();
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(auth.refresh).toHaveBeenCalledTimes(1);
+    // `focus` right behind it is the same return: one request, not two.
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    expect(auth.refresh).toHaveBeenCalledTimes(1);
   });
 });

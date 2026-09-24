@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
   revokeInvite: vi.fn(),
   createResetLink: vi.fn(),
   setMemberRole: vi.fn(),
+  mailStatus: vi.fn(),
 }));
 vi.mock("../api/admin.api", () => api);
 vi.mock("../api/playerAvatars.api", () => ({ listPlayerAvatarMeta: vi.fn().mockResolvedValue([]) }));
@@ -27,7 +28,7 @@ vi.mock("../api/playerAvatars.api", () => ({ listPlayerAvatarMeta: vi.fn().mockR
 const toast = vi.hoisted(() => ({ showErrorToast: vi.fn() }));
 vi.mock("../ui/primitives/ErrorToast", () => toast);
 
-const auth = vi.hoisted(() => ({ role: "editor" as string }));
+const auth = vi.hoisted(() => ({ role: "editor" as string, emailAvailable: false }));
 vi.mock("../auth/AuthContext", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../auth/AuthContext")>()),
   useAuth: () => auth,
@@ -55,9 +56,9 @@ const account = (over: Partial<AdminAccount>): AdminAccount => ({
 
 const ACCOUNTS: AdminAccount[] = [
   account({ player_id: 1, display_name: "Roli", site_admin: true, role: "admin", session_count: 2, last_seen_at: "2026-09-23T10:00:00" }),
-  account({ player_id: 2, display_name: "Flo", role: "owner", password_origin: "migrated", session_count: 1, last_seen_at: "2026-09-22T10:00:00" }),
+  account({ player_id: 2, display_name: "Flo", role: "owner", password_origin: "migrated", login_secure: false, session_count: 1, last_seen_at: "2026-09-22T10:00:00" }),
   account({ player_id: 4, display_name: "Berni", password_origin: "migrated", has_passkey: true }),
-  account({ player_id: 3, display_name: "Rumpi", password_origin: "none" }),
+  account({ player_id: 3, display_name: "Rumpi", password_origin: "none", login_secure: false }),
 ];
 
 function mount(ui: React.ReactElement) {
@@ -77,10 +78,12 @@ beforeEach(() => {
   for (const fn of Object.values(api)) fn.mockReset();
   toast.showErrorToast.mockReset();
   api.listAccounts.mockResolvedValue(ACCOUNTS);
+  api.mailStatus.mockResolvedValue({ configured: true, description: "file sink at /tmp/mail (never delivers)" });
+  auth.emailAvailable = false;
 });
 
 describe("AccountsTab", () => {
-  it("filters by logged in and by migrated password (a passkey takes an account off that list)", async () => {
+  it("filters by logged in and by not secured (a passkey takes an account off that list)", async () => {
     mount(<AccountsTab siteAdmin />);
     await screen.findByText("Rumpi");
     expect(names()).toEqual(["Roli", "Flo", "Berni", "Rumpi"]);
@@ -88,9 +91,65 @@ describe("AccountsTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Logged in" }));
     expect(names()).toEqual(["Roli", "Flo"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Migrated password" }));
-    expect(names()).toEqual(["Flo"]);
+    // Mail off: the login half alone, the server's `login_secure`.
+    fireEvent.click(screen.getByRole("button", { name: "Not secured" }));
+    expect(names()).toEqual(["Flo", "Rumpi"]);
     expect(within(rowOf("Flo")).getByText("migrated password", { selector: ".text-warn" })).toHaveClass("text-warn");
+    expect(screen.queryByRole("button", { name: "Migrated password" })).toBeNull();
+  });
+
+  it("counts an unverified email as not secured only while the server can send mail", async () => {
+    auth.emailAvailable = true;
+    api.listAccounts.mockResolvedValue([
+      account({ player_id: 1, display_name: "Roli", email_state: "verified" }),
+      account({ player_id: 4, display_name: "Berni", email_state: "pending" }),
+      account({ player_id: 6, display_name: "Mike", email_state: "none" }),
+      account({ player_id: 2, display_name: "Flo", email_state: "verified", login_secure: false, password_origin: "migrated" }),
+    ]);
+    mount(<AccountsTab siteAdmin />);
+    await screen.findByText("Mike");
+    fireEvent.click(screen.getByRole("button", { name: "Not secured" }));
+    expect(names()).toEqual(["Berni", "Mike", "Flo"]);
+  });
+
+  it("names the missing email in the subtitle while mail is on, and not at all while it is off", async () => {
+    const rows = [
+      account({ player_id: 1, display_name: "Roli", email_state: "verified" }),
+      account({ player_id: 4, display_name: "Berni", email_state: "pending" }),
+      account({ player_id: 6, display_name: "Mike", email_state: "none" }),
+    ];
+    api.listAccounts.mockResolvedValue(rows);
+    auth.emailAvailable = true;
+    const on = mount(<AccountsTab siteAdmin />);
+    await screen.findByText("Mike");
+    expect(within(rowOf("Berni")).getByText("email pending")).toBeTruthy();
+    expect(within(rowOf("Mike")).getByText("no email")).toBeTruthy();
+    expect(rowOf("Roli").textContent).not.toMatch(/email/);
+    on.unmount();
+
+    auth.emailAvailable = false;
+    mount(<AccountsTab siteAdmin />);
+    await screen.findByText("Mike");
+    expect(rowOf("Berni").textContent).not.toMatch(/email/);
+    expect(rowOf("Mike").textContent).not.toMatch(/email/);
+  });
+
+  it("shows a site admin the server's mail status, on and off, and never asks for it as an owner", async () => {
+    const on = mount(<AccountsTab siteAdmin />);
+    expect((await screen.findByText("Email: file sink at /tmp/mail (never delivers)")).className).toContain("text-text-muted");
+    on.unmount();
+
+    api.mailStatus.mockResolvedValue({ configured: false, description: "off" });
+    const off = mount(<AccountsTab siteAdmin />);
+    const line = await screen.findByText("Email is not set up on this server — recovery by email is off.");
+    expect(line).toHaveClass("text-warn");
+    off.unmount();
+
+    api.mailStatus.mockClear();
+    mount(<AccountsTab siteAdmin={false} />);
+    await screen.findByText("Rumpi");
+    expect(api.mailStatus).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-mail-status]")).toBeNull();
   });
 
   it("says nobody is logged in when nobody is", async () => {
