@@ -1659,7 +1659,7 @@ the passkey hint; the admin row's chip and subtitle words; §5b: **Email**, **ve
   more)"; the admin row's **Not secured**, `no email` / `email pending` (only while mail is on), and the
   status line. §5b adds **Change email** as the accessible name of Email's **Change**.
 
-## E5 — The rehearsal learns email and the two new ceremonies; the browser walk  ☐
+## E5 — The rehearsal learns email and the two new ceremonies; the browser walk  ☑
 
 **The gap.** `scripts/auth_rehearsal.sh` boots the new code without a mail sink, walks no email
 step, registers no passkey-only account, and its production-environment boot does not prove the
@@ -1696,19 +1696,138 @@ ls scripts/email_e2e.mjs                                           # → no such
    first context's strip gone after a `visibilitychange`.
 
 **Definition of done.**
-- ☐ The rehearsal against the latest deploy snapshot (`backup/deploy/<ts>`, `kind: deploy`, read-only,
+- ☑ The rehearsal against the latest deploy snapshot (`backup/deploy/<ts>`, `kind: deploy`, read-only,
   `find backup -newer … | wc -l` → 0) ends `ALL PASSED`, twice, with identical PASS/FAIL lines once
   masked; the report in Deviations.
-- ☐ The production-environment boot refuses the sink and boots without it (`Mail: off`).
-- ☐ Nothing under `backup/` changed; no `Mail: SMTP via` line anywhere in the work dir's logs
+- ☑ The production-environment boot refuses the sink and boots without it (`Mail: off`).
+- ☑ Nothing under `backup/` changed; no `Mail: SMTP via` line anywhere in the work dir's logs
   (`grep -r "Mail: SMTP" "$WORK" | wc -l` → 0 — a printed assertion).
-- ☐ Deviations filled in.
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §7 step 3 (the rehearsal now covers email and the two ceremonies; the new
 PASS count), §10 (the guard refuses a sink in production — seen).
 
 **Deviations.**
--
+- **Nothing new and shared; no backend or frontend code touched** (so no `make test` / `npm run
+  check` was needed — the three scripts and this file are the whole diff). `scripts/email_e2e.mjs`
+  is new, as the section says; `auth_rehearsal.sh` and `auth_rehearsal_checks.py` are extended,
+  every L13 check kept as it was (two made stricter, below).
+- **Result: `ALL PASSED`, 237 PASS / 0 FAIL, twice** (runs 2 and 3, each on a fresh copy of
+  **`backup/deploy/20260920-151542`** — the latest of the snapshots whose `snapshot.json` says
+  `"kind": "deploy"`, the same one L13 used), tree `7213706`, rollback target **`ce55a53`**. The
+  two runs' PASS/FAIL lines are **identical** once the work-dir name, invite codes, expiry
+  minutes, ids and `Retry-After` seconds are masked (`diff` → empty). L13's count was 131; the
+  106 more are email, the two ceremonies and the new rollback/forward assertions. Run 1 (a debug
+  run) found three things wrong **in the scripts**, none in the code: see "Found by running it".
+  `find backup -newer … | wc -l` → **0**, the snapshot's `app.db` sha256 unchanged, and
+  **`grep -r "Mail: SMTP" "$WORK"` → 0** (a printed assertion at the end of step 8). No port,
+  no process of the run left behind (checked with `ss` and `ps` afterwards).
+- **The shape, in order** (`bash scripts/auth_rehearsal.sh <snapshot> <shape.json>
+  [--no-browser]`; the shebang is bash and the header says never to run it under zsh):
+  - **Ports moved to E5's row: 8276 new / 8277 old / 8286 vite**, overridable with `B_NEW`, `B_OLD`,
+    `V`. Vite now runs with a **private `cacheDir`** in the work dir (a wrapper config, the
+    recipe's shape) — L13's run wrote into `frontend/node_modules/.vite`.
+  - **The mail environment.** Step 0 makes `$WORK/mail`; every boot of the **new** code gets
+    `APP_ENV=development AUTH_DEV_ORIGIN=1 MAIL_SINK_DIR=$WORK/mail` (one array, `NEW_ENV`), and
+    each of those boots asserts `Mail: file sink at $WORK/mail (never delivers)` and no
+    `Mail: SMTP`. The old code is started with the sink too (it ignores it). The secrets copy
+    carries no `smtp_*` key; `manage.py` runs strip any `SMTP_*`/`MAIL_DEV_SMTP` from the
+    environment and get the same sink.
+  - **Step 3** — L13's first boot unchanged (migration lines, six logins, 16 answers identical to
+    the old code's, the exchange, `p50 36.2 ms`, the Chromium passkey, the deep links), then
+    **`checks email`** (API, Roli): `PUT /auth/email roli@example.test` → pending, **one** file in
+    the sink, **one** link, `…/g/altherren/verify-email#<token>`; pending verifies nothing;
+    `POST /auth/email/verify` **with no cookie** → 200, `/me` verified; the same token → 400;
+    **change** to `roli.new@example.test` → the old address stays verified until the new one is
+    confirmed → verified → the **old** address gets *"Your Lorbeerkranz email address changed"*
+    with **0 links**; `POST /auth/recover` (upper case) → `{"ok":true}`, no cookie, one file to the
+    verified address with `…/reset#<token>`; a 14-character password → 400 *"at least 15"*, the
+    link still live; 19 characters → 200 as Roli, **the earlier session 401**, the link again 400,
+    the new password 200, the old 401; `nobody@example.test` → the **byte-identical** answer and no
+    file 1.5 s later; the 4th recover for one address → **429**, `Retry-After: 3598`;
+    `manage.py verify-email --player Mike --email mike@example.test` → exit 0, nothing sent,
+    `/admin/accounts` → Roli and Mike `verified`; `/admin/mail-status` → the file sink.
+  - **Step 3b (new)** — a **restart** (the rule's "a backend restart empties the rate-limit
+    buckets": step 3's recovers used 5 of the IP's 5 per hour and the address's 3), which also
+    proves a restart migrates nothing. Then the browser, `email_e2e.mjs`:
+    **register** — `manage.py invite` → the register page offers *Create a passkey* before *Use a
+    password instead* → the code + "Passkey Neuling" → **Create a passkey** → the dashboard, `/me`
+    `has_passkey true, has_password false, login_secure true, email_verified false`, the strip
+    *"Secure your account — add an email address."*; `checks passkey-only` reads the rows: no
+    password hash, `password_origin none`, a user handle, one passkey, `member`, the invite
+    redeemed by that player, no intent left. **verify** — a passkey login with nothing typed →
+    Settings → Email → the address → pending → the dashboard's strip still asks → the sink's link
+    in a **second, cookie-less context**: the confirm page, the token stripped from the URL,
+    **no POST in 1.5 s**, one POST on **Confirm**, *Verified* → back in the first context
+    (after > 2 s, E4's debounce) a `visibilitychange` makes the strip **go without a reload**;
+    **Change email** → the second address → its link, Confirm → the row reads the new address with
+    no reload → the old address got the link-free notice. **recover** — a password session of Roli
+    in another context first; then a context whose authenticator **already holds Roli's passkey**
+    (step 3's, imported): *Lost your passkey or password?* → `/recover` → the one sentence → the
+    link from the sink → *Set a new login*, the fragment stripped → **Create a passkey** is refused
+    by that authenticator and the page says *"This device could not make a passkey here."*, still
+    on `/reset` → the first authenticator removed, a new one added, **Create a passkey** again → in
+    as Roli with **the same, unspent link**; `/auth/passkeys` lists **2** (recovery keeps the old
+    one); the other context's session → **401**. Finally `checks open-intent`: a second invite and a
+    `register/passkey/options` whose sheet is never answered → one `registrationintent` row, no
+    player, the code unspent — so the rollback runs with all three new tables non-empty.
+  - **Step 4, rollback** on the same file with **accountemail / emailverification /
+    registrationintent = 3 / 4 / 1**: boots (`Cup defs validated`, `DB initialized`); all six old
+    JWT logins 200 with secrets.json's passwords; reads identical to the baseline; a tournament and
+    a comment written. New assertions: **Roli's password set on the new code does not carry back**
+    (401 on the old code — L13's deploy note 5, now measured) and **the passkey-only account cannot
+    log in on the old code** (401 — the documented consequence, `set-password` is the escape); the
+    three email tables are **byte-identical afterwards** (sha256 of their `.dump`).
+  - **Step 5, roll forward**: `Auth migrated: 0 accounts, 0 groups, 0 memberships … tournament=1`
+    as before; all six log in (Roli with the recovered password); the verified addresses **Roli
+    roli.new@, Mike mike@, Passkey Neuling neuling.new@** all there; Roli's `/me` verified; the
+    passkey-only account still has no password and one passkey; Chromium signs in with **step 3's
+    passkey** (recovery kept it) **and with the passkey-only account's**, nothing typed, `/me`
+    `has_password false`, the address verified and **no strip**. The intent row is still there
+    (3/4/1 — swept once its challenge is five minutes old, INFO only).
+  - **Step 6** adds, against the sink: `verify-email` with an address verified on another
+    account (in upper case) → exit 1, *nothing stored*; `mail-test --to x@example.test` → exit 0,
+    `Mail: file sink at …`, **one** more file; `mail-test --host smtp.invalid …` with a piped
+    password on this development box → exit 1, *"SMTP credentials are set on a development
+    server"*, the password in neither stream, no file.
+  - **Step 7 boots twice.** Docker-compose's environment **with `MAIL_SINK_DIR` still set** →
+    exit 1, `app.settings.AuthConfigError: MAIL_SINK_DIR is set on a production server — it would
+    swallow every email (recovery links included) into files. Unset it.`, nothing listening, the
+    database byte-identical. **Without it** → boots, the fifth line **`Mail: off — recovery by
+    email is disabled (set smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from in
+    secrets.json)`**, `/health` 200, anonymous 401, the Secure cookie, `email_available: false`,
+    and `POST /auth/recover` still `{"ok": true}`.
+  - **Step 8** adds a sweep of all four new-code logs: none of the **8** tokens in the sink, none of
+    the **5** full addresses (only masked), none of **17** body lines; then the `Mail: SMTP` grep;
+    **11** messages written, none delivered. `hash_password` median 117.6–123.0 ms.
+- **Two L13 checks became stricter, not weaker.** "The session from the first boot is still live"
+  now checks **every** account's first-boot session: five stay live, and Roli's is **expected
+  401**, because the email recovery ends every other session of that account. And the comparisons
+  with the baseline drop the rows of the one player this run created (`drop_players`, by
+  `player_id` or `id` beside `display_name`), so "identical" still covers everything that existed
+  before the run.
+- **A password this run changes on the new code is kept in `state.json`** (`password_overrides`,
+  read by `password_of`) and every later new-code login uses it — L13's step 5 and 6 assumed the
+  shape's passwords were still Roli's; the old code is always asked with the shape's.
+- **Where the section's split moved:** `verify-email` runs in `checks email` (step 3, so a
+  hand-verified address is in place for the rollback) and its refusal plus `mail-test` in step 6
+  (against the sink, as the escape hatches run on deploy day).
+- **Found by running it** (run 1): (1) my first `drop_players` also dropped a *tournament* whose
+  id equalled the new player's (7) — tightened to player rows only; (2) a credential imported
+  into a fresh browser after it had signed elsewhere is refused by the server — *"Response sign
+  count of 2 was not greater than current count of 2 — clone?"* (the counter check doing its
+  job) — so `email_e2e.mjs` writes a credential **back** after every mode that signs with it;
+  (3) the intent table was empty at rollback time (an answered registration takes its intent),
+  hence `open-intent`.
+- **For the deploy checklist (E6 → `AGENTS.md` §7):** the rehearsal command is unchanged
+  (`scripts/auth_rehearsal.sh backup/deploy/<ts> <shape.json>` → `ALL PASSED`, now **237** PASS),
+  but it **needs `python3` on the PATH** for `mail_sink_link.py` (it is there) and uses ports
+  **8276/8277/8286** now, not 8244/8245/8264. It takes Roli's `shape.json` unchanged — **the
+  shape must never gain `smtp_*` keys**, or step 3's boot is refused by the guard (which is the
+  point). Expect on the real deploy the fifth boot line `Mail: off …` — step 7 shows it; and
+  step 7 proves that a server left with `MAIL_SINK_DIR` in its environment refuses to start
+  rather than swallow recovery links. **The rehearsal cannot prove Safari**: it opens and confirms the
+  verify link in a cookie-less Chromium context, which is the phone's Safari only in shape.
 
 ## E6 — Documentation pass  ☐
 
