@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import type { MeResponse } from "./types";
+import type { EmailVerified, MeResponse } from "./types";
 
 /**
  * A new account from an invite code (`POST /auth/register`). Public; the answer is
@@ -18,6 +18,25 @@ export function register(body: { code: string; display_name: string; password: s
  */
 export function resetPassword(body: { token: string; password: string }): Promise<MeResponse> {
   return apiFetch<MeResponse>("/auth/reset", { method: "POST", body: JSON.stringify(body) });
+}
+
+/**
+ * Ask for a recovery link (`POST /auth/recover`, E3). Public. The answer is `{ok: true}`
+ * **whatever the address** — known, unknown, unverified — so nothing here can tell anyone
+ * which addresses have accounts; the only other answers are a 400 for something that is not
+ * an address and a 429.
+ */
+export function requestRecovery(email: string): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>("/auth/recover", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+/**
+ * Confirm an address from its link (`POST /auth/email/verify`, E3): the token from the
+ * fragment. Public — the link may be opened on a device that is not logged in. Called from a
+ * tap, never on load (a mail scanner that runs the page must not spend it).
+ */
+export function verifyEmail(token: string): Promise<EmailVerified> {
+  return apiFetch<EmailVerified>("/auth/email/verify", { method: "POST", body: JSON.stringify({ token }) });
 }
 
 /** Join a group with a code — implemented once, in `account.api.ts` (L7 needed it first). */

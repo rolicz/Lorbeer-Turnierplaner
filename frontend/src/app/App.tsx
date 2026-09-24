@@ -4,7 +4,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import AppShell from "../ui/shell/AppShell";
 import LoginPage from "../pages/auth/LoginPage";
 import RegisterPage from "../pages/auth/RegisterPage";
+import RecoverPage from "../pages/auth/RecoverPage";
 import ResetPage from "../pages/auth/ResetPage";
+import VerifyEmailPage from "../pages/auth/VerifyEmailPage";
 import TournamentsPage from "../pages/TournamentsPage";
 import LiveTournamentPage from "../pages/live/LiveTournamentPage";
 import DashboardPage from "../pages/dashboard/DashboardPage";
@@ -128,6 +130,8 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/reset" element={<ResetPage />} />
+        <Route path="/recover" element={<RecoverPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route
           path="/*"
           element={

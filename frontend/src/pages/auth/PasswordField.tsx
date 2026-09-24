@@ -10,7 +10,7 @@ import { MIN_PASSWORD_LENGTH } from "./password";
  * `Input`'s `<label>` is invalid HTML (a button is itself labelable), so the label points
  * at the field by id and the toggle sits beside it.
  *
- * `newPassword` adds the live hint "At least 10 characters", muted until the rule is met
+ * `newPassword` adds the live hint "At least {MIN_PASSWORD_LENGTH} characters" (15), muted until the rule is met
  * and `text-text-normal` after — the only rule, stated once, never an error.
  */
 export default function PasswordField({

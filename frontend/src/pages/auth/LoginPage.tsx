@@ -107,15 +107,22 @@ export default function LoginPage() {
   return (
     <AuthScreen
       below={
-        <div>
-          New here?{" "}
-          <Link
-            to="/register"
-            className="inline-flex items-center gap-1 text-text-muted transition hover:text-text-normal"
-          >
-            Register with a code <ChevronRight size={14} aria-hidden="true" />
-          </Link>
-        </div>
+        <>
+          <div>
+            <Link to="/recover" className="inline-flex items-center gap-1 text-text-muted transition hover:text-text-normal">
+              Lost your passkey or password? <ChevronRight size={14} aria-hidden="true" />
+            </Link>
+          </div>
+          <div>
+            New here?{" "}
+            <Link
+              to="/register"
+              className="inline-flex items-center gap-1 text-text-muted transition hover:text-text-normal"
+            >
+              Register with a code <ChevronRight size={14} aria-hidden="true" />
+            </Link>
+          </div>
+        </>
       }
     >
       <form
@@ -181,6 +188,11 @@ export default function LoginPage() {
             <Fingerprint size={14} aria-hidden="true" />
             <span>{pkBusy ? "Waiting for your passkey…" : "Use a passkey"}</span>
           </Button>
+          {/* The cross-device case, said once where it applies (E3): a passkey that lives on
+              the phone signs in on a computer through the browser's QR code. */}
+          <p className="text-xs text-text-muted" data-passkey-hint>
+            Passkey on your phone, logging in on a computer? Choose it in the passkey prompt and scan the code with your phone.
+          </p>
           <RetryCountdown seconds={pkRetryAfter} onExpire={() => setPkRetryAfter(null)} />
         </div>
       ) : null}

@@ -1338,7 +1338,7 @@ page", the order inside the reset-passkey verify and why, the atomic registratio
   `RegistrationIntent` dies inside `take_challenge` and in the sweep (expired *or gone*); §10: a
   recovery request voids an earlier unused admin link; the timing numbers above.
 
-## E3 — Register, reset, recover and verify-email in the browser: passkey first  ☐
+## E3 — Register, reset, recover and verify-email in the browser: passkey first  ☑
 
 **The gap.** `RegisterPage` demands a password; `ResetPage` sets one and nothing else; there is no
 `/recover` and no `/verify-email`; the login screen has no way to recovery and no cross-device hint.
@@ -1403,15 +1403,15 @@ grep -n "recover" frontend/src/app/App.tsx                                      
    `/login`, `/register`, `/reset` (public, outside `RequireAuth`).
 
 **Definition of done.**
-- ☐ `registration.test.tsx` +≈8: the register page shows **Create a passkey** first and swaps to the
+- ☑ `registration.test.tsx` +≈8: the register page shows **Create a passkey** first and swaps to the
   password form and back; unsupported → password form only; a closed sheet on register says
   nothing and spends nothing (no verify request); a passkey success hands `MeOut` to `setSession`;
   the reset page's heading and the same swap; a token consumed by a passkey → dashboard.
-- ☐ `recovery.test.tsx` (≈8): the recover page posts the address and shows the one sentence on 200
+- ☑ `recovery.test.tsx` (≈8): the recover page posts the address and shows the one sentence on 200
   **and** on a 500; a 429 → the countdown; the verify-email page strips the fragment before its
   request, does not POST on mount, POSTs on the tap, shows the two success shapes (anonymous /
   authed) and the failure line; the login page's link and hint.
-- ☐ Browser, 390 / 1280, `blue` / `light`, against the stack (8274/8284) with the CDP virtual
+- ☑ Browser, 390 / 1280, `blue` / `light`, against the stack (8274/8284) with the CDP virtual
   authenticator on `http://localhost:8284`: register a new account with a passkey from a `manage.py
   invite` code → `/g/altherren/dashboard`, the strip asks for an email; log out; **Use a passkey** →
   in; `manage.py reset-link` → the reset page → **Create a passkey** → in (`/auth/passkeys` lists
@@ -1420,8 +1420,8 @@ grep -n "recover" frontend/src/app/App.tsx                                      
   and verified through E1's endpoint with curl first) → the link → the reset page; `/verify-email`
   from the sink's verify link → Confirm → Verified. No horizontal overflow, `a a` = 0, the card at
   x=16 / w=358 and x=448 / w=384, the numbers written down.
-- ☐ `npm run check`, `npm run build` (the chunk size against 774.28 kB).
-- ☐ Deviations filled in.
+- ☑ `npm run check`, `npm run build` (the chunk size against 774.28 kB).
+- ☑ Deviations filled in.
 
 **Canon.** `DESIGN.md` §7: `PasskeyOrPassword` (the one credential choice, its swap, "unsupported →
 password only"), the register and reset rows rewritten, `RecoverPage`, `VerifyEmailPage` ("a
@@ -1430,7 +1430,71 @@ password instead**, **Create a passkey instead**, **Set a new login**, **Get bac
 link**, **Confirm**, *If that address is verified, a link is on its way. Check your spam folder too.*
 
 **Deviations.**
--
+- **Two small shared things, both inside `pages/auth/` where the family lives.**
+  `formError.ts::passkeyFormErrorText` — the error line of a ceremony that *makes* a passkey: the
+  server's sentence verbatim, else "This device could not make a passkey here." for what the
+  browser refused (an `InvalidStateError` from an authenticator that already holds this account's
+  passkey), else the network line; `formErrorText` would have called a browser refusal "Could not
+  reach the server". And `useLinkToken.ts` as the plan said — `ResetPage`'s read-once-and-strip
+  moved there verbatim, and `/verify-email` calls it.
+- **`passkeys.api.ts`** gained one private `createAndVerify` (options → `startRegistration` →
+  `null` on a closed sheet with **no verify request** → verify) under the two new exports; the
+  logged-in `registerPasskey` was left exactly as it was (its options POST carries no body, and
+  `passkeys.test.tsx` pins it). Still the only importer of `@simplewebauthn/browser`.
+- **Register:** **Create a passkey** is held until the code has exactly `CODE_LENGTH` (8) symbols
+  and a name is typed; the password path keeps L5's `code.length > 0` (the server's "That code is
+  not valid" answers a short one), so no existing behaviour moved. Both pages' `onSubmit` return
+  early unless the password is ready — Enter in a field while the passkey half shows submits
+  nothing. A 429 from either path is the one `RetryCountdown`, and it holds both buttons.
+- **Recover:** `below` carries "Know your password? Log in ›" and the always-there *"No verified
+  email on your account? Ask the admin for a reset link."* in `text-xs` (a second muted line under
+  the first, not a link). The muted intro line is dropped once the sentence replaces the form, so
+  the card reads heading + sentence. A 400 ("That does not look like an email address") also gets
+  the sentence, per the spec's "any error that is not a 429"; `type="email"` catches most of those
+  before a request.
+- **Verify-email:** a `below` "Log in ›" only while anonymous; `/verify-email` with no token
+  says *"This link is not complete — ask for a new one in Settings → Account."* A 429 is the
+  countdown (the family is `reset`).
+- **Tests:** the login-page cases went into `recovery.test.tsx` (as the DoD lists them), so
+  **`passkeys.test.tsx` is not touched by E3 at all** — E4 owns every line of it. `registration.test.tsx`
+  mocks `@simplewebauthn/browser` with `browserSupportsWebAuthn` **off** by default, so the L5 cases
+  run unchanged as the password-only view; the E3 block switches it on. +9 there (23), 12 in
+  `recovery.test.tsx`.
+- **`PasswordField`'s doc comment** now names the constant (15) — E0's leftover.
+- **Gates.** `npm run check` on the combined tree after E4's `877e7db` landed: **green — 975 tests
+  in 98 files**, of which E3's share is **953 in 97** (baseline 932 in 96, +21 and one file). (While
+  E4 was still in flight, `eslint .` stopped on one error in its uncommitted `emailSection.test.tsx`;
+  gone at `877e7db`.) `npm run build` green, `index-*.js` **786.95 kB** — measured on a tree that
+  also held E4's code, so it is not E3's delta alone against 774.28.
+- **Browser** (Playwright chromium, stack 8274/8284, the dev DB copied outside the repo, push rows
+  deleted, no VAPID, no `smtp_*`, `Mail: file sink … (never delivers)`, `SMTP via` 0 times; CDP
+  virtual authenticator on `http://localhost:8284`). All flows at 390 / blue:
+  **verify** — the sink's link → fragment stripped, **no POST in 1.5 s on load**, one POST on
+  Confirm, "Verified…", no Settings link anonymous; **register** — buttons in order *Create a
+  passkey*, *Use a password instead*; a `manage.py invite` code + "Neuling" → `/g/altherren/dashboard`,
+  `/me` `has_passkey true, has_password false, email_verified false`, and E4's strip reads "Secure
+  your account — add an email address."; **log out → Use a passkey** → dashboard, the cross-device
+  hint visible under the button, the recovery link → `/recover`; **reset by passkey** —
+  `manage.py reset-link --player Neuling` on a second virtual authenticator (the first holds the
+  account's passkey, so `excludeCredentials` would refuse it) → *Set a new login*, fragment stripped
+  → Create a passkey → dashboard, `/auth/passkeys` lists **2**; **reset by password** on a fresh
+  Berni link — 14 characters: Set password disabled and the hint `unmet`, 15+: enabled → in as
+  Berni; **recover** — an unknown and a known address get the identical sentence, the sink went
+  1 → 2 (only the known address got mail), its `/g/altherren/reset#…` link → Use a password
+  instead → in as Roli; **password-only** — on `http://192.168.178.78:8284` (`isSecureContext`
+  false) register shows the password field and the word "passkey" nowhere, reset shows the password
+  form alone, login has no passkey button and no hint and keeps the recovery link.
+  **Layout**, 390 / 1280 × blue / light, seven views (login, register, register·password, reset,
+  reset·password, recover, verify-email): the card at **x=16 w=358** and **x=448 w=384** in every
+  one, no horizontal overflow, `a a` = 0. Card heights (identical across themes): login 323 at 390
+  (307 at 1280 — the hint wraps to three lines vs two), register 250 → 328 with the password form,
+  reset 194 → 272, recover 196, verify-email 102. Stack stopped by exact PID (vite, its esbuild
+  child, the backend), the work dir removed.
+- **For E4/E5:** the strip already appears after a passkey-only registration (above). E5's walk
+  can reuse the second-authenticator trick for "reset by passkey on an account that has one". The
+  device label the server stores for these ceremonies read `Linux · Safari` under headless
+  Chromium — the server's user-agent parse, not the page (label is sent as `""`); worth a look by
+  whoever owns `user_agent_label`, not E3's.
 
 ## E4 — Settings → Email; the strip's two steps; the passkey hint; the admin page's email state and mail status  ☐
 

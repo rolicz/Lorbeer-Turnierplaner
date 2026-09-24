@@ -1,5 +1,7 @@
 /**
- * Register, reset and "not in a group yet" (L5). The invite code is formatted for the eye
+ * Register, reset and "not in a group yet" (L5; passkey first since E3 — both pages choose
+ * the credential through `PasskeyOrPassword`, and where WebAuthn is missing only the
+ * password form shows, which is the state the L5 cases below run in). The invite code is formatted for the eye
  * and posted raw; the password hint is the only rule; a 429 is the countdown; the reset
  * page takes the token out of the address bar before it sends anything; a link without a
  * token says so; the join screen hands the new membership straight to the provider.
@@ -13,6 +15,16 @@ import { sessionFixture } from "./authFixtures";
 
 const account = vi.hoisted(() => ({ redeemCode: vi.fn() }));
 vi.mock("../api/account.api", () => account);
+
+// The WebAuthn library, mocked: off by default (jsdom has no WebAuthn, and the L5 cases
+// are the password-only view); the E3 cases switch it on.
+const lib = vi.hoisted(() => ({
+  browserSupportsWebAuthn: vi.fn(() => false),
+  platformAuthenticatorIsAvailable: vi.fn(() => Promise.resolve(false)),
+  startRegistration: vi.fn(),
+  startAuthentication: vi.fn(),
+}));
+vi.mock("@simplewebauthn/browser", () => lib);
 
 const auth = vi.hoisted(() => ({
   status: "anonymous" as "anonymous" | "authed" | "unknown",
@@ -203,7 +215,7 @@ describe("ResetPage", () => {
   it("says a link without a token is not complete, and asks nothing", () => {
     window.history.replaceState(null, "", "/reset");
     mountReset();
-    expect(screen.getByText("This link is not complete — ask the admin for a new one.")).toBeInTheDocument();
+    expect(screen.getByText("This link is not complete — ask for a new one from the login screen or the admin.")).toBeInTheDocument();
     expect(screen.queryByLabelText("New password")).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -253,4 +265,170 @@ describe("NoGroupPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /log out/i }));
     await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("login"));
   });
+});
+
+describe("passkey first (E3)", () => {
+  const OPTIONS = { challenge: "c2hhbGxvdw", rp: { id: "localhost", name: "Lorbeerkranz" } };
+  const CREDENTIAL = { id: "cred-1", rawId: "cred-1", type: "public-key", response: {} };
+
+  function notAllowed(): Error {
+    const e = new Error("The operation either timed out or was not allowed.");
+    e.name = "NotAllowedError";
+    return e;
+  }
+
+  /** fetch answers by path; every call is recorded in `fetchMock`. */
+  function serve(routes: Record<string, [number, unknown]>) {
+    fetchMock.mockImplementation((url: string) => {
+      const hit = Object.keys(routes).find((p) => String(url).endsWith(p));
+      if (!hit) return Promise.reject(new Error(`unexpected ${url}`));
+      const [status, body] = routes[hit];
+      return Promise.resolve(jsonResponse(status, body));
+    });
+  }
+
+  function paths(): string[] {
+    return fetchMock.mock.calls.map((c) => String(c[0]).replace(/^.*\/auth\//, "/auth/"));
+  }
+
+  function bodyOf(path: string): Record<string, unknown> {
+    const call = fetchMock.mock.calls.find((c) => String(c[0]).endsWith(path));
+    return JSON.parse((call?.[1] as RequestInit).body as string) as Record<string, unknown>;
+  }
+
+  function mountReset() {
+    return render(
+      <BrowserRouter>
+        <Routes>
+          <Route path="/reset" element={<ResetPage />} />
+          <Route path="/dashboard" element={<div data-testid="on-dashboard" />} />
+        </Routes>
+      </BrowserRouter>,
+    );
+  }
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    auth.status = "anonymous";
+    auth.setSession.mockReset();
+    lib.browserSupportsWebAuthn.mockReturnValue(true);
+    lib.startRegistration.mockReset();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    lib.browserSupportsWebAuthn.mockReturnValue(false);
+    window.history.replaceState(null, "", "/");
+  });
+
+  it("register offers Create a passkey first, and swaps to the password form and back", () => {
+    mountRegister();
+    const buttons = screen.getAllByRole("button").map((b) => b.textContent);
+    expect(buttons).toEqual(["Create a passkey", "Use a password instead"]);
+    expect(screen.queryByLabelText("Password")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use a password instead" }));
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^register$/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create a passkey" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /create a passkey instead/i }));
+    expect(screen.getByRole("button", { name: "Create a passkey" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Password")).toBeNull();
+  });
+
+  it("where WebAuthn is missing, shows the password form alone and never mentions passkeys", () => {
+    lib.browserSupportsWebAuthn.mockReturnValue(false);
+    mountRegister();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/passkey/i);
+  });
+
+  it("holds Create a passkey until the code has eight symbols and a name is typed", () => {
+    mountRegister();
+    const create = screen.getByRole("button", { name: "Create a passkey" });
+    expect(create).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Invite code"), { target: { value: "ABCDEFG" } });
+    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Neu" } });
+    expect(create).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Invite code"), { target: { value: "ABCDEFGH" } });
+    expect(create).toBeEnabled();
+  });
+
+  it("a passkey registration posts the code and name, then the credential with label \"\", and hands MeOut on", async () => {
+    const me = sessionFixture({ player_name: "Neu", has_password: false, has_passkey: true });
+    serve({ "/auth/register/passkey/options": [200, OPTIONS], "/auth/register/passkey/verify": [200, me] });
+    lib.startRegistration.mockResolvedValue(CREDENTIAL);
+    mountRegister();
+    fireEvent.change(screen.getByLabelText("Invite code"), { target: { value: "abcd-efgh" } });
+    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: " Neu " } });
+    fireEvent.click(screen.getByRole("button", { name: "Create a passkey" }));
+    await waitFor(() => expect(screen.getByTestId("where")).toBeInTheDocument());
+    expect(bodyOf("/auth/register/passkey/options")).toEqual({ code: "ABCDEFGH", display_name: "Neu" });
+    expect(lib.startRegistration).toHaveBeenCalledWith({ optionsJSON: OPTIONS });
+    expect(bodyOf("/auth/register/passkey/verify")).toEqual({ label: "", credential: CREDENTIAL });
+    expect(auth.setSession).toHaveBeenCalledWith(me);
+  });
+
+  it("a closed sheet on register says nothing and spends nothing — no verify request", async () => {
+    serve({ "/auth/register/passkey/options": [200, OPTIONS] });
+    lib.startRegistration.mockRejectedValue(notAllowed());
+    mountRegister();
+    fillRegisterIdentity();
+    fireEvent.click(screen.getByRole("button", { name: "Create a passkey" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create a passkey" })).toBeEnabled());
+    expect(paths()).toEqual(["/auth/register/passkey/options"]);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(auth.setSession).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's passkey refusal verbatim on the one error line", async () => {
+    serve({ "/auth/register/passkey/options": [409, { detail: "That name is taken" }] });
+    mountRegister();
+    fillRegisterIdentity();
+    fireEvent.click(screen.getByRole("button", { name: "Create a passkey" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("That name is taken"));
+    expect(lib.startRegistration).not.toHaveBeenCalled();
+  });
+
+  it("the reset page says what it is, and offers the same choice", () => {
+    window.history.replaceState(null, "", "/reset#tok");
+    mountReset();
+    expect(screen.getByRole("heading", { name: "Set a new login" })).toBeInTheDocument();
+    expect(screen.getByText("This link works once. Using it signs out every other device.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("New password")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Use a password instead" }));
+    expect(screen.getByLabelText("New password")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /set password/i })).toBeInTheDocument();
+  });
+
+  it("a reset token consumed by a passkey goes to the dashboard", async () => {
+    window.history.replaceState(null, "", "/reset#tok-xyz");
+    const me = sessionFixture({ has_passkey: true });
+    serve({ "/auth/reset/passkey/options": [200, OPTIONS], "/auth/reset/passkey/verify": [200, me] });
+    lib.startRegistration.mockResolvedValue(CREDENTIAL);
+    mountReset();
+    expect(window.location.hash).toBe("");
+    fireEvent.click(screen.getByRole("button", { name: "Create a passkey" }));
+    await waitFor(() => expect(screen.getByTestId("on-dashboard")).toBeInTheDocument());
+    expect(bodyOf("/auth/reset/passkey/options")).toEqual({ token: "tok-xyz" });
+    expect(bodyOf("/auth/reset/passkey/verify")).toEqual({ token: "tok-xyz", label: "", credential: CREDENTIAL });
+    expect(auth.setSession).toHaveBeenCalledWith(me);
+  });
+
+  it("a closed sheet on reset leaves the link live and says nothing", async () => {
+    window.history.replaceState(null, "", "/reset#tok-xyz");
+    serve({ "/auth/reset/passkey/options": [200, OPTIONS] });
+    lib.startRegistration.mockRejectedValue(notAllowed());
+    mountReset();
+    fireEvent.click(screen.getByRole("button", { name: "Create a passkey" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create a passkey" })).toBeEnabled());
+    expect(paths()).toEqual(["/auth/reset/passkey/options"]);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  function fillRegisterIdentity() {
+    fireEvent.change(screen.getByLabelText("Invite code"), { target: { value: "ABCDEFGH" } });
+    fireEvent.change(screen.getByLabelText("Display name"), { target: { value: "Neu" } });
+  }
 });

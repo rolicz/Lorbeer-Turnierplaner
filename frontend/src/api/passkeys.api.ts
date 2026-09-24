@@ -69,6 +69,57 @@ export async function registerPasskey(label: string): Promise<Passkey | null> {
 }
 
 /**
+ * The creation half every "make a passkey" path shares: the server's options → the
+ * browser's sheet → `null` for a closed sheet (and then **no verify request**, so nothing
+ * is spent), else the verify POST with whatever else that pair's body carries.
+ */
+async function createAndVerify<T>(optionsPath: string, optionsBody: unknown, verifyPath: string, verifyBody: Record<string, unknown>): Promise<T | null> {
+  const optionsJSON = await apiFetch<PublicKeyCredentialCreationOptionsJSON>(optionsPath, {
+    method: "POST",
+    body: JSON.stringify(optionsBody),
+  });
+  let credential;
+  try {
+    credential = await startRegistration({ optionsJSON });
+  } catch (e) {
+    if (isCancelled(e)) return null;
+    throw e;
+  }
+  return apiFetch<T>(verifyPath, { method: "POST", body: JSON.stringify({ ...verifyBody, credential }) });
+}
+
+/**
+ * A new account whose only credential is a passkey (E3): the invite code (raw eight) and the
+ * display name go to the options step, which checks both and remembers them with the
+ * challenge; the verify step sends the credential alone and creates the account in one
+ * transaction. Resolves `MeResponse` (the cookie rides back), or `null` for a closed sheet —
+ * the code stays unspent and no account exists.
+ */
+export function registerPasskeyForNewAccount(body: { code: string; display_name: string; label: string }): Promise<MeResponse | null> {
+  return createAndVerify<MeResponse>(
+    "/auth/register/passkey/options",
+    { code: body.code, display_name: body.display_name },
+    "/auth/register/passkey/verify",
+    { label: body.label.trim() },
+  );
+}
+
+/**
+ * A passkey as the new login a reset link sets (E3) — the other half of `/reset` beside the
+ * password. The token from the link's fragment goes to both steps; the answer is
+ * `MeResponse` with a fresh session (every other one ends), or `null` for a closed sheet,
+ * which leaves the link live.
+ */
+export function registerPasskeyWithResetToken(body: { token: string; label: string }): Promise<MeResponse | null> {
+  return createAndVerify<MeResponse>(
+    "/auth/reset/passkey/options",
+    { token: body.token },
+    "/auth/reset/passkey/verify",
+    { token: body.token, label: body.label.trim() },
+  );
+}
+
+/**
  * Sign in with a passkey. No name is asked for and no credential list is sent: the
  * authenticator offers whatever it holds for this site, so nothing here can tell anyone
  * which accounts exist. Resolves `MeResponse` (the cookie rides back with it), or `null`
