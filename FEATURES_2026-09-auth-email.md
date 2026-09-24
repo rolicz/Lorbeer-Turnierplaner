@@ -22,6 +22,20 @@
 > servers running on 2026-09-24), and **the only parallel pair is E3 ∥ E4** — the two tasks that
 > regenerate `schema.d.ts` (E1, E2) each run alone.
 
+## Roli's answers, 2026-09-24 — these supersede anything below that disagrees
+
+1. **The sender is `no-reply@lorbeerkranz.xyz`** (with the hyphen) — an alias of the Private Email
+   mailbox racer already logs in with. `SMTP_USER` is that mailbox; `SMTP_FROM` is the alias.
+2. **DMARC without a report address**: publish `v=DMARC1; p=none` at `_dmarc.lorbeerkranz.xyz`.
+   No `rua=`. Roli publishes it himself in Namecheap; it does not block implementation, only the
+   deploy-day deliverability gate.
+3. **The defaults in "Needed from Roli" are accepted**: the admin chip "Migrated password" becomes
+   "Not secured"; recovery by email keeps existing passkeys; the old address gets a link-free
+   "your email changed" notice; force-verifying an email stays a `manage.py` command, not an admin
+   button.
+
+---
+
 ## Why this half exists
 
 The first half closed the app, moved the login into a revocable cookie session, added passkeys
@@ -84,9 +98,9 @@ Four facts about the shipped code shape the plan:
 - **Provider: Namecheap Private Email over SMTP** — racer's setup: host `smtp.privateemail.com`
   (what racer's server `.env` uses and what works there; Namecheap's documentation names
   `mail.privateemail.com` first and `smtp.privateemail.com` as the alternative — both are theirs,
-  both resolve, either is fine), port 465 (implicit TLS), sending as **`noreply@lorbeerkranz.xyz`**.
+  both resolve, either is fine), port 465 (implicit TLS), sending as **`no-reply@lorbeerkranz.xyz`**.
   A login mailbox and a different sender are both supported (`smtp_user` vs `smtp_from`), since
-  `noreply@` may be an alias. Credentials live in `secrets.json` / env like every other secret —
+  `no-reply@` may be an alias. Credentials live in `secrets.json` / env like every other secret —
   **agents never read `secrets.json`**.
 - **Emails are English only.**
 - **A verified email enables self-service recovery**: "Lost your passkey or password?" on the login
@@ -470,7 +484,7 @@ for every passkey, and the same escape (`manage.py set-password`).
   still answers `{"ok": true}` (it is public and must not describe the server to a stranger) and
   logs `recovery requested but mail is off`.
 - **The unconfigured state is first-class and visible**: one boot log line always —
-  `Mail: SMTP via smtp.privateemail.com:465 as noreply@lorbeerkranz.xyz` / `Mail: file sink at
+  `Mail: SMTP via smtp.privateemail.com:465 as no-reply@lorbeerkranz.xyz` / `Mail: file sink at
   <dir> (never delivers)` / `Mail: off — recovery by email is disabled (set smtp_host, smtp_port,
   smtp_user, smtp_pass, smtp_from in secrets.json)`; `GET /admin/mail-status` (site admin) answers
   `{configured, description}` and the admin page prints it; `MeOut.email_available` carries it to
@@ -577,7 +591,7 @@ written out step by step.
 
 **9. What is wrong or risky in the decisions** — the nine items under "Where this plan disagrees",
 plus two risks that are nobody's decision: Namecheap refuses a `From` that is neither the mailbox
-nor one of its configured aliases (`553 … sender address rejected`), so `noreply@` must be an alias
+nor one of its configured aliases (`553 … sender address rejected`), so `no-reply@` must be an alias
 of the login mailbox or the mailbox itself — the gate catches it; and a mailbox with two-factor
 authentication needs an **application password** for SMTP (Namecheap's own wording: "your Master or
 Application password"), not the login password.
@@ -1241,9 +1255,9 @@ Run on the final tree by E6 and written into `AGENTS.md` §11.
 | record | state on 2026-09-24 | to do |
 |---|---|---|
 | SPF — `TXT lorbeerkranz.xyz` | **published**: `v=spf1 include:spf.privateemail.com ~all` | nothing. **Never add a second SPF TXT** (two is a permanent `permerror`); if a future sender needs adding, edit this one |
-| MX — `lorbeerkranz.xyz` | **published**: `10 mx1.privateemail.com`, `10 mx2.privateemail.com` | nothing; replies to `noreply@` are dropped by the mailbox rules, not by DNS |
+| MX — `lorbeerkranz.xyz` | **published**: `10 mx1.privateemail.com`, `10 mx2.privateemail.com` | nothing; replies to `no-reply@` are dropped by the mailbox rules, not by DNS |
 | DKIM — `TXT privateemail._domainkey.lorbeerkranz.xyz` | **published**: `v=DKIM1;k=rsa;p=MIIBIjAN…` (the host name Namecheap uses for Private Email subscriptions bought on or after 2026-06-02; `default._domainkey` is the older one and is empty here) | **check, don't create**: Private Email panel → the domain → DKIM shows *enabled* for the mailbox that will log in. The value only the panel can supply is already in DNS |
-| DMARC — `TXT _dmarc.lorbeerkranz.xyz` | **missing** | **publish**: host `_dmarc`, type TXT, value `v=DMARC1; p=none; rua=mailto:<a mailbox Roli reads>; adkim=r; aspf=r`. `p=none` observes and blocks nothing; tighten to `p=quarantine` after a few weeks of reports that show `pass`. **The `rua=` address is Roli's to choose** — a Gmail address works; it receives one XML report a day per receiver that saw mail |
+| DMARC — `TXT _dmarc.lorbeerkranz.xyz` | **missing** | **publish**: host `_dmarc`, type TXT, value `v=DMARC1; p=none` — **no `rua=` report address** (Roli, 2026-09-24: daily XML reports are noise for a six-person app, and the deploy-day Gmail test already proves delivery). `p=none` observes and blocks nothing; a report address can be added later if he ever wants them |
 
 Verify from the Pi, spelling the arguments literally (a `$q`-style variable is not word-split by
 zsh — the trap that produced the brief's "no records" measurement):
@@ -1269,16 +1283,16 @@ day, because the keys are not there yet. `docker compose ps` healthy; the anonym
     ```bash
     ssh hetzner && cd ~/projects/Lorbeer-Turnierplaner
     docker compose exec backend python manage.py mail-test --to <Roli's Gmail address> \
-      --host smtp.privateemail.com --port 465 --user <the login mailbox> --from noreply@lorbeerkranz.xyz
+      --host smtp.privateemail.com --port 465 --user <the login mailbox> --from no-reply@lorbeerkranz.xyz
     # prompts for the mailbox password (no echo; an *application* password if the mailbox has 2FA)
     ```
     Expected: `Sent to r***@gmail.com via SMTP via smtp.privateemail.com:465 as
-    noreply@lorbeerkranz.xyz` and exit 0. Then in Gmail: the message is in the **inbox**, not spam;
+    no-reply@lorbeerkranz.xyz` and exit 0. Then in Gmail: the message is in the **inbox**, not spam;
     ⋮ → **Show original** → the summary reads `SPF: PASS`, `DKIM: 'PASS' with domain
     lorbeerkranz.xyz`, `DMARC: 'PASS'` (DMARC once the record has propagated; before that Gmail
     prints no DMARC verdict, and SPF + DKIM passing is the bar). **Any FAIL → stop here; the app
     stays email-off and nobody is asked for an address.** The three refusals that gate has caught
-    before anyone else: `553 … sender address rejected` (`noreply@` is not an alias of the login
+    before anyone else: `553 … sender address rejected` (`no-reply@` is not an alias of the login
     mailbox — add the alias in the panel or send as the mailbox itself), `535 … authentication
     failed` (a 2FA mailbox wants an application password), and `CERTIFICATE_VERIFY_FAILED` (the
     image lacks a CA store — E0's decided fallback is `ssl.create_default_context(cafile=certifi.where())`,
@@ -1286,9 +1300,9 @@ day, because the keys are not there yet. `docker compose ps` healthy; the anonym
     and the gate again).
 11. **The keys.** Only now: add to the server's `backend/secrets.json` — `"smtp_host":
     "smtp.privateemail.com"`, `"smtp_port": 465`, `"smtp_user": "<the login mailbox>"`,
-    `"smtp_pass": "<its (application) password>"`, `"smtp_from": "noreply@lorbeerkranz.xyz"` — and
+    `"smtp_pass": "<its (application) password>"`, `"smtp_from": "no-reply@lorbeerkranz.xyz"` — and
     `docker compose restart backend` (the file is bind-mounted; no rebuild). The boot log's fifth
-    line becomes `Mail: SMTP via smtp.privateemail.com:465 as noreply@lorbeerkranz.xyz`; a logged-in
+    line becomes `Mail: SMTP via smtp.privateemail.com:465 as no-reply@lorbeerkranz.xyz`; a logged-in
     `GET /api/me` says `"email_available": true`; the admin page's Accounts tab prints the same
     description.
 12. **The phone** (in addition to §7 step 10's walk): the strip now reads *"Secure your account — add
@@ -1348,7 +1362,7 @@ E0 does it against the dev DB, E5 against the production snapshot; both write th
   it); seen for real only by the gate, and the fallback is decided (step 10).
 - **Namecheap's DKIM toggle state for the mailbox** — the record is in DNS; whether the mailbox
   *signs* with it is the panel's and the gate's to show.
-- **Whether `noreply@lorbeerkranz.xyz` is an alias of the login mailbox** — Roli's panel; the gate's
+- **Whether `no-reply@lorbeerkranz.xyz` is an alias of the login mailbox** — Roli's panel; the gate's
   `553` is the tell.
 - **Gmail's verdict on a `~all` SPF and a fresh DMARC** — only a real message answers.
 - **The cross-device passkey prompt on a real laptop**, and the Safari-then-PWA hand-off for both
@@ -1362,7 +1376,7 @@ None block E0–E2. Each is a one-line answer a worker otherwise takes the defau
 
 1. **The DMARC report address** (`rua=mailto:…`) — the one value only he can supply. Default: his
    own Gmail address.
-2. **Confirm `noreply@lorbeerkranz.xyz` is an alias of the login mailbox** (or name the mailbox to
+2. **Confirm `no-reply@lorbeerkranz.xyz` is an alias of the login mailbox** (or name the mailbox to
    send as). Default: as decided; the gate tells.
 3. **The admin page's "Not secured" chip replaces "Migrated password"** (E4). Default: yes — a
    migrated password is one of the two ways an account is not secured.
