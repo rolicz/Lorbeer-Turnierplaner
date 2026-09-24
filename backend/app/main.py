@@ -20,6 +20,7 @@ from .routers.players import router as players_router
 from .routers.push import router as push_router
 from .routers.stats import router as stats_router
 from .routers.tournaments import router as tournaments_router
+from .services.mail import mail_transport_for
 from .services.notifications import NotificationDispatcher
 from .services.rate_limit import RateLimiter
 from .settings import Settings, assert_auth_config_safe
@@ -46,6 +47,7 @@ def create_app(settings: Settings) -> FastAPI:
 
         init_db(settings)
         log.info("DB initialized")
+        log.info("Mail: %s", app.state.mail.description)
 
         push_dispatcher = NotificationDispatcher(get_engine(), settings)
         app.state.push_dispatcher = push_dispatcher
@@ -62,6 +64,9 @@ def create_app(settings: Settings) -> FastAPI:
     )
 
     app.state.settings = settings
+    # The one mail transport (E0): off, a file sink, or SMTP — the guard above has already
+    # refused the unsafe shapes. Tests replace it with a `CaptureTransport`.
+    app.state.mail = mail_transport_for(settings)
     # The one rate limiter (L2): login, exchange and — from L3/L8 — redeem, reset, passkeys.
     app.state.rate_limiter = RateLimiter()
 

@@ -161,11 +161,11 @@ def test_without_a_valid_code_a_taken_name_is_not_revealed(anon):
     assert r.status_code == 400 and r.json()["detail"] == INVALID_CODE
 
 
-@pytest.mark.parametrize("password", ["123456789", ""])
+@pytest.mark.parametrize("password", ["123456789", "a" * 14, ""])
 def test_a_short_password_is_400_and_leaves_the_code_unspent(anon, password):
     code = _mint_code()
     r = _register(anon, code, "Shorty", password)
-    assert r.status_code == 400 and "at least 10" in r.json()["detail"]
+    assert r.status_code == 400 and "at least 15" in r.json()["detail"]
     assert _register(anon, code, "Shorty").status_code == 200
 
 

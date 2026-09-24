@@ -83,12 +83,12 @@ describe("RegisterPage", () => {
     const me = sessionFixture({ player_name: "Neu" });
     fetchMock.mockResolvedValue(jsonResponse(200, me));
     mountRegister();
-    fillRegister("abcd efgh", "  Neu ", "long-enough-1");
+    fillRegister("abcd efgh", "  Neu ", "long-enough-pw-1");
     expect(screen.getByLabelText("Invite code")).toHaveValue("ABCD-EFGH");
     fireEvent.click(screen.getByRole("button", { name: /register/i }));
     await waitFor(() => expect(screen.getByTestId("where")).toBeInTheDocument());
     expect(String(fetchMock.mock.calls[0][0])).toMatch(/\/auth\/register$/);
-    expect(lastBody()).toEqual({ code: "ABCDEFGH", display_name: "Neu", password: "long-enough-1" });
+    expect(lastBody()).toEqual({ code: "ABCDEFGH", display_name: "Neu", password: "long-enough-pw-1" });
     expect(auth.setSession).toHaveBeenCalledWith(me);
   });
 
@@ -100,10 +100,13 @@ describe("RegisterPage", () => {
   it("states the one password rule and marks it met", () => {
     mountRegister();
     fillRegister("ABCDEFGH", "Neu", "short");
-    const hint = screen.getByText("At least 10 characters");
+    const hint = screen.getByText("At least 15 characters");
     expect(hint).toHaveAttribute("data-password-hint", "unmet");
     expect(screen.getByRole("button", { name: /register/i })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "0123456789" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "01234567890123" } });
+    expect(hint).toHaveAttribute("data-password-hint", "unmet");
+    expect(screen.getByRole("button", { name: /register/i })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "012345678901234" } });
     expect(hint).toHaveAttribute("data-password-hint", "met");
     expect(hint.className).toContain("text-text-normal");
     expect(screen.getByRole("button", { name: /register/i })).toBeEnabled();
@@ -112,7 +115,7 @@ describe("RegisterPage", () => {
   it("shows the server's refusal verbatim and keeps what was typed", async () => {
     fetchMock.mockResolvedValue(jsonResponse(409, { detail: "That name is taken" }));
     mountRegister();
-    fillRegister("ABCDEFGH", "roli", "long-enough-1");
+    fillRegister("ABCDEFGH", "roli", "long-enough-pw-1");
     fireEvent.click(screen.getByRole("button", { name: /register/i }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("That name is taken"));
     expect(screen.getByLabelText("Invite code")).toHaveValue("ABCD-EFGH");
@@ -123,7 +126,7 @@ describe("RegisterPage", () => {
     vi.useFakeTimers();
     fetchMock.mockResolvedValue(jsonResponse(429, { detail: { retry_after: 2 } }));
     mountRegister();
-    fillRegister("ABCDEFGH", "Neu", "long-enough-1");
+    fillRegister("ABCDEFGH", "Neu", "long-enough-pw-1");
     fireEvent.click(screen.getByRole("button", { name: /register/i }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -173,11 +176,11 @@ describe("ResetPage", () => {
     expect(window.location.pathname).toBe("/reset");
     expect(fetchMock).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "long-enough-1" } });
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "long-enough-pw-1" } });
     fireEvent.click(screen.getByRole("button", { name: /set password/i }));
     await waitFor(() => expect(screen.getByTestId("where")).toBeInTheDocument());
     expect(replace.mock.invocationCallOrder[0]).toBeLessThan(fetchMock.mock.invocationCallOrder[0]);
-    expect(lastBody()).toEqual({ token: "tok-abc_123", password: "long-enough-1" });
+    expect(lastBody()).toEqual({ token: "tok-abc_123", password: "long-enough-pw-1" });
     expect(auth.setSession).toHaveBeenCalledWith(me);
   });
 
@@ -192,7 +195,7 @@ describe("ResetPage", () => {
     window.history.replaceState(null, "", "/reset#used");
     fetchMock.mockResolvedValue(jsonResponse(400, { detail: "That reset link is not valid" }));
     mountReset();
-    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "long-enough-1" } });
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "long-enough-pw-1" } });
     fireEvent.click(screen.getByRole("button", { name: /set password/i }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("That reset link is not valid"));
   });

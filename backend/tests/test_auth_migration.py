@@ -112,10 +112,10 @@ def test_the_default_profile_is_rfc_9106_and_a_test_hash_asks_to_be_rehashed_by_
     assert (ok, needs_rehash) == (True, True)
 
 
-def test_a_new_password_needs_ten_to_two_hundred_characters():
-    validate_new_password("x" * 10)
+def test_a_new_password_needs_fifteen_to_two_hundred_characters():
+    validate_new_password("x" * 15)
     validate_new_password("x" * 200)
-    for bad in ("x" * 9, "", "x" * 201):
+    for bad in ("x" * 14, "x" * 9, "", "x" * 201):
         with pytest.raises(HTTPException) as exc:
             validate_new_password(bad)
         assert exc.value.status_code == 400

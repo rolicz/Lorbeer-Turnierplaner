@@ -19,6 +19,7 @@ from app.db import get_engine, init_db
 from app.main import create_app
 from app.models import Account, Player
 from app.services.auth_migration import name_key, new_webauthn_user_handle
+from app.services.mail import CaptureTransport, MailMessage, OffTransport
 from app.services.sessions import SESSION_COOKIE, create_session
 from app.settings import PlayerAccount, Settings
 
@@ -54,6 +55,9 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("UPLOADS_DIR", str(tmp_path / "uploads"))
     settings = make_settings(db_path)
     app = create_app(settings)
+    # No test ever sends mail (E0): the capture transport keeps every message in memory.
+    # Only tests construct it — no setting, flag or env var can select it.
+    app.state.mail = CaptureTransport()
     # Tables only; the lifespan's `init_db(settings)` then runs the migration, which
     # attaches accounts to the three players below (it never mints players itself).
     init_db()
@@ -123,6 +127,16 @@ def login(client: TestClient, username: str, password: str) -> str:
     if keep:
         client.cookies.set(SESSION_COOKIE, keep)
     return token
+
+
+def mail_sent(client: TestClient) -> list[MailMessage]:
+    """Every message the app has "sent" so far, oldest first (the capture transport)."""
+    return client.app.state.mail.sent
+
+
+def mail_off(client: TestClient) -> None:
+    """Make this app a server with email switched off."""
+    client.app.state.mail = OffTransport()
 
 
 def cookie_headers(token: str) -> dict:

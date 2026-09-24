@@ -740,6 +740,54 @@ class PasswordResetToken(SQLModel, table=True):
     used_at: Optional[dt.datetime] = Field(default=None)
 
 
+class AccountEmail(SQLModel, table=True):
+    """An account's **verified** email address — the one recovery resolves (E0; read and
+    written by `services/account_email.py`, E1). One row per account, and only verified
+    addresses live here: a pending (change of) address is an `EmailVerification` row, so a
+    typo never displaces the address that works. `email_key` (`strip().casefold()`) is
+    where "unique, case-insensitively" lives. A new table rather than a column on
+    `Account`, so code from before the email batch never reads or writes it."""
+
+    player_id: int = Field(foreign_key="player.id", primary_key=True)
+    #: As typed, stripped.
+    email: str
+    email_key: str = Field(index=True, unique=True)
+    verified_at: dt.datetime
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    updated_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+
+
+class EmailVerification(SQLModel, table=True):
+    """A pending (change of) address: a 24-hour, single-use link token whose sha256 is
+    stored here (E0; `services/account_email.py` is its only reader and writer, E1).
+    Consumed by a conditional `UPDATE … WHERE used_at IS NULL`. Old code never reads it."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    player_id: int = Field(foreign_key="player.id", index=True)
+    email: str
+    email_key: str = Field(index=True)
+    token_hash: str = Field(index=True, unique=True)  # sha256 hex
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+    expires_at: dt.datetime = Field(index=True)
+    used_at: Optional[dt.datetime] = Field(default=None)
+
+
+class RegistrationIntent(SQLModel, table=True):
+    """What a passkey-only registration remembers between `options` and `verify` (E0; read
+    by `services/passkeys.py`, E2): the invite, the checked display name and the WebAuthn
+    user handle minted for the account that does not exist yet. Lives and dies with its
+    challenge — taken by `_take_challenge`'s delete, swept with the expired challenges.
+    Old code never reads it."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    challenge_id: int = Field(foreign_key="webauthnchallenge.id", index=True, unique=True)
+    invite_id: int = Field(foreign_key="invitecode.id")
+    display_name: str
+    #: 32 random bytes, base64url.
+    user_handle: str
+    created_at: dt.datetime = Field(default_factory=dt.datetime.utcnow)
+
+
 class Cup(SQLModel, table=True):
     """A cup of one group (L12: `cups.json` becomes the seed, `cup_defs.load_cup_defs`
     reads these rows)."""

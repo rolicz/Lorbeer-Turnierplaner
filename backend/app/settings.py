@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -47,6 +47,21 @@ class Settings:
     #: `services/passwords.py` profile: "default" (argon2id, RFC 9106) | "test" (fast).
     password_hash_profile: str = "default"
     session_ttl_days: int = 90
+    # --- mail (the 2026-09 email batch, E0) ----------------------------------------------
+    #: The five SMTP keys: all five or none (`assert_auth_config_safe` refuses a half-set
+    #: transport). None set = mail is off, which is the shipped default.
+    smtp_host: str = ""
+    smtp_port: int = 465
+    #: The login mailbox — never printed, never in a boot line.
+    smtp_user: str = ""
+    smtp_pass: str = field(default="", repr=False)
+    #: The sender address (may be an alias of `smtp_user`), e.g. no-reply@lorbeerkranz.xyz.
+    smtp_from: str = ""
+    #: Write every message as an `.eml` file here instead of sending it (the file sink —
+    #: delivers nowhere). Refused in production.
+    mail_sink_dir: str = ""
+    #: Dev only: allow real SMTP on a non-production server. Refused in production.
+    mail_dev_smtp: bool = False
 
 
 class AuthConfigError(RuntimeError):
@@ -80,6 +95,7 @@ def assert_auth_config_safe(settings: Settings) -> None:
         raise AuthConfigError(
             f"PASSWORD_HASH_PROFILE={settings.password_hash_profile!r} on a production server — only 'default' may hash real passwords."
         )
+    _assert_mail_config_safe(settings)
     if settings.app_env == "production" and settings.trusted_proxy_hops < 1:
         # A wrong count degrades accuracy, never safety — and a crash here is a lock-out.
         log.warning(
@@ -87,6 +103,40 @@ def assert_auth_config_safe(settings: Settings) -> None:
             "X-Forwarded-For, so every caller shares one rate-limit bucket. Set it to 1 behind Caddy.",
             settings.trusted_proxy_hops,
         )
+
+
+#: The four string keys that, with `smtp_port` (which has a default), make SMTP configured.
+SMTP_KEYS: tuple[str, ...] = ("smtp_host", "smtp_user", "smtp_pass", "smtp_from")
+
+
+def smtp_keys_set(settings: Settings) -> list[str]:
+    """Which of the four SMTP string keys are non-empty."""
+    return [key for key in SMTP_KEYS if getattr(settings, key)]
+
+
+def _assert_mail_config_safe(settings: Settings) -> None:
+    """The four mail rules (E0), in this order. No real email may leave a dev, test or
+    verification stack, and production must never swallow mail into a sink."""
+    present = smtp_keys_set(settings)
+    if present and len(present) < len(SMTP_KEYS):
+        missing = [key for key in SMTP_KEYS if key not in present]
+        raise AuthConfigError(
+            f"SMTP is half-configured: {', '.join(present)} set but {', '.join(missing)} missing. "
+            "Set all of smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, or none of them."
+        )
+    if present and settings.app_env != "production" and not settings.mail_dev_smtp:
+        raise AuthConfigError(
+            "SMTP credentials are set on a development server — a dev or verification stack must never send "
+            "real email. Unset them, set MAIL_SINK_DIR=<dir> to write mail to files, or MAIL_DEV_SMTP=1 if you "
+            "really mean it."
+        )
+    if settings.mail_sink_dir and settings.app_env == "production":
+        raise AuthConfigError(
+            "MAIL_SINK_DIR is set on a production server — it would swallow every email (recovery links "
+            "included) into files. Unset it."
+        )
+    if settings.mail_dev_smtp and settings.app_env == "production":
+        raise AuthConfigError("MAIL_DEV_SMTP is set on a production server — it is a development flag. Unset it.")
 
 
 def load_settings(
@@ -193,4 +243,11 @@ def load_settings(
         trusted_proxy_hops=pick_non_negative_int("trusted_proxy_hops", 0, env_key="TRUSTED_PROXY_HOPS"),
         password_hash_profile=pick("password_hash_profile", None, "default", env_key="PASSWORD_HASH_PROFILE").strip(),
         session_ttl_days=pick_int("session_ttl_days", 90, env_key="SESSION_TTL_DAYS"),
+        smtp_host=pick("smtp_host", None, "", env_key="SMTP_HOST").strip().lower(),
+        smtp_port=pick_int("smtp_port", 465, env_key="SMTP_PORT"),
+        smtp_user=pick("smtp_user", None, "", env_key="SMTP_USER").strip(),
+        smtp_pass=pick("smtp_pass", None, "", env_key="SMTP_PASS"),
+        smtp_from=pick("smtp_from", None, "", env_key="SMTP_FROM").strip(),
+        mail_sink_dir=pick("mail_sink_dir", None, "", env_key="MAIL_SINK_DIR").strip(),
+        mail_dev_smtp=pick_bool("mail_dev_smtp", None, False, env_key="MAIL_DEV_SMTP"),
     )

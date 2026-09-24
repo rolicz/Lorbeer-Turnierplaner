@@ -623,7 +623,7 @@ needs both halves in the browser. E6 needs E5's numbers.
 
 ---
 
-## E0 — The three tables, the mail settings and guard, the transport, the 15-character floor  ☐
+## E0 — The three tables, the mail settings and guard, the transport, the 15-character floor  ☑
 
 **The gap.** `models.py` has no `AccountEmail`, `EmailVerification` or `RegistrationIntent`;
 `settings.py` knows nothing about SMTP; nothing in `services/` can send; `MIN_PASSWORD_LENGTH` is 10
@@ -689,7 +689,7 @@ grep -n "MIN_PASSWORD_LENGTH = " backend/app/services/passwords.py frontend/src/
    tree again: boots, the tables still there, nothing migrated twice.
 
 **Definition of done.**
-- ☐ `tests/test_mail_transport.py` (≈12): `mail_transport_for` picks off / file / smtp for the three
+- ☑ `tests/test_mail_transport.py` (≈12): `mail_transport_for` picks off / file / smtp for the three
   shapes; the file sink writes a parseable RFC 5322 message with `From: Lorbeerkranz <…>`, `Date`,
   `Message-ID`, `Auto-Submitted`, UTF-8 text, and logs only the path; the capture transport keeps
   messages in order and is `configured`; `OffTransport.send` raises `MailNotConfigured` and is not
@@ -698,19 +698,19 @@ grep -n "MIN_PASSWORD_LENGTH = " backend/app/services/passwords.py frontend/src/
   `SMTP` + `starttls`, refuses a server whose `has_extn("STARTTLS")` is false, maps
   `SMTPAuthenticationError` / `OSError` to `MailSendError` **whose text carries no body**, and never
   logs the body (`caplog` asserted); `mask_address`; `build_message` on a non-ASCII name and body.
-- ☐ `tests/test_settings_guard.py` +≈8: each of the four refusals, the message naming the setting,
+- ☑ `tests/test_settings_guard.py` +≈8: each of the four refusals, the message naming the setting,
   the two legitimate shapes (production with all five and nothing else; dev with a sink), and dev
   with all five **plus** `mail_dev_smtp` passing. `Settings(...)`'s `repr` does not contain the
   password.
-- ☐ `tests/test_password_policy.py` (≈6): 14 characters refused and 15 accepted on register, reset,
+- ☑ `tests/test_password_policy.py` (≈6): 14 characters refused and 15 accepted on register, reset,
   `POST /auth/password` and `manage.py set-password` (subprocess, piped) — and a 9-character
   **migrated** password still logs in (`test_login_never_checks_length`).
-- ☐ `make test` green with the count written down against ≈507; `make lint` clean; no response model
+- ☑ `make test` green with the count written down against ≈507; `make lint` clean; no response model
   touched → **no `gen-types`**. `cd frontend && npm run check` green with the count against 932.
-- ☐ The stack (8271/8281): the boot log's `Mail: file sink at …` line; a request that would send
+- ☑ The stack (8271/8281): the boot log's `Mail: file sink at …` line; a request that would send
   (none exists before E1 — assert with the transport directly from a Python shell against the
   stack's settings) writes a file; the rollback drill of step 9 with its numbers.
-- ☐ Deviations filled in.
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §4 (the seven keys, the sink, the dev flag, the four guard rules; "there is
 still no key `secrets.json` *must* carry — the five `smtp_*` keys are optional and turn email on"),
@@ -718,7 +718,101 @@ still no key `secrets.json` *must* carry — the five `smtp_*` keys are optional
 nodemailer's cousin was not needed); `DESIGN.md` §5b: "A password hint is `At least 15 characters`".
 
 **Deviations.**
--
+- **Nothing new and shared beyond the table in Rule 10.** Two small additions inside the files E0
+  owns: `MailMessage` has a fourth field, `kind: str = "mail"` — a log tag only (`verify`,
+  `recover`, `changed`, `test` …), which is what makes the plan's own log line `Mail sent to
+  r***@gmail.com (verify)` possible; and `settings.py` has `SMTP_KEYS` / `smtp_keys_set` beside the
+  guard (the four *string* keys — `smtp_port` defaults to 465, so "all five or none" is "all four
+  strings or none"). E1/E2 pass `kind=` on every message.
+- `app.state.mail = mail_transport_for(settings)` sits beside `app.state.settings` in `create_app`
+  (the `FastAPI` object does not exist yet where `assert_auth_config_safe` runs); the boot line
+  `Mail: <description>` is logged in the lifespan right after `DB initialized`, as specified.
+- The guard's four rules run **before** the proxy-hops warning (so a refusal is the last line) and in
+  the plan's order; the half-configured message names which keys are set and which are missing and
+  **never a value**. Two shapes the plan did not spell, decided and pinned by the matrix: a dev
+  server with `MAIL_DEV_SMTP=1` and **no** SMTP keys boots (the flag allows nothing by itself), and a
+  dev server with SMTP keys **and** a sink but no flag is still refused (a sink does not excuse
+  credentials). With the flag, SMTP **and** a sink, `mail_transport_for` picks the sink.
+- `FileSinkTransport` writes `From: Lorbeerkranz <smtp_from>` when `smtp_from` is set, else
+  `no-reply@lorbeerkranz.xyz` (`SINK_FROM`) — a sink delivers nowhere, the address only has to make
+  a well-formed message. Its log line is `Mail to r***@x (kind) written to <path>`.
+- `SmtpTransport`: a second `ehlo()` after `starttls` (RFC 3207: the server's capabilities are
+  re-read over TLS); `quit()` in a `finally`, falling back to `close()` if the connection is already
+  broken. `MailSendError` is raised `from None`, so no chained traceback carries anything but the
+  SMTP reply. `repr(SmtpTransport)` shows neither the login mailbox nor the password (both
+  `repr=False`), and `description` names host, port and `smtp_from` only.
+- `tests/conftest.py`: `app.state.mail = CaptureTransport()` after `create_app`, plus `mail_sent(client)`
+  and `mail_off(client)`. `test_password_policy.py` builds one more app (a nine-character
+  migrated password) and sets a `CaptureTransport` on it too — still no setting can select it.
+- **The literals.** Backend: `test_auth_migration.py::test_a_new_password_needs_ten_to_two_hundred_characters`
+  (renamed `…_fifteen_…`; 15 accepted, 14 and 9 refused — the plan's grep does not find it, the
+  first full run did), `test_accounts.py` (the short-password refusal now reads "at least 15",
+  and its parametrisation gained a 14-character case), `test_admin.py` (the `set-password` refusal
+  text). `GOOD_PASSWORD` (20) in three files, `another-long-one` (16) and every migrated password
+  (`editor-secret`, `admin-secret`, `verify-only` …) stay — the migrated ones are what
+  `test_login_never_checks_length`'s point is. Frontend: `registration.test.tsx` —
+  `long-enough-1` (13) → `long-enough-pw-1` (16), the hint reads "At least 15 characters", and the
+  hint test now also asserts 14 characters are **unmet** with the button disabled before 15 turns it
+  met. `securitySection.test.tsx`'s `a-longer-password` (17) needed nothing.
+  **`scripts/passkey_e2e.mjs`'s `--new-password` default `another-password-1` is 18 — fine, not
+  edited.** `LoginPage.tsx` does not import `MIN_PASSWORD_LENGTH` (grep), so the login form never
+  checks length either.
+- **Left for their owners (outside E0's file set):** `services/accounts.py::set_password`'s docstring
+  still says "(10–200 characters)" (E2 owns `accounts.py`), and `pages/auth/PasswordField.tsx`'s doc
+  comment still says `"At least 10 characters"` (E3 owns `pages/auth/`). Both are comments; the
+  rendered hint reads the constant and shows 15.
+- **Every guard rule bites, measured.** The mail matrix is written out — 3 environments × SMTP
+  none/half/full × sink × dev flag = **36 cells, 22 refusals, 14 boots** — not recomputed from the
+  guard. Each rule was disabled in turn (`if False:`) and the suite re-run, then restored
+  (`settings.py` byte-compared):
+
+  | weakened | failures | which |
+  |---|---|---|
+  | half-configured | 21 | all 12 `half` cells + 4 single-key + 4 missing-key + the naming test |
+  | SMTP on non-production | 7 | the 4 `dev/test-full-*-False` cells, the message test, `create_app` refusing, the secrets-file load |
+  | sink in production | 5 | the 4 `production-*-True-*` sink cells + the message test |
+  | dev flag in production | 3 | the 2 `production-*-False-True` cells + the message test |
+  | `smtp_pass` `repr=False` removed | 1 | `test_the_settings_repr_never_prints_the_smtp_password` |
+
+  The transport's promises were weakened the same way (`mail.py` restored and byte-compared): the
+  body added to the SMTP success line → 1 failure; the body logged by the file sink → 1; the body
+  put into `MailSendError`'s text → 4 (every failure class); the STARTTLS check removed → 2; the
+  description naming `smtp_user` → 1. Password floor: `MIN_PASSWORD_LENGTH = 14` → 5 of 6
+  `test_password_policy` tests fail; `validate_new_password` inserted into `login` →
+  `test_login_never_checks_length` fails.
+- **Password lengths, measured** (`tests/test_password_policy.py`, 6 tests): 14 characters →
+  **400** *"The password must be at least 15 characters long"* and 15 → **200** on `POST /auth/register`
+  (the code stays unspent after the refusal), `POST /auth/reset` (the link stays usable), `POST
+  /auth/password`; `manage.py set-password` piped → exit **1** "at least 15" / exit **0**. A
+  **nine-character migrated** password (`password_origin == "migrated"`) logs in three times in a row.
+- **The stack** (backend 8271 only, `$WORK` in the session scratchpad, `pushsubscription` and
+  `pushsubscriptionpreference` emptied before the first boot — 0 rows — no VAPID, no `smtp_*` key,
+  `MAIL_SINK_DIR` set). Vite (8281) was **not** started: E0's only UI change is a constant the unit
+  tests read. First boot: `Auth migrated: 3 accounts, 1 group, 6 memberships …`, `Cups imported: 2`,
+  `DB initialized`, **`Mail: file sink at …/e0/mail (never delivers)`**, never `Mail: SMTP`. A send
+  through `mail_transport_for(load_settings(<the stack's secrets and env>))` wrote
+  `20260924T082712641158-1.eml`, 366 B, a parseable message with `From: Lorbeerkranz
+  <no-reply@lorbeerkranz.xyz>`, `Date`, `Message-ID: <…@lorbeerkranz.xyz>`, `Auto-Submitted:
+  auto-generated`, `text/plain; charset="utf-8"`, 8bit umlauts. `run.py` against the same file with
+  the guard's shapes: SMTP env on development → exit 1 with the "development server" refusal (the
+  fake password appears **0** times in the output); `SMTP_HOST` alone → the half-configured refusal;
+  production + `MAIL_SINK_DIR` → refused; production + `MAIL_DEV_SMTP=1` → refused; production with
+  none of them → `Mail: off — recovery by email is disabled (…)` and a clean startup.
+- **Rollback, measured against `ce55a53`** (`git archive ce55a53 backend`, venv symlinked, the same
+  DB file, an old-shape secrets file — `player_accounts` + `jwt_secret`, no `auth_*`/`smtp_*` key):
+  the new tree migrated the DB and created the three tables; one row was then written into each
+  (`accountemail`, `emailverification`, and a `registrationintent` pointing at a real
+  `webauthnchallenge` and `invitecode` row) and their counts and content hashes recorded. Old code:
+  **clean boot** (`Cup defs validated`, `DB initialized`), `POST /auth/login` → **200 with a JWT**,
+  `GET /tournaments` **200** (13,324 B), `GET /stats/records` **200**, `POST /tournaments` with the
+  bearer token **200** (tournaments 18 → 19); the three tables **byte-identical** afterwards (1 / 1 / 1
+  rows, same hashes). New tree again: boots, `Auth migrated: 0 accounts, 0 groups, 0 memberships —
+  … backfilled tournament=1` (only the tournament the old code created — nothing migrated twice),
+  `Mail: file sink …`, cookie login **200**, `GET /tournaments` **200**, the three tables still
+  byte-identical.
+- **Gates.** `make test` **586 passed** in 27:50 (baseline 507 at `f0dab7d`; +79 = 20 `test_mail_transport` + 52 `test_settings_guard` + 6 `test_password_policy` + 1 new `test_accounts` case); `make lint` clean; no response model touched → no
+  `gen-types`. `cd frontend && npm run check` **932 tests in 96 files** (unchanged count — the only
+  frontend test edit adds assertions inside an existing test), `npm run build` green.
 
 ## E1 — The account's email: set, verify, resend, remove; the texts; `MeOut`; `mail-test` and `verify-email`  ☐
 

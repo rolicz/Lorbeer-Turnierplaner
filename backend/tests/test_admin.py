@@ -316,7 +316,7 @@ def test_hatch_set_password_asks_twice_and_stores_a_hash(client, anon, tmp_path)
     differ = _manage(client, tmp_path, "set-password", "--player", "Editor2", stdin="first-long-one\nsecond-long-one\n")
     assert differ.returncode == 1 and "differ" in differ.stderr
     short = _manage(client, tmp_path, "set-password", "--player", "Editor2", stdin="short\nshort\n")
-    assert short.returncode == 1 and "at least 10" in short.stderr
+    assert short.returncode == 1 and "at least 15" in short.stderr
     ok = _manage(client, tmp_path, "set-password", "--player", "Editor2", stdin=f"{GOOD_PASSWORD}\n{GOOD_PASSWORD}\n")
     assert ok.returncode == 0, ok.stderr
     assert GOOD_PASSWORD not in ok.stdout

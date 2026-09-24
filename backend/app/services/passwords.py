@@ -22,7 +22,11 @@ from argon2.profiles import RFC_9106_LOW_MEMORY
 
 from ..api_utils import bad_request
 
-MIN_PASSWORD_LENGTH = 10
+#: The floor for a password **being set** (register, reset, change, `manage.py
+#: set-password`) — 15 since the email batch (E0), mirrored once in
+#: `frontend/src/pages/auth/password.ts`. **Login never checks length**: the migrated
+#: passwords are shorter and keep working, which `test_login_never_checks_length` pins.
+MIN_PASSWORD_LENGTH = 15
 MAX_PASSWORD_LENGTH = 200
 
 #: `default` = the library's RFC 9106 low-memory profile (argon2id, t=3, m=64 MiB, p=4;
@@ -61,7 +65,9 @@ def verify_password(ph: PasswordHasher, stored_hash: str | None, plain: str) -> 
 
 
 def validate_new_password(plain: str) -> None:
-    """At least 10 characters and at most 200; no composition rules."""
+    """At least `MIN_PASSWORD_LENGTH` (15) characters and at most 200; no composition rules.
+
+    Only for a password being set — never called on a login."""
     n = len(plain or "")
     if n < MIN_PASSWORD_LENGTH:
         bad_request(f"The password must be at least {MIN_PASSWORD_LENGTH} characters long")
