@@ -66,7 +66,11 @@ describe("EmailSection", () => {
   });
 
   it("with no address, sends the link to what was typed, says so and asks /me again", async () => {
-    api.setEmail.mockResolvedValue({ email: null, email_pending: "roli@example.test", email_verified: false });
+    api.setEmail.mockImplementation(() => {
+      // What the refreshed `/me` will say — the line shows only while the link is waiting.
+      auth.emailPending = "roli@example.test";
+      return Promise.resolve({ email: null, email_pending: "roli@example.test", email_verified: false });
+    });
     render(<EmailSection />);
     expect(screen.getByText(/A verified email lets you get back in/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Send verification link" })).toBeDisabled();
@@ -148,7 +152,7 @@ describe("EmailSection", () => {
     render(<EmailSection />);
     expect(within(rowOf("roli@example.test")).getByText("verified")).toBeTruthy();
     expect(screen.queryByLabelText("Email")).toBeNull();
-    const change = screen.getByRole("button", { name: "Change" });
+    const change = screen.getByRole("button", { name: "Change email" });
     fireEvent.click(change);
     expect(change).toHaveAttribute("aria-expanded", "true");
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "draft@example.test" } });

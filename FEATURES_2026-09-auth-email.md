@@ -1496,7 +1496,7 @@ link**, **Confirm**, *If that address is verified, a link is on its way. Check y
   Chromium — the server's user-agent parse, not the page (label is sent as `""`); worth a look by
   whoever owns `user_agent_label`, not E3's.
 
-## E4 — Settings → Email; the strip's two steps; the passkey hint; the admin page's email state and mail status  ☐
+## E4 — Settings → Email; the strip's two steps; the passkey hint; the admin page's email state and mail status  ☑
 
 **The gap.** Settings → Account has no email; the strip shows for "migrated and no passkey" and
 hides where WebAuthn is missing; the admin page cannot say who has no email or whether the server
@@ -1556,15 +1556,15 @@ grep -n "mail-status\|email_state" frontend/src/pages/admin/AccountsTab.tsx     
    on this server — recovery by email is off."* when not (a `warn`: nothing failed).
 
 **Definition of done.**
-- ☐ `emailSection.test.tsx` (≈10): the four states; a 409 verbatim; a 429 → countdown; a 502 →
+- ☑ `emailSection.test.tsx` (≈10): the four states; a 409 verbatim; a 429 → countdown; a 502 →
   the sentence; the pending state's `refresh()` on `visibilitychange`; the verified row's red-block
   dialog; `!emailAvailable` → the line and no form.
-- ☐ `passkeys.test.tsx` (the strip `describe`) rewritten: the five sentences and buttons of §6's
+- ☑ `passkeys.test.tsx` (the strip `describe`) rewritten: the five sentences and buttons of §6's
   table, the `!emailAvailable` case, hidden when both are met, hidden on the account tab,
   **shown where WebAuthn is unsupported** with the password wording.
-- ☐ `adminPage.test.tsx` +3: the chip, the two subtitle words, the two status lines;
+- ☑ `adminPage.test.tsx` +3: the chip, the two subtitle words, the two status lines;
   `securitySection.test.tsx` +1: the hint line only when supported.
-- ☐ Browser, 390 / 1280, `blue` / `light`, stack 8275/8285: as Berni (migrated) the strip reads
+- ☑ Browser, 390 / 1280, `blue` / `light`, stack 8275/8285: as Berni (migrated) the strip reads
   "add an email address and a passkey" (`localhost`, supported); add a passkey → "add an email
   address"; set an email → the pending row → the sink's link in a **second context** (Safari's jar)
   → Confirm → back to the first context → `visibilitychange` → the strip is gone and the row says
@@ -1572,8 +1572,8 @@ grep -n "mail-status\|email_state" frontend/src/pages/admin/AccountsTab.tsx     
   run with `browserSupportsWebAuthn` stubbed false the strip says "set a new password". The strip's
   height and the tab strip offset written down against L9's 66 / 58 and +78 / +70 (two-line
   sentences will be taller — measure, do not assume). Admin: the chip and the lines.
-- ☐ `npm run check`, `npm run build`.
-- ☐ Deviations filled in.
+- ☑ `npm run check`, `npm run build`.
+- ☑ Deviations filled in.
 
 **Canon.** `DESIGN.md` §7: the `SecureAccountNotice` row **rewritten** with §6's condition and table
 (this closes `AGENTS.md` §11's open item); the "My account" row gains **Email** (its four states) and
@@ -1581,7 +1581,83 @@ the passkey hint; the admin row's chip and subtitle words; §5b: **Email**, **ve
 **Send verification link**, **Send again**, **Change**, **Remove email**, **Not secured**.
 
 **Deviations.**
--
+- **Nothing new and shared.** The one new module is the one the plan names
+  (`hooks/useRefreshMeOnReturn.ts`); `EmailSection` imports E3's `pages/auth/formError.ts::formErrorText`
+  read-only (the plan's own name for the error line) and `RetryCountdown` as `SecuritySection` does.
+- **`AuthProvider`: a cached `/me` from before E1 lacks the five fields**, so they default to
+  *no email step* (`emailAvailable: false`) and *secure* (`loginSecure: true`) until the boot's own
+  `/me` answers a moment later — the strip never flashes an ask it cannot justify.
+- **The strip's condition and table are §6's, verbatim** — six rows in the test, because "the email"
+  reads the same with and without WebAuthn. `useRefreshMeOnReturn(shown)`; `passkeysSupported()`
+  chooses the words only (the L9 `!supported → null` is gone, so an unsupported device **is** asked,
+  with "set a new password").
+- **`EmailSection`, three small things the spec did not spell:** (1) **Change** is a toggle with a
+  chevron and `aria-expanded`, the Password block's idiom — the way out is the way in and discards the
+  draft; its accessible name is **"Change email"** (visible text "Change"), because "Change password"
+  sits one card above and a role query — or a screen reader — could not tell them apart (found by the
+  browser walk's strict-mode locator). (2) The success line *"Verification link sent to <addr>."* shows
+  **only while that address is still pending** — measured in the walk, it otherwise sat under the
+  **verified** row after the return refresh, stale. (3) **Remove email** is offered whenever a verified
+  address exists, including during a pending change (`DELETE` removes both; the red block says what is
+  lost). A pending address with no verified one has no Remove — **Change** replaces it.
+- **The passkey hint** sits under the passkey list, above the add form, only when `passkeysSupported()`.
+  The migrated line reads its number from `MIN_PASSWORD_LENGTH`, not a literal.
+- **Admin:** the filter key is `unsecured` (label **Not secured**, empty state *"Every account is
+  secured."*); `notSecured(a, emailAvailable)` is written once in `AccountsTab` and is the same two steps
+  as the strip, read off the server's `login_secure` / `email_state`. `mailStatus()` is
+  `enabled: siteAdmin`, so an owner never asks (measured: **0** requests to `/admin/mail-status` as the
+  owner, in all eight runs). The test fixture's `ACCOUNTS` gained `login_secure: false` on the two rows
+  that are not (Flo migrated, Rumpi no login) — they had inherited E1's `true` default.
+- **The E1 fixture trap** did not bite outside `passkeys.test.tsx`: no other test mounts the strip
+  (`AppShell` is not rendered by any test). The strip's describe sets its inputs explicitly in
+  `beforeEach` and resets them in `afterEach`; the shared hoisted `auth` mock gained
+  `emailAvailable: false, emailVerified: false, loginSecure: true` (strip-free by default), and nothing in
+  E3's login-page cases changed.
+- **Browser** (stack 8275/8285, dev DB copy in the session scratchpad, `pushsubscription` /
+  `pushsubscriptionpreference` 0 / 0 before the first boot, no VAPID, no `smtp_*`, boot log
+  `Mail: file sink at …/mail (never delivers)`, `SMTP via` **0**; the DB restored from a post-migration
+  copy between runs; Chromium + CDP virtual authenticator on `http://localhost:8285`). **Mail on**, all
+  four of 390 / 1280 × `blue` / `light`, every expectation passed: Berni (migrated) → *"…add an email
+  address and a passkey."* / **Secure account**; Settings → Account has no strip, the order is Devices ·
+  Passkeys · Password · **Email** · Groups; **Add a passkey** (real ceremony) → *"…add an email
+  address."* / **Add email**; set an email → the **pending** row; the sink's link verified by `POST
+  /auth/email/verify` from a **second, cookie-less context** (200) → `visibilitychange` in the first →
+  the row reads **verified** with no reload; dashboard → **no strip**; **Remove email** (red block) →
+  *"Email removed."* → the strip returns with *"…add an email address."*; set again, stay on the
+  dashboard, verify in the second context, `visibilitychange` → **the strip is gone** (the strip's own
+  return-refresh); `/reset` while logged in → no strip; Flo with `PublicKeyCredential` deleted →
+  *"…add an email address and set a new password."* / **Secure account**, and no passkey hint.
+  **Mail off** (backend restarted without `MAIL_SINK_DIR` → `Mail: off …`), all four combos: Berni →
+  *"Secure your account — add a passkey."* (no email step anywhere), the Email card is the one line
+  and no form; the admin line is `text-warn` *"Email is not set up on this server — recovery by email
+  is off."*, and no subtitle says `no email`.
+  **Measured:** the strip is **358×86 at 390** for the two-line sentences (both-missing, either
+  wording) and **358×66** for the one-line ones (*add an email address*, *add a passkey*); **992×58 at
+  1280** for every sentence. The tab strip (`/settings?tab=appearance`) moves **+98px at 390** for an
+  86px strip (171 → 73) and **+70 at 1280** (142 → 72) — against L9's 66 / +78, the one-line case is
+  unchanged and the two-line case is 20px taller. **Q13 holds:** the top bar's title centre is **195.0**
+  with the strip and without it, in both themes. The tone survives `light` (`rgba(146, 64, 14, 0.1)`,
+  blue `rgba(251, 191, 36, 0.1)` — a `.card`, not an `.inset`). The Email card at 390: none 204px,
+  pending 222, verified 202–226 (with / without the stale line, now removed), verified + pending 318
+  (blue, with the sent line) / 294 (light, without), off 90. **Admin as Roli (site admin):** the chips
+  **All · Logged in · Not secured**, the muted *"Email: file sink at … (never delivers)"*, subtitles
+  `migrated password · no email · …`, `no login · no email · …`, Berni (passkey + verified) `1 device ·
+  last seen …` alone; **Not secured** lists everyone but Berni. **As the owner** (Flo, promoted for the
+  walk): the list and chips, no status line, no request.
+- **Gates.** `cd frontend && npm run check` **975 tests in 98 files** — that count includes E3's
+  in-flight files in the shared tree; **E4's own share is +22 tests and +1 file** (`emailSection` 11,
+  the strip describe 3 → 10, `adminPage` +3, `securitySection` +1), i.e. 954 in 97 over the 932 / 96
+  baseline. `npm run build` green (`index-*.js` 786.99 kB with E3's in-flight code, the pre-existing
+  >500 kB hint).
+- **For E5:** the walk above is the shape of the rehearsal's email step — a cookie-less second context
+  posting the sink's token, then `visibilitychange` in the first; wait **> 2 s** between two returns
+  in one mount, the hook's debounce. The verify link's page is E3's; this walk posted the token to the
+  API directly rather than depending on an in-flight page.
+- **Canon for E6** (`DESIGN.md` §7 / §5b, as the section says): the strip row's condition is the
+  JSDoc block at the top of `SecureAccountNotice.tsx`, with the measured heights above; the "My account"
+  row gains **Email** in five groups' order, the passkey hint, the migrated line's "(15 characters or
+  more)"; the admin row's **Not secured**, `no email` / `email pending` (only while mail is on), and the
+  status line. §5b adds **Change email** as the accessible name of Email's **Change**.
 
 ## E5 — The rehearsal learns email and the two new ceremonies; the browser walk  ☐
 

@@ -180,6 +180,8 @@ export default function EmailSection() {
             className="flex-1 justify-center gap-2"
             onClick={toggleChange}
             aria-expanded={changing}
+            // "Change" alone sits one card below "Change password"; the name says which.
+            aria-label="Change email"
           >
             <span>Change</span>
             {changing ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
@@ -222,7 +224,8 @@ export default function EmailSection() {
           {err}
         </div>
       ) : null}
-      {sent ? (
+      {/* Only while that link is still waiting: once it is confirmed the row says so instead. */}
+      {sent && emailPending ? (
         <div className="mt-2 text-xs text-text-muted" role="status">
           Verification link sent to {sent}.
         </div>
