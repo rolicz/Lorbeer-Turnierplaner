@@ -1033,7 +1033,7 @@ not look like an email address*, *Could not send the email — try again in a mo
   tuple entry names a real route); `make gen-types` → `schema.d.ts` +295 lines, committed here;
   `cd frontend && npm run check` **932 tests in 96 files** (unchanged count), `npm run build` green.
 
-## E2 — Recovery by email; a passkey from a reset token; the atomic passkey-only registration  ☐
+## E2 — Recovery by email; a passkey from a reset token; the atomic passkey-only registration  ☑
 
 **The gap.** `/auth/reset` sets a password only; nothing mints a reset token from an address;
 `/auth/register` needs a password; `verify_registration` verifies and stores in one breath, so
@@ -1109,7 +1109,7 @@ grep -n "def link_origin" backend/app/routers/admin.py                          
    expected (`OkResponse`, `MeOut`, options as a plain object). `make gen-types` regardless.
 
 **Definition of done.**
-- ☐ `tests/test_recovery.py` (≈14): a verified address → 200, one `PasswordResetToken` with
+- ☑ `tests/test_recovery.py` (≈14): a verified address → 200, one `PasswordResetToken` with
   `created_by NULL`, a captured message whose body holds `…/g/altherren/reset#<token>` and the
   one-hour sentence; that token to `POST /auth/reset` with a 15-char password → 200, the other
   session 401, the same token 400; an unknown address → 200, **no** token, **no** message, the
@@ -1118,7 +1118,7 @@ grep -n "def link_origin" backend/app/routers/admin.py                          
   sent, one log line; a fresh request voids the previous link (kept, tested, and named in
   Deviations as the disagreement-4 cost); the sender's `MailSendError` after the response is logged
   and the endpoint still answered 200 (a capture transport that raises); `caplog` holds no token.
-- ☐ `tests/test_passkey_tokens.py` (≈22): the eight proofs of §7 (a)–(h) for the passkey-only
+- ☑ `tests/test_passkey_tokens.py` (≈22): the eight proofs of §7 (a)–(h) for the passkey-only
   registration, with the row counts of `player`, `account`, `passkey`, `groupmembership`,
   `authsession` asserted equal before and after every refusal and the invite's `redeemed_at` NULL;
   the reset-with-passkey happy path (a passkey stored, the token used, other sessions ended, a
@@ -1127,27 +1127,216 @@ grep -n "def link_origin" backend/app/routers/admin.py                          
   challenge and not the token; a token used by a concurrent password reset → 400 and **no passkey
   row**; the same token twice; every negative L8's soft authenticator can build (origin, rpId, UV
   clear) on both new pairs; the gate audit lists the four paths.
-- ☐ **Every negative proven to bite**, L8's way: a throwaway plugin that weakens one check per run
+- ☑ **Every negative proven to bite**, L8's way: a throwaway plugin that weakens one check per run
   (store the passkey before `consume_reset`; skip the re-`find_live_invite`; skip
   `ensure_name_free` on verify; take the handle from the client; keep the intent after the take;
   count nothing on `/auth/recover`; send for an unknown address; call `record_success`) and the
   test guarding each one **fails** — the list and the results in Deviations.
-- ☐ `make test`, `make lint`, `make gen-types` committed. `test_passkeys.py` unchanged in outcome
+- ☑ `make test`, `make lint`, `make gen-types` committed. `test_passkeys.py` unchanged in outcome
   (30 passed) after the split.
-- ☐ The stack (8273/8283): `POST /auth/recover` for Roli's verified address (set through E1's
+- ☑ The stack (8273/8283): `POST /auth/recover` for Roli's verified address (set through E1's
   endpoint and verified from the sink) → a `.eml` with the reset link; the soft-authenticator
   driver of L8's Deviations, adapted: `reset/passkey/options {token}` → `create` →
   `reset/passkey/verify` → 200 with `has_passkey`; a fresh code from `manage.py invite` →
   `register/passkey/options` → `create` → `register/passkey/verify` → 200, `/me` a member with no
   password; then the new credential signs in through `login/verify`.
-- ☐ Deviations filled in.
+- ☑ Deviations filled in.
 
 **Canon.** `AGENTS.md` §6 (the five endpoints and their families, "the reset page is the one token
 page", the order inside the reset-passkey verify and why, the atomic registration and its proof),
 §5 (`RegistrationIntent`'s life), §10 (a recovery request voids an earlier unused admin link).
 
 **Deviations.**
--
+- **One file outside E2's set, and one thing new and shared: `services/invites.py` gained
+  `find_live_invite_by_id`** (with the liveness rule factored into `_ensure_live`, which
+  `find_live_invite` now calls too — one rule, two lookups). The verify step of a passkey-only
+  registration re-checks the invite its intent names *by id*, and the check has to be the full
+  rule: `spend_invite`'s conditional UPDATE alone catches a code spent meanwhile but **not** one
+  that expired meanwhile (a test and a sabotage round each prove that). Everything else lives in
+  the files the table gives E2.
+- **`link_origin` was already in `services/reset_links.py`** (E1 moved it) — nothing moved here;
+  `recovery_url` was added beside `reset_url` and is that function under the name of what it
+  builds (one token, one consumer, one page). `RECOVERY_LOG_ORIGIN` was not added: the origin of a
+  recovery link is the log line's own words (`Reset link <id> minted by email recovery for player
+  <pid>; sending to r***@…`).
+- **Recovery mints *after* the answer, not before it — the one place this task departs from the
+  section's letter, for the section's stated reason.** Item 3 has the handler mint, commit and
+  then hand the send to a background task, accepting "one INSERT (~1 ms)". Measured on the stack,
+  the difference was **52.8 ms** for a verified address against **8.1 ms** for an unknown one (one
+  sample each): the cost is not the INSERT but SQLite's commit — an fsync, tens of milliseconds on
+  the Pi — and it sat on the request's clock, which is exactly the timing oracle the plan forbids.
+  So `POST /auth/recover` now does only reads before it answers (the limiter, `validate_email`,
+  `transport.configured`, `account_by_verified_email`) and the background task
+  `_mint_and_send_recovery` opens a short session of its own, re-reads the verified address (gone
+  since the answer → nothing sent), mints through `create_reset(created_by=None)`, builds the
+  message, **commits, closes, then sends** — the L16 rule, one function later. Measured in-process
+  over 30 alternating samples (request arrival to the *last response byte*, inside the ASGI app —
+  what the wire can see): **known 3.42 ms / unknown 3.02 ms** median (p90 3.63 / 3.26), the 0.4 ms
+  being the one extra `SELECT` (the `Account` behind a key that exists); the whole cycle including
+  the background mint+commit+send is 20.1 ms against 3.9 ms, and none of it reaches a client.
+  `test_before_the_answer_a_known_and_an_unknown_address_only_read` records the SQL verbs from the
+  engine before and after the response for both branches and asserts `before ⊆ {SELECT}` on each,
+  `INSERT`+`COMMIT` only after and only for the known one — a structural proof rather than a
+  timing assertion that a loaded Pi could flake. Sabotaged back to the section's order, that test
+  and `test_the_link_is_sent_after_the_answer_and_after_the_commit` both fail.
+- **`PUBLIC_PATHS` gained five entries, not four** — the table's "four public paths" forgot
+  `/auth/recover` beside the two pairs: `/auth/recover`, `/auth/reset/passkey/options`,
+  `/auth/reset/passkey/verify`, `/auth/register/passkey/options`, `/auth/register/passkey/verify`.
+  L2's audit walks all five unchanged and stays green (14 passed); the L2 sabotage pair was
+  repeated on this tree — `/auth/recover` removed → the route's own test and the five-paths test
+  fail with the gate's 401; a phantom `/auth/recover/phantom` listed → the audit fails.
+- **The split, with public names.** The router orders the steps itself on the reset pair, so the
+  pieces are exported rather than underscored: `parse_registration(credential)`,
+  `take_challenge(s, *, challenge, kind, player_id)` (the old `_take_challenge`, kept as an alias for
+  L8's docs), `verified_registration(rp, parsed, client_data)` (the library, pure) and
+  `store_passkey(s, account, parsed, verified, *, label, user_agent_label)` (adds and **flushes,
+  never commits**); `verify_registration` is those four in a row plus the commit and behaves as
+  before — `test_passkeys.py` is untouched and reads **30 passed**. The kinds are constants
+  (`KIND_REGISTER`, `KIND_REGISTER_NEW = "register-new"`, `KIND_LOGIN`); `models.py`'s comment
+  still says `"register" | "login"` (E0's file — E6's to widen). `register_with_passkey(s, *,
+  intent, parsed, verified, label, user_agent_label)` takes neither `rp` nor `client_data`: nothing
+  after the verification needs them.
+- **An intent dies wherever its challenge dies — inside `take_challenge`, not beside it.** Found by
+  the "the two ceremonies cannot answer each other" test: a `register-new` challenge presented to
+  the logged-in pair was consumed (wrong kind) and left its intent orphaned until the next sweep.
+  Harmless (the lookup joins on the challenge, so an orphan can never be found), but "lives and
+  dies with its challenge" belongs in the one function that deletes challenges. `take_registration_intent`
+  therefore expunges the row (keeping its values — it is returned detached, the plan's signature)
+  and calls `take_challenge`, which deletes intent and challenge in one commit. `sweep_expired_challenges`
+  deletes intents whose challenge is expired **or already gone** (`challenge_id NOT IN (live ids)`)
+  before the challenges, and returns the challenge count as before.
+- **Ordering and counting, as shipped.** Both public *options* endpoints count a successful mint
+  (`record_failure` after `_counted`, L8's "a minted challenge is an attempt") — the register pair
+  under `redeem`, the reset pair under `reset`, so the 11th mint or bad token from one IP is a 429
+  and `POST /auth/register` / `POST /auth/reset` share the bucket. `/auth/recover` counts every
+  request before validating the address, so a non-address is 400 *and* counted under its own
+  casefolded key. The reset-passkey verify runs `find_live_reset → parse → take_challenge(kind=
+  register, player_id=the token's) → verified_registration → consume_reset → store_passkey →
+  revoke_all_sessions → _start_session(kind="reset")` with **one commit at the end**, so a 409
+  (credential already stored) rolls the spend back and the token stays live, as does an injected
+  crash; a relying-party refusal (400 `PASSKEY_ORIGIN_REFUSED`) comes before the take on all four
+  new endpoints, so the ceremony is still answerable from the right origin. With mail off,
+  `/auth/recover` mints nothing (a link nobody could receive would only void an admin link).
+- **Two test premises corrected by running them.** (1) A "credential with a bad signature" does
+  not exist for a registration with `attestation: "none"` — there is no signature over the
+  attested key, so a client that swaps the key bytes registers a key it holds, the ordinary case;
+  what the server refuses is an attestation it cannot **parse**, and that refusal happens before
+  the challenge can even be read, so nothing is taken and the well-formed answer to the same
+  options still registers (asserted). The "does not verify" negatives are the real ones: wrong
+  origin, another site's origin, wrong rpID, UV clear — each consumed, none stored. (2) The
+  section's crash injection names `services.sessions.create_session`; the router imports the
+  name, so the test patches `app.routers.auth.create_session` and reads the 500 through
+  `TestClient(app, raise_server_exceptions=False)`.
+- **Every negative proven to bite — 26 rounds, 26 bites** (a throwaway script in the session
+  scratchpad edits one anchor per run, runs the guarding test(s), restores the file and
+  byte-compares; the four files were `cmp`-identical to their pristine copies after every round):
+
+  | weakened | guarding test(s) | result |
+  |---|---|---|
+  | `/auth/recover` counts nothing | the 4th-request 429, unknown addresses counted | 2 failed |
+  | `record_success` on `/auth/recover` | the 4th-request 429 | 1 failed |
+  | send for an unknown address | unknown → nothing; identical answers | 2 failed |
+  | send for a *pending* address | pending buys nothing | **silent on the first try** (the background task's own re-read of the *verified* address refused it a second time); with both reads weakened → 1 failed |
+  | `{"ok": false}` for an unknown address | identical answers | 1 failed |
+  | mint, commit and send before the answer (the section's order) | only reads before the answer; sent after the commit | 2 failed |
+  | mint although mail is off | mail off mints nothing | 1 failed |
+  | log the URL and the address | no token/URL/body/address in a log | 1 failed |
+  | reset verify: `consume_reset` before the ceremony verified | a failed ceremony spends the challenge, not the token | 3 failed (all three knobs) |
+  | reset verify: `revoke_all_sessions` skipped | the reset happy path | 1 failed |
+  | reset verify: `commit()` after `store_passkey`, before the session | crash before the commit leaves the token live | 1 failed |
+  | reset options: mint for any token string | unknown/used/expired tokens mint nothing | 1 failed |
+  | reset options: the mint not counted | every mint on the reset pair counts | 1 failed |
+  | register options: the mint not counted | every mint counts against `redeem` | 1 failed |
+  | register options: the name checked before the code | a taken name is not revealed without a code | 1 failed |
+  | `take_challenge`: `wrong_owner = False` | a challenge minted with X's token, posted with Y's | 1 failed |
+  | `take_challenge`: keep the intent | the two ceremonies cannot answer each other; the happy path's "no intent left" | 2 failed |
+  | `take_registration_intent`: read the intent without taking the challenge | a replayed verify | 1 failed |
+  | sweep: intents left behind | the unanswered sheet is swept; an orphaned intent is swept | 2 failed |
+  | `require_user_verification=False` | the `uv-clear` case on both pairs | 2 failed |
+  | `register_with_passkey`: `s.get(InviteCode)` instead of the liveness re-check | a code expired meanwhile | 1 failed |
+  | `register_with_passkey`: `ensure_name_free` skipped | a name taken meanwhile → 409, no rows | 1 failed |
+  | `register_with_passkey`: a fresh handle instead of the intent's | the happy path (the new passkey cannot sign in) | 1 failed |
+  | `register_with_passkey`: `commit()` after `create_account_for` | crash before the commit leaves no account | 1 failed |
+  | `PUBLIC_PATHS` without `/auth/recover` | recover is public; the five paths | 2 failed |
+  | `PUBLIC_PATHS` with a phantom | L2's audit | 1 failed |
+
+  The DoD's "store the passkey before `consume_reset`" was **not** run as written, because it
+  cannot bite: nothing commits between the two, so a lost spend rolls the store back either way —
+  the invariant is the single commit, and the two rounds that draw the boundary one line too
+  early (a `commit()` after the store / after the account) are what guard it.
+- **Enumeration, measured.** For a verified, an unknown and a pending address the three responses
+  are `200`, byte-identical `{"ok":true}`, the same `content-type`, no `Set-Cookie`; one message
+  goes out, to the verified address, and one token row exists, for that account. The log names
+  only masked addresses (`r***@example.test`, `n***@example.test`); the only 400 names the string
+  (*"That does not look like an email address"*). Timing: the paragraph above.
+- **Atomicity, proven by row counts.** After each of: wrong origin, another site's origin, wrong
+  rpID, UV clear, a corrupted attestation, four malformed bodies, a code spent meanwhile, a code
+  expired meanwhile, a name taken meanwhile (409), a replay, an unanswered sheet, an injected crash
+  after the passkey row was added and before the commit (500) — `player`, `account`, `passkey`,
+  `groupmembership` and `authsession` have the counts they had before, the invite's `redeemed_at`
+  is NULL, and the code still registers afterwards. The happy path is one row each, the code spent
+  by the new player, a session `kind="register"`, `MeOut` `has_passkey: true, has_password: false,
+  password_migrated: false, login_secure: true, email_verified: false`, the stored handle equal to
+  the one the authenticator holds (`unb64url(account.webauthn_user_handle) == auth.user_handle`),
+  and the credential signs in through `login/verify`; a password login for the name is 401.
+- **The stack (backend 8273 only — E2 has no UI, vite not started; the dev DB copied read-only to
+  the session scratchpad, `pushsubscription` / `pushsubscriptionpreference` **7 / 7 → 0 / 0** before
+  the first boot, no VAPID, no `smtp_*` key, `MAIL_SINK_DIR` set).** Boot: `Auth migrated: 3
+  accounts, 1 group, 6 memberships …`, `Cups imported: 2`, `DB initialized`, **`Mail: file sink at
+  …/mail (never delivers)`**, `Mail: SMTP` 0 times. Roli's address set through E1's `PUT`
+  (`Origin: http://localhost:8283`) and verified from the sink; `POST /auth/recover` → `{"ok":true}`
+  and a `.eml` *To roli@example.test, Subject "Get back into Lorbeerkranz"*, the link
+  `http://localhost:8283/g/altherren/reset#…` on its own line; an unknown address → the same body
+  and no new file; a non-address → 400. **The emailed token** → `reset/passkey/options`
+  (`Origin: http://localhost`, `rp.id localhost`, `residentKey required`, `excludeCredentials []`)
+  → `SoftAuthenticator.create` → `reset/passkey/verify` → **200** `has_passkey: true,
+  has_password: true, login_secure: true` with the cookie; Roli's other session → 401; the same
+  token → 400 at options and 400 at the password half; the 4th recovery for that address →
+  **429** `retry-after: 3598`. `manage.py reset-link --player berni` → the same pair → 200 as Berni
+  → `login/verify` with the new credential → **200 Berni** (label `Unknown device`). `manage.py
+  invite --group altherren` → `register/passkey/options {code, "Neuling"}` → `create` →
+  `register/passkey/verify` → **200** `Neuling · editor · [altherren:member] · has_password false ·
+  has_passkey true · login_secure true · email_verified false`, `/tournaments` 200 on that session;
+  the same credential again → 400; `login/verify` → 200 Neuling; a password login → 401; the code
+  again by password → 400. The DB afterwards: Neuling `password_hash NULL`, `password_origin none`,
+  one passkey, `member`, sessions `register, passkey`; invite 1 redeemed by 7; three reset tokens
+  all `created_by NULL` (the emailed one used, the third recovery's live and the second's voided,
+  the CLI one used); `registrationintent` 0, `webauthnchallenge` 0. **Log grep:** for all four
+  messages, the token **0**, the URL **0**, every body line **0**, the full address **0** — only
+  `r***@example.test` (8 times). Stack stopped by exact PID, the work dir removed.
+- `services/accounts.py::set_password`'s docstring now says "at least 15 and at most 200"
+  (E0's leftover). `_send_quietly`'s log line reads `Mail to r***@x (recover) not sent after the
+  answer: MailSendError` — it carries a recovery link now, not only a notice.
+- **What E3 / E4 inherit** (the wire is in `schema.d.ts`, committed here — the five routes and five
+  bodies, nothing else moved): `POST /auth/recover {email}` → `{ok: true}` always (400 *"That does
+  not look like an email address"* is the only other answer; 429 as everywhere); `POST
+  /auth/reset/passkey/options {token}` → the creation options JSON (a plain object, as the logged-in
+  pair) and `POST /auth/reset/passkey/verify {token, credential, label}` → `MeOut` + the cookie
+  (`kind="reset"`); `POST /auth/register/passkey/options {code, display_name}` → the options JSON
+  and `POST /auth/register/passkey/verify {credential, label}` → `MeOut` + the cookie
+  (`kind="register"`). `label` as a string, `""` for the device's name (never `null`). Refusal texts
+  the UI may show verbatim: *"That reset link is not valid"* (every bad token, on both halves),
+  *"That code is not valid"* (every bad code — at options, and at verify when it was spent or
+  expired meanwhile), *"That name is taken"* (409, at options and at verify), *"The name must be 2
+  to 40 characters long"*, *"That passkey could not be registered"* (400, every way a ceremony can
+  fail, both pairs), *"That passkey is already registered"* (409 — on the reset pair the token
+  stays live), *"Passkeys are not available from this origin"* (400 — hide the passkey half when
+  `passkeysSupported()` is false and expect this where the rule refuses). A closed sheet never
+  reaches the server and spends nothing on either pair: the client simply does not call verify.
+  **E4**: nothing here changes `MeOut`; a passkey-only account answers `login_secure: true` and
+  `email_verified: false`, so the strip asks for the email.
+- **Gates.** `make test` **705 passed** in 35:57 (baseline 640 at `8371773`; +65 = 26
+  `test_recovery` + 39 `test_passkey_tokens`; `test_passkeys.py` 30 passed unchanged; L2's audit
+  walks the five new paths and stays green); `make lint` clean; `make gen-types` → `schema.d.ts`
+  +379 lines (the five routes and five request bodies, nothing else), regenerated twice on the
+  final tree with the same md5, committed here; `cd frontend && npm run check` **932 tests in 96
+  files** (unchanged count — E2 adds no frontend code), `npm run build` green with the bundle
+  byte-identical to the baseline (`index-CDhfUzOC.js` 774.28 kB).
+- **Canon for E6.** `AGENTS.md` §6: the five endpoints (the recover family `3 / 5 / 30` per hour,
+  the mint counting on both public options endpoints), *recovery mints after the answer* and why,
+  the order inside the reset-passkey verify and the single commit, `PUBLIC_PATHS` +5; §5:
+  `RegistrationIntent` dies inside `take_challenge` and in the sweep (expired *or gone*); §10: a
+  recovery request voids an earlier unused admin link; the timing numbers above.
 
 ## E3 — Register, reset, recover and verify-email in the browser: passkey first  ☐
 

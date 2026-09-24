@@ -19,15 +19,21 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+from typing import TYPE_CHECKING
 
 from argon2 import PasswordHasher
 from sqlmodel import Session, select
 
 from ..api_utils import bad_request, conflict, forbidden
-from ..models import Account, AuthSession, GroupMembership, Passkey, Player
+from ..models import Account, AuthSession, GroupMembership, Passkey, Player, RegistrationIntent
 from .auth_migration import name_key, new_webauthn_user_handle
-from .invites import find_live_invite, spend_invite
+from .invites import find_live_invite, find_live_invite_by_id, spend_invite
+from .passkeys import store_passkey
 from .passwords import hash_password, validate_new_password, verify_password
+
+if TYPE_CHECKING:
+    from webauthn.helpers.structs import RegistrationCredential
+    from webauthn.registration.verify_registration_response import VerifiedRegistration
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +52,7 @@ __all__ = [
     "live_session_stats",
     "name_key",
     "register",
+    "register_with_passkey",
     "remove_password",
     "session_out",
     "set_password",
@@ -94,8 +101,13 @@ def create_account_for(
     password_hash: str | None = None,
     password_origin: str = "none",
     site_admin: bool = False,
+    user_handle: str | None = None,
 ) -> Account:
-    """The account row of a player that is being created in the same transaction. Flushes."""
+    """The account row of a player that is being created in the same transaction. Flushes.
+
+    `user_handle`: the WebAuthn user handle to store — a passkey-only registration (E2)
+    minted it before the account existed, because the authenticator already holds it;
+    `None` mints a fresh one, as before."""
     now = _now()
     account = Account(
         player_id=int(player.id),
@@ -104,7 +116,7 @@ def create_account_for(
         password_origin=password_origin,
         password_updated_at=now if password_hash else None,
         site_admin=bool(site_admin),
-        webauthn_user_handle=new_webauthn_user_handle(),
+        webauthn_user_handle=str(user_handle) if user_handle else new_webauthn_user_handle(),
         created_at=now,
         updated_at=now,
     )
@@ -137,8 +149,52 @@ def register(s: Session, *, code: str, display_name: str, password: str, hasher:
     return player
 
 
+def register_with_passkey(
+    s: Session,
+    *,
+    intent: RegistrationIntent,
+    parsed: RegistrationCredential,
+    verified: VerifiedRegistration,
+    label: str,
+    user_agent_label: str,
+) -> Player:
+    """A new account from a **verified** passkey ceremony (E2): `Player` + `Account` with
+    no password and the intent's user handle + the `Passkey` + `GroupMembership(member)`
+    in the invite's group, and the code spent — one transaction, which the caller commits
+    together with the session it mints. **Nothing here commits**: any refusal or crash
+    before the caller's commit rolls the whole account back, so an account can never exist
+    without its way in.
+
+    What was checked at `options` is checked again here from the *intent* — never from the
+    client: the invite by its id (spent or expired meanwhile → the generic 400), the name
+    (taken meanwhile → 409). The spend is `spend_invite`'s conditional UPDATE, so two
+    ceremonies racing for one code cannot both win."""
+    invite = find_live_invite_by_id(s, int(intent.invite_id))
+    name = validate_display_name(intent.display_name)
+    ensure_name_free(s, name)
+
+    player = Player(display_name=name)
+    s.add(player)
+    s.flush()
+    account = create_account_for(s, player, password_hash=None, password_origin="none", user_handle=intent.user_handle)
+    passkey = store_passkey(s, account, parsed, verified, label=label, user_agent_label=user_agent_label)
+    spend_invite(s, invite, player_id=int(player.id))
+    s.add(GroupMembership(group_id=int(invite.group_id), player_id=int(player.id), role="member", created_at=_now()))
+    s.flush()
+    log.info(
+        "Registered player %r (id=%s) with invite %s by passkey (%s, backed_up=%s)",
+        name,
+        player.id,
+        invite.id,
+        passkey.device_type,
+        passkey.backed_up,
+    )
+    return player
+
+
 def set_password(s: Session, account: Account, plain: str, hasher: PasswordHasher, *, origin: str = "set") -> None:
-    """Validate (10–200 characters) and store an argon2id hash. The caller commits."""
+    """Validate (`validate_new_password`: at least 15 and at most 200 characters) and store
+    an argon2id hash. The caller commits."""
     validate_new_password(plain)
     now = _now()
     account.password_hash = hash_password(hasher, plain)

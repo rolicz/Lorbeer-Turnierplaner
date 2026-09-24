@@ -433,6 +433,138 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recover
+         * @description "Lost your passkey or password?" — a one-hour, single-use reset link to the
+         *     account's **verified** address. **Public, and it leaks nothing**: the answer is
+         *     `{"ok": true}` for every plausible address — known, unknown, pending — and everything
+         *     that differs between a known and an unknown address (the mint, its commit, the send)
+         *     happens *after* the answer, in a background task, so neither the body nor the timing
+         *     says whether the address is anyone's: before the answer both branches only read. A 400
+         *     names only a string that is not an address.
+         *
+         *     Rate-limited as *recover* — per address (its casefolded key, counted for unknown
+         *     addresses too), per IP and globally; every request counts and no success ever clears
+         *     a bucket. The link is the reset link (`PasswordResetToken`, `created_by` NULL, the CLI's
+         *     shape), so it kills the account's earlier unused link and ends every other session when
+         *     used; passkeys stay. With mail off nothing is minted and the log says so.
+         */
+        post: operations["recover_auth_recover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Passkey Options
+         * @description Options for `navigator.credentials.create()` behind a live reset token — the
+         *     account's own `kind="register"` challenge, exactly as the logged-in pair mints it.
+         *     Public, rate-limited as *reset*; the mint counts. The token is looked at, not spent.
+         *     An unknown, used or expired token is the generic 400 before anything is minted.
+         */
+        post: operations["reset_passkey_options_auth_reset_passkey_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reset/passkey/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Passkey Verify
+         * @description Store the credential and spend the token — **in this order**: the token looked at,
+         *     the challenge taken (bound to the token's account), the credential verified, *then* the
+         *     token spent (the conditional UPDATE — a token that lost a race refuses here with no
+         *     credential stored), the passkey stored, every session of the account ended, and a fresh
+         *     one started here (`kind="reset"`). One transaction from the spend to the session.
+         *
+         *     A ceremony that fails verification spends the challenge and **not** the token; a
+         *     credential already registered is 409 and the token stays live too.
+         */
+        post: operations["reset_passkey_verify_auth_reset_passkey_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Passkey Options
+         * @description Options for a new account's first passkey. Public, rate-limited as *redeem* (the
+         *     mint counts). The code is checked **first**, so nobody without a valid one learns
+         *     whether a name is taken; then the name (400 / 409). What passed is remembered on the
+         *     server with the challenge (`RegistrationIntent`) — the verify step sends only the
+         *     credential. No `Player`, no `Account`, and the code unspent after this call.
+         */
+        post: operations["register_passkey_options_auth_register_passkey_options_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/register/passkey/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Passkey Verify
+         * @description Create the account around the verified credential. The intent and its challenge are
+         *     taken (deleted, committed) before anything is verified — a replay finds nothing — and
+         *     everything after that is one transaction, committed with the session: the invite
+         *     re-checked by id (spent or expired meanwhile → 400), the name re-checked (409),
+         *     `Player` + `Account(password_origin="none")` with the intent's user handle + `Passkey`
+         *     + `GroupMembership(member)` + the code spent + the session. 400 with one sentence for
+         *     every way the ceremony can fail, 409 for a credential already registered.
+         */
+        post: operations["register_passkey_verify_auth_register_passkey_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/accounts": {
         parameters: {
             query?: never;
@@ -3794,6 +3926,18 @@ export interface components {
             latest?: components["schemas"]["StatsRecordTournamentOut"] | null;
         };
         /**
+         * RecoverBody
+         * @description `POST /auth/recover` (E2): the address a recovery link should go to. The answer is
+         *     the same whatever the address.
+         */
+        RecoverBody: {
+            /**
+             * Email
+             * @default
+             */
+            email: string;
+        };
+        /**
          * RedeemBody
          * @description `POST /auth/redeem` (L3): an invite code, redeemed by an existing account.
          */
@@ -3824,6 +3968,39 @@ export interface components {
              * @default
              */
             password: string;
+        };
+        /**
+         * RegisterPasskeyOptionsBody
+         * @description `POST /auth/register/passkey/options` (E2): an invite code and the new display name.
+         *     Both are checked here and remembered server-side; the verify step never takes them again.
+         */
+        RegisterPasskeyOptionsBody: {
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /**
+             * Display Name
+             * @default
+             */
+            display_name: string;
+        };
+        /**
+         * RegisterPasskeyVerifyBody
+         * @description `POST /auth/register/passkey/verify` (E2): the credential only — the invite and the
+         *     name were remembered with the challenge.
+         */
+        RegisterPasskeyVerifyBody: {
+            /** Credential */
+            credential?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Label
+             * @default
+             */
+            label: string;
         };
         /**
          * ResetBody
@@ -3864,6 +4041,39 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /**
+         * ResetPasskeyOptionsBody
+         * @description `POST /auth/reset/passkey/options` (E2): the token from a reset link's fragment.
+         */
+        ResetPasskeyOptionsBody: {
+            /**
+             * Token
+             * @default
+             */
+            token: string;
+        };
+        /**
+         * ResetPasskeyVerifyBody
+         * @description `POST /auth/reset/passkey/verify` (E2): the same token and the JSON form of the
+         *     `PublicKeyCredential` `navigator.credentials.create()` returned; `label` as on the
+         *     logged-in register pair (empty → the device's name).
+         */
+        ResetPasskeyVerifyBody: {
+            /**
+             * Token
+             * @default
+             */
+            token: string;
+            /** Credential */
+            credential?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Label
+             * @default
+             */
+            label: string;
         };
         /** RevokedOut */
         RevokedOut: {
@@ -5381,6 +5591,175 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EmailVerifiedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recover_auth_recover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoverBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OkResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_passkey_options_auth_reset_passkey_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasskeyOptionsBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_passkey_verify_auth_reset_passkey_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasskeyVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_passkey_options_auth_register_passkey_options_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPasskeyOptionsBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_passkey_verify_auth_register_passkey_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPasskeyVerifyBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MeOut"];
                 };
             };
             /** @description Validation Error */

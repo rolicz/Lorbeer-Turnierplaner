@@ -15,7 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request,
 from sqlmodel import Session, select
 
 from ..auth import require_auth_claims
-from ..db import get_session
+from ..db import get_engine, get_session
 from ..models import Account, Player
 from ..schemas import (
     EmailBody,
@@ -25,15 +25,21 @@ from ..schemas import (
     PasskeyLoginVerifyBody,
     PasskeyRegisterVerifyBody,
     PasswordChangeBody,
+    RecoverBody,
     RedeemBody,
     RegisterBody,
+    RegisterPasskeyOptionsBody,
+    RegisterPasskeyVerifyBody,
     ResetBody,
+    ResetPasskeyOptionsBody,
+    ResetPasskeyVerifyBody,
 )
 from ..schemas.responses import EmailStatusOut, EmailVerifiedOut, MeOut, OkResponse, PasskeyOut, RevokedOut, SessionOut
 from ..services.account_email import (
     MAIL_OFF,
     NOTHING_TO_SEND,
     SEND_FAILED,
+    account_by_verified_email,
     cancel_pending,
     consume_verification,
     discard_verification,
@@ -48,32 +54,47 @@ from ..services.account_email import (
     verification_url,
     verified_email_for,
 )
-from ..services.accounts import change_password, remove_password, session_out, set_password
+from ..services.accounts import (
+    change_password,
+    ensure_name_free,
+    register_with_passkey,
+    remove_password,
+    session_out,
+    set_password,
+    validate_display_name,
+)
 from ..services.accounts import register as register_account
 from ..services.auth_migration import name_key
 from ..services.device_label import device_label
 from ..services.groups import build_claims, current_group
-from ..services.invites import redeem_invite
+from ..services.invites import find_live_invite, redeem_invite
 from ..services.legacy_jwt import claims_from_legacy_token
 from ..services.mail import MailMessage, MailNotConfigured, MailSendError, MailTransport, mask_address
-from ..services.mail_texts import email_changed_message, verify_email_message
+from ..services.mail_texts import email_changed_message, recovery_message, verify_email_message
 from ..services.notifications import disable_push_subscription
 from ..services.passkeys import (
+    KIND_REGISTER,
     PasskeyConflict,
     PasskeyRefused,
     authentication_options,
     list_passkeys,
+    new_registration_options,
+    parse_registration,
     passkey_out,
     registration_options,
     relying_party_for,
     remove_passkey,
+    store_passkey,
     sweep_expired_challenges,
+    take_challenge,
+    take_registration_intent,
+    verified_registration,
     verify_authentication,
     verify_registration,
 )
 from ..services.passwords import hash_password, hasher_for, validate_new_password, verify_password
 from ..services.rate_limit import enforce, limits_for, record_failure, record_success
-from ..services.reset_links import consume_reset, find_live_reset, link_origin
+from ..services.reset_links import INVALID_LINK, consume_reset, create_reset, find_live_reset, link_origin, recovery_url
 from ..services.sessions import (
     clear_session_cookie,
     cookie_secure_for,
@@ -519,12 +540,12 @@ def passkey_login_verify(request: Request, response: Response, body: PasskeyLogi
 
 
 def _send_quietly(transport: MailTransport, message: MailMessage) -> None:
-    """A background notice: a failure is logged (masked recipient, kind, class) and
-    swallowed — the answer has already gone out."""
+    """A background send (a notice, a recovery link): a failure is logged (masked
+    recipient, kind, class) and swallowed — the answer has already gone out."""
     try:
         transport.send(message)
     except (MailSendError, MailNotConfigured) as exc:
-        log.warning("Notice to %s (%s) not sent: %s", mask_address(message.to), message.kind, type(exc).__name__)
+        log.warning("Mail to %s (%s) not sent after the answer: %s", mask_address(message.to), message.kind, type(exc).__name__)
 
 
 def _player_name(s: Session, player_id: int) -> str:
@@ -656,3 +677,208 @@ def verify_email(request: Request, body: EmailVerifyBody, background: Background
         log.info("Email changed for player %s; telling the previous address %s", pid, mask_address(notice.to))
         background.add_task(_send_quietly, request.app.state.mail, notice)
     return {"ok": True, "email": email}
+
+
+# ---- recovery by email (E2) --------------------------------------------------------------
+
+
+def _mint_and_send_recovery(transport: MailTransport, *, player_id: int, origin: str) -> None:
+    """After the answer: mint the link in a short transaction of its own, commit, close the
+    session, *then* send (the L16 rule) — none of it on the request's clock. Reads the
+    address again: one removed since the answer means there is nothing to send."""
+    with Session(get_engine()) as s:
+        to = verified_email_for(s, player_id)
+        if not to:
+            log.info("Recovery for player %s not sent: the address is gone", player_id)
+            return
+        row, token = create_reset(s, player_id=int(player_id), created_by=None)
+        url = recovery_url(origin, token, group_slug=current_group(s).slug)
+        message = recovery_message(to=to, name=_player_name(s, player_id), url=url)
+        s.commit()
+        row_id = int(row.id)
+    log.info("Reset link %s minted by email recovery for player %s; sending to %s", row_id, player_id, mask_address(to))
+    _send_quietly(transport, message)
+
+
+@router.post("/recover", response_model=OkResponse)
+def recover(request: Request, body: RecoverBody, background: BackgroundTasks, s: Session = Depends(get_session)) -> dict:
+    """"Lost your passkey or password?" — a one-hour, single-use reset link to the
+    account's **verified** address. **Public, and it leaks nothing**: the answer is
+    `{"ok": true}` for every plausible address — known, unknown, pending — and everything
+    that differs between a known and an unknown address (the mint, its commit, the send)
+    happens *after* the answer, in a background task, so neither the body nor the timing
+    says whether the address is anyone's: before the answer both branches only read. A 400
+    names only a string that is not an address.
+
+    Rate-limited as *recover* — per address (its casefolded key, counted for unknown
+    addresses too), per IP and globally; every request counts and no success ever clears
+    a bucket. The link is the reset link (`PasswordResetToken`, `created_by` NULL, the CLI's
+    shape), so it kills the account's earlier unused link and ends every other session when
+    used; passkeys stay. With mail off nothing is minted and the log says so."""
+    key = email_key(body.email)
+    limits = limits_for("recover", ip=_client_ip(request), account=key or None)
+    enforce(request, limits)
+    record_failure(request, limits)  # every request is an attempt — there is no success here
+    email = validate_email(body.email)
+
+    transport = request.app.state.mail
+    if not transport.configured:
+        log.info("Recovery requested for %s but mail is off — nothing sent", mask_address(email))
+        return {"ok": True}
+    account = account_by_verified_email(s, key)
+    if account is None:
+        log.info("Recovery requested for an unknown address %s", mask_address(email))
+        return {"ok": True}
+    background.add_task(_mint_and_send_recovery, transport, player_id=int(account.player_id), origin=link_origin(request))
+    return {"ok": True}
+
+
+# ---- a passkey from a reset token (E2) --------------------------------------------------
+#
+# The reset link — the admin's, the CLI's, the emailed one — can set a passkey instead of a
+# password. The token is spent only once the credential has verified, so a cancelled sheet
+# or a ceremony that fails leaves the link usable for a second try or for the password half.
+
+
+def _relying_party_or_400(request: Request):
+    rp = _relying_party(request)
+    if rp is None:
+        raise HTTPException(status_code=400, detail=PASSKEY_ORIGIN_REFUSED)
+    return rp
+
+
+def _account_and_player(s: Session, player_id: int) -> tuple[Account, Player]:
+    account = s.get(Account, int(player_id))
+    player = s.get(Player, int(player_id))
+    if account is None or player is None:  # a token naming a player with no login: nothing to log into
+        log.warning("Reset refused: player %s has no account or no player row", player_id)
+        raise HTTPException(status_code=400, detail=INVALID_LINK)
+    return account, player
+
+
+@router.post("/reset/passkey/options")
+def reset_passkey_options(request: Request, body: ResetPasskeyOptionsBody, s: Session = Depends(get_session)) -> dict:
+    """Options for `navigator.credentials.create()` behind a live reset token — the
+    account's own `kind="register"` challenge, exactly as the logged-in pair mints it.
+    Public, rate-limited as *reset*; the mint counts. The token is looked at, not spent.
+    An unknown, used or expired token is the generic 400 before anything is minted."""
+    limits = limits_for("reset", ip=_client_ip(request))
+
+    def run() -> dict:
+        rp = _relying_party_or_400(request)
+        row = find_live_reset(s, body.token)
+        account, player = _account_and_player(s, int(row.player_id))
+        sweep_expired_challenges(s)
+        return registration_options(s, account, player, rp)
+
+    options = _counted(request, limits, run)
+    record_failure(request, limits)  # a minted challenge is an attempt; counted like one
+    return options
+
+
+@router.post("/reset/passkey/verify", response_model=MeOut)
+def reset_passkey_verify(request: Request, response: Response, body: ResetPasskeyVerifyBody, s: Session = Depends(get_session)) -> dict:
+    """Store the credential and spend the token — **in this order**: the token looked at,
+    the challenge taken (bound to the token's account), the credential verified, *then* the
+    token spent (the conditional UPDATE — a token that lost a race refuses here with no
+    credential stored), the passkey stored, every session of the account ended, and a fresh
+    one started here (`kind="reset"`). One transaction from the spend to the session.
+
+    A ceremony that fails verification spends the challenge and **not** the token; a
+    credential already registered is 409 and the token stays live too."""
+    limits = limits_for("reset", ip=_client_ip(request))
+
+    def run() -> Player:
+        rp = _relying_party_or_400(request)
+        row = find_live_reset(s, body.token)
+        pid = int(row.player_id)
+        try:
+            parsed, client_data = parse_registration(body.credential)
+            take_challenge(s, challenge=client_data.challenge, kind=KIND_REGISTER, player_id=pid)
+            verified = verified_registration(rp, parsed, client_data)
+        except PasskeyRefused as exc:
+            log.info("Passkey registration by reset link refused for player %s: %s", pid, exc.reason)
+            raise HTTPException(status_code=400, detail=PASSKEY_REGISTER_REFUSED) from None
+        account = consume_reset(s, body.token)
+        try:
+            passkey = store_passkey(
+                s,
+                account,
+                parsed,
+                verified,
+                label=body.label,
+                user_agent_label=device_label(request.headers.get("user-agent", "")),
+            )
+        except PasskeyConflict:
+            raise HTTPException(status_code=409, detail=PASSKEY_ALREADY_REGISTERED) from None
+        revoke_all_sessions(s, int(account.player_id))
+        _account, player = _account_and_player(s, int(account.player_id))
+        log.info("Passkey registered by reset link for player %s (%s, backed_up=%s); every other session ended", pid, passkey.device_type, passkey.backed_up)
+        return player
+
+    player = _counted(request, limits, run)
+    return _start_session(request, response, s, player=player, kind="reset")
+
+
+# ---- a passkey-only registration (E2) ---------------------------------------------------
+#
+# Atomic: nothing about the person exists until the ceremony has verified, and then the
+# player, the account, the passkey, the membership, the spent code and the session are one
+# commit. A closed sheet never reaches the server; the intent expires with its challenge.
+
+
+@router.post("/register/passkey/options")
+def register_passkey_options(request: Request, body: RegisterPasskeyOptionsBody, s: Session = Depends(get_session)) -> dict:
+    """Options for a new account's first passkey. Public, rate-limited as *redeem* (the
+    mint counts). The code is checked **first**, so nobody without a valid one learns
+    whether a name is taken; then the name (400 / 409). What passed is remembered on the
+    server with the challenge (`RegistrationIntent`) — the verify step sends only the
+    credential. No `Player`, no `Account`, and the code unspent after this call."""
+    limits = limits_for("redeem", ip=_client_ip(request))
+
+    def run() -> dict:
+        rp = _relying_party_or_400(request)
+        invite = find_live_invite(s, body.code)
+        name = validate_display_name(body.display_name)
+        ensure_name_free(s, name)
+        sweep_expired_challenges(s)
+        return new_registration_options(s, rp, invite_id=int(invite.id), display_name=name)
+
+    options = _counted(request, limits, run)
+    record_failure(request, limits)  # a minted challenge is an attempt; counted like one
+    return options
+
+
+@router.post("/register/passkey/verify", response_model=MeOut)
+def register_passkey_verify(request: Request, response: Response, body: RegisterPasskeyVerifyBody, s: Session = Depends(get_session)) -> dict:
+    """Create the account around the verified credential. The intent and its challenge are
+    taken (deleted, committed) before anything is verified — a replay finds nothing — and
+    everything after that is one transaction, committed with the session: the invite
+    re-checked by id (spent or expired meanwhile → 400), the name re-checked (409),
+    `Player` + `Account(password_origin="none")` with the intent's user handle + `Passkey`
+    + `GroupMembership(member)` + the code spent + the session. 400 with one sentence for
+    every way the ceremony can fail, 409 for a credential already registered."""
+    limits = limits_for("redeem", ip=_client_ip(request))
+
+    def run() -> Player:
+        rp = _relying_party_or_400(request)
+        try:
+            intent, parsed, client_data = take_registration_intent(s, body.credential)
+            verified = verified_registration(rp, parsed, client_data)
+        except PasskeyRefused as exc:
+            log.info("Passkey-only registration refused from %s: %s", _client_ip(request) or "?", exc.reason)
+            raise HTTPException(status_code=400, detail=PASSKEY_REGISTER_REFUSED) from None
+        try:
+            return register_with_passkey(
+                s,
+                intent=intent,
+                parsed=parsed,
+                verified=verified,
+                label=body.label,
+                user_agent_label=device_label(request.headers.get("user-agent", "")),
+            )
+        except PasskeyConflict:
+            raise HTTPException(status_code=409, detail=PASSKEY_ALREADY_REGISTERED) from None
+
+    player = _counted(request, limits, run)
+    return _start_session(request, response, s, player=player, kind="register")

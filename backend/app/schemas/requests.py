@@ -49,6 +49,45 @@ class EmailVerifyBody(BaseModel):
     token: str = ""
 
 
+class RecoverBody(BaseModel):
+    """`POST /auth/recover` (E2): the address a recovery link should go to. The answer is
+    the same whatever the address."""
+
+    email: str = ""
+
+
+class ResetPasskeyOptionsBody(BaseModel):
+    """`POST /auth/reset/passkey/options` (E2): the token from a reset link's fragment."""
+
+    token: str = ""
+
+
+class ResetPasskeyVerifyBody(BaseModel):
+    """`POST /auth/reset/passkey/verify` (E2): the same token and the JSON form of the
+    `PublicKeyCredential` `navigator.credentials.create()` returned; `label` as on the
+    logged-in register pair (empty → the device's name)."""
+
+    token: str = ""
+    credential: dict[str, Any] = Field(default_factory=dict)
+    label: str = ""
+
+
+class RegisterPasskeyOptionsBody(BaseModel):
+    """`POST /auth/register/passkey/options` (E2): an invite code and the new display name.
+    Both are checked here and remembered server-side; the verify step never takes them again."""
+
+    code: str = ""
+    display_name: str = ""
+
+
+class RegisterPasskeyVerifyBody(BaseModel):
+    """`POST /auth/register/passkey/verify` (E2): the credential only — the invite and the
+    name were remembered with the challenge."""
+
+    credential: dict[str, Any] = Field(default_factory=dict)
+    label: str = ""
+
+
 class PasswordChangeBody(BaseModel):
     """`POST /auth/password` (L3). `current_password` is required when the account has one."""
 

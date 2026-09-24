@@ -82,10 +82,9 @@ def create_invite(s: Session, *, group_id: int, created_by: int | None, note: st
     return row, format_code(code)
 
 
-def find_live_invite(s: Session, code: str) -> InviteCode:
-    """The unexpired, unredeemed row behind `code`, or the generic 400. Spends nothing."""
-    normalized = normalize_code(code)
-    row = s.exec(select(InviteCode).where(InviteCode.code_hash == hash_code(normalized))).first() if normalized else None
+def _ensure_live(row: InviteCode | None) -> InviteCode:
+    """The one liveness rule: unknown, redeemed and expired are one generic 400, each
+    logged with its real reason."""
     if row is None:
         log.info("Invite refused: unknown code")
         bad_request(INVALID_CODE)
@@ -96,6 +95,20 @@ def find_live_invite(s: Session, code: str) -> InviteCode:
         log.info("Invite refused: code %s expired at %s", row.id, row.expires_at.isoformat())
         bad_request(INVALID_CODE)
     return row
+
+
+def find_live_invite(s: Session, code: str) -> InviteCode:
+    """The unexpired, unredeemed row behind `code`, or the generic 400. Spends nothing."""
+    normalized = normalize_code(code)
+    row = s.exec(select(InviteCode).where(InviteCode.code_hash == hash_code(normalized))).first() if normalized else None
+    return _ensure_live(row)
+
+
+def find_live_invite_by_id(s: Session, invite_id: int) -> InviteCode:
+    """The same rule for a row already known by id — a passkey-only registration (E2)
+    re-checks the invite its `RegistrationIntent` names at verify time, because the code may
+    have been spent or may have expired between `options` and `verify`. Spends nothing."""
+    return _ensure_live(s.get(InviteCode, int(invite_id)))
 
 
 def spend_invite(s: Session, row: InviteCode, *, player_id: int) -> None:

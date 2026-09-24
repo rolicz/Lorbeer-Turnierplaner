@@ -76,6 +76,13 @@ def reset_url(origin: str, token: str, *, group_slug: str = DEFAULT_GROUP_SLUG) 
     return f"{str(origin or '').rstrip('/')}/g/{group_slug}/reset#{token}"
 
 
+def recovery_url(origin: str, token: str, *, group_slug: str = DEFAULT_GROUP_SLUG) -> str:
+    """The link an email recovery (E2) carries — **the reset link**, byte for byte: one
+    token table, one consumer (`consume_reset`), one page. The admin's link, the CLI's and
+    the emailed one are three ways of delivering the same thing; this name only says which."""
+    return reset_url(origin, token, group_slug=group_slug)
+
+
 def find_live_reset(s: Session, token: str) -> PasswordResetToken:
     """The unexpired, unused row behind `token`, or the generic 400. Spends nothing."""
     clean = str(token or "").strip()

@@ -72,6 +72,13 @@ PUBLIC_PATHS: tuple[str, ...] = (
     "/auth/passkeys/login/verify",
     # E1: the link from a verification mail opens in a browser with no session.
     "/auth/email/verify",
+    # E2: asking for a recovery link, and the two ceremonies that hold a token or an invite
+    # code instead of a session — a passkey from a reset link, a passkey-only registration.
+    "/auth/recover",
+    "/auth/reset/passkey/options",
+    "/auth/reset/passkey/verify",
+    "/auth/register/passkey/options",
+    "/auth/register/passkey/verify",
 )
 #: A session, no membership needed.
 ACCOUNT_PATHS: tuple[str, ...] = ("/auth/", "/me", "/me/notifications", "/push/")

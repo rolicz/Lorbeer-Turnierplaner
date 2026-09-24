@@ -47,6 +47,11 @@ LIMITS: dict[str, tuple[tuple[int, int] | None, tuple[int, int], tuple[int, int]
     # PUT /auth/email, POST /auth/email/resend (E1) — per account: every send counts, so one
     # member cannot mail-bomb an address; the global bucket guards the domain's reputation.
     "email": ((5, 3600), (10, 3600), (60, 3600)),
+    # POST /auth/recover (E2) — the "account" key is the address's `email_key`, counted for
+    # unknown addresses too; every request hits every bucket and nothing ever clears one
+    # (there is no success that should forgive an address). The per-address bucket stops
+    # email-bombing one person; the global bucket protects the sender's reputation.
+    "recover": ((3, 3600), (5, 3600), (30, 3600)),
 }
 
 #: The longest window in `LIMITS`; the sweep drops anything older than this.

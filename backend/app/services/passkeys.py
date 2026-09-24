@@ -9,7 +9,7 @@ Four rules, each in exactly one place here:
   `127.0.0.1` alone (the only plain-http secure contexts a browser knows). There is no
   bypass flag of any kind; the boot guard in `settings.py` refuses the dev flag in production.
 - **A challenge is server-minted, single-use and consumed by `DELETE` before it is
-  verified** (`_take_challenge`): a replayed or reused challenge fails by not existing,
+  verified** (`take_challenge`): a replayed or reused challenge fails by not existing,
   and two requests racing for one row cannot both win, because the delete is conditional
   and SQLite serialises writers. An expired row is refused the same way.
 - **Sign-in asks for no identifier and sends no `allowCredentials`** — discoverable
@@ -24,6 +24,17 @@ Four rules, each in exactly one place here:
 
 Nothing here parses the cookie or mints a session; the router hands the verified account
 to the sessions service like any other way in.
+
+E2 split the registration into three steps the router can order itself — `parse_registration`
+(the credential's JSON), `take_challenge` (consume, commit), `verified_registration` (the
+library, pure) and `store_passkey` (the row, flushed, **never committed**) — so a ceremony can
+be verified and *then* decided on: the reset-token page spends its token only after the
+credential verified, and a passkey-only registration creates the whole account around the
+verified credential in one transaction. `verify_registration` is those steps in a row for the
+logged-in case and behaves exactly as before. A passkey-only registration also needs the user
+handle before the account exists: `new_registration_options` mints it into a
+`RegistrationIntent` beside a `kind="register-new"` challenge, and `take_registration_intent`
+takes both back in the same commit as the challenge — a replay finds nothing.
 """
 
 from __future__ import annotations
@@ -60,10 +71,14 @@ from webauthn.helpers.structs import (
     UserVerificationRequirement,
 )
 
-from ..models import Account, Passkey, Player, WebAuthnChallenge
+from ..models import Account, Passkey, Player, RegistrationIntent, WebAuthnChallenge
+from .auth_migration import new_webauthn_user_handle
 from .sessions import revoke_all_sessions
 
 if TYPE_CHECKING:
+    from webauthn.helpers.structs import RegistrationCredential
+    from webauthn.registration.verify_registration_response import VerifiedRegistration
+
     from ..settings import Settings
 
 log = logging.getLogger(__name__)
@@ -73,19 +88,33 @@ CHALLENGE_TTL = dt.timedelta(minutes=5)
 MAX_LABEL_LENGTH = 60
 #: `http` origins a browser treats as a secure context — the only ones dev-origin mode admits.
 _PLAIN_HTTP_HOSTS = ("localhost", "127.0.0.1")
+#: The challenge kinds. `register` is bound to an account; `register-new` (E2) is bound to a
+#: `RegistrationIntent` instead, because the account does not exist yet.
+KIND_REGISTER = "register"
+KIND_REGISTER_NEW = "register-new"
+KIND_LOGIN = "login"
 
 __all__ = [
     "CHALLENGE_TTL",
+    "KIND_LOGIN",
+    "KIND_REGISTER",
+    "KIND_REGISTER_NEW",
     "PasskeyConflict",
     "PasskeyRefused",
     "RelyingParty",
     "authentication_options",
     "list_passkeys",
+    "new_registration_options",
+    "parse_registration",
     "passkey_out",
     "registration_options",
     "relying_party_for",
     "remove_passkey",
+    "store_passkey",
     "sweep_expired_challenges",
+    "take_challenge",
+    "take_registration_intent",
+    "verified_registration",
     "verify_authentication",
     "verify_registration",
 ]
@@ -181,19 +210,26 @@ def _mint_challenge(s: Session, *, challenge: bytes, kind: str, player_id: int |
     s.commit()
 
 
-def _take_challenge(s: Session, *, challenge: bytes, kind: str, player_id: int | None) -> None:
+def take_challenge(s: Session, *, challenge: bytes, kind: str, player_id: int | None) -> None:
     """Consume the challenge — **delete it and commit before anything is verified** — or
     refuse. The delete is conditional on the row still being there, so two requests
     presenting the same challenge cannot both pass; an expired row, a row of the other
     ceremony, or a registration challenge minted for another account is refused *and*
-    consumed, so it cannot be tried again either."""
+    consumed, so it cannot be tried again either.
+
+    Public since E2: the reset-token pair takes the challenge itself, between the token
+    lookup and the library's verification, so the router can spend the token only once the
+    credential has verified. The commit here is the one commit before the caller's own."""
     key = bytes_to_base64url(challenge)
     row = s.exec(select(WebAuthnChallenge).where(WebAuthnChallenge.challenge == key)).first()
     if row is None:
         raise PasskeyRefused("challenge unknown or already used")
     stale = row.expires_at <= _now()
     wrong_kind = row.kind != kind
-    wrong_owner = kind == "register" and (player_id is None or row.player_id != int(player_id))
+    wrong_owner = kind == KIND_REGISTER and (player_id is None or row.player_id != int(player_id))
+    # An intent lives and dies with its challenge (E2): whatever takes the challenge — this
+    # ceremony, the other one by mistake — takes the intent with it, in the same commit.
+    s.exec(delete(RegistrationIntent).where(RegistrationIntent.challenge_id == int(row.id)))
     result = s.exec(delete(WebAuthnChallenge).where(WebAuthnChallenge.id == int(row.id)))
     s.commit()
     if int(getattr(result, "rowcount", 0) or 0) != 1:
@@ -206,10 +242,16 @@ def _take_challenge(s: Session, *, challenge: bytes, kind: str, player_id: int |
         raise PasskeyRefused("registration challenge belongs to another account")
 
 
+
 def sweep_expired_challenges(s: Session) -> int:
-    """Drop every challenge past its expiry. Called from the options endpoints — cheap, and
-    it keeps the table the size of the last five minutes."""
-    result = s.exec(delete(WebAuthnChallenge).where(WebAuthnChallenge.expires_at <= _now()))
+    """Drop every challenge past its expiry, and first every `RegistrationIntent` whose
+    challenge is expired or already gone (E2) — an intent lives and dies with its challenge.
+    Called from the options endpoints — cheap, and it keeps the tables the size of the last
+    five minutes. Returns the number of challenges dropped."""
+    now = _now()
+    live_ids = select(WebAuthnChallenge.id).where(WebAuthnChallenge.expires_at > now)
+    s.exec(delete(RegistrationIntent).where(RegistrationIntent.challenge_id.not_in(live_ids)).execution_options(synchronize_session=False))
+    result = s.exec(delete(WebAuthnChallenge).where(WebAuthnChallenge.expires_at <= now))
     s.commit()
     return int(getattr(result, "rowcount", 0) or 0)
 
@@ -221,11 +263,21 @@ def _user_handle_bytes(account: Account) -> bytes:
     return base64url_to_bytes(str(account.webauthn_user_handle))
 
 
+_AUTHENTICATOR_SELECTION = AuthenticatorSelectionCriteria(
+    resident_key=ResidentKeyRequirement.REQUIRED,
+    user_verification=UserVerificationRequirement.REQUIRED,
+)
+
+
 def registration_options(s: Session, account: Account, player: Player, rp: RelyingParty) -> dict[str, Any]:
     """Mint a registration challenge and answer the options JSON for
     `navigator.credentials.create()`: a resident key and user verification **required**
     (discoverable, Face ID / PIN enforced at verification too), the account's own random
-    user handle as `user.id`, and the player's existing credentials excluded."""
+    user handle as `user.id`, and the player's existing credentials excluded.
+
+    Bound to the account: the challenge row carries its player id, and `take_challenge`
+    refuses it for any other. The logged-in register pair and the reset-token pair (E2)
+    both mint through here — a reset link and a session are two ways to the same account."""
     existing = list_passkeys(s, int(account.player_id))
     options = generate_registration_options(
         rp_id=rp.rp_id,
@@ -233,15 +285,53 @@ def registration_options(s: Session, account: Account, player: Player, rp: Relyi
         user_id=_user_handle_bytes(account),
         user_name=str(player.display_name),
         user_display_name=str(player.display_name),
-        authenticator_selection=AuthenticatorSelectionCriteria(
-            resident_key=ResidentKeyRequirement.REQUIRED,
-            user_verification=UserVerificationRequirement.REQUIRED,
-        ),
+        authenticator_selection=_AUTHENTICATOR_SELECTION,
         exclude_credentials=[
             PublicKeyCredentialDescriptor(id=base64url_to_bytes(row.credential_id), transports=_transports(row)) for row in existing
         ],
     )
-    _mint_challenge(s, challenge=options.challenge, kind="register", player_id=int(account.player_id))
+    _mint_challenge(s, challenge=options.challenge, kind=KIND_REGISTER, player_id=int(account.player_id))
+    return options_to_json_dict(options)
+
+
+def new_registration_options(s: Session, rp: RelyingParty, *, invite_id: int, display_name: str) -> dict[str, Any]:
+    """Options for a passkey-only registration (E2): the account does not exist yet, so the
+    user handle is minted here, and what the ceremony has to remember — the invite, the
+    checked name, that handle — is a `RegistrationIntent` beside a `kind="register-new"`
+    challenge with no player. Both rows in one commit. Nothing about the person exists
+    after this call: no `Player`, no `Account`, the code unspent.
+
+    The caller has already validated the code and the name; they are stored here so the
+    verify step re-checks *these* and never anything the client sends again."""
+    handle = new_webauthn_user_handle()
+    options = generate_registration_options(
+        rp_id=rp.rp_id,
+        rp_name=rp.rp_name,
+        user_id=base64url_to_bytes(handle),
+        user_name=str(display_name),
+        user_display_name=str(display_name),
+        authenticator_selection=_AUTHENTICATOR_SELECTION,
+    )
+    now = _now()
+    challenge = WebAuthnChallenge(
+        challenge=bytes_to_base64url(options.challenge),
+        kind=KIND_REGISTER_NEW,
+        player_id=None,
+        expires_at=now + CHALLENGE_TTL,
+        created_at=now,
+    )
+    s.add(challenge)
+    s.flush()
+    s.add(
+        RegistrationIntent(
+            challenge_id=int(challenge.id),
+            invite_id=int(invite_id),
+            display_name=str(display_name),
+            user_handle=handle,
+            created_at=now,
+        )
+    )
+    s.commit()
     return options_to_json_dict(options)
 
 
@@ -261,22 +351,23 @@ def _transports(row: Passkey) -> list[AuthenticatorTransport] | None:
     return out or None
 
 
-def verify_registration(s: Session, account: Account, rp: RelyingParty, credential: Any, *, label: str, user_agent_label: str) -> Passkey:
-    """Verify the browser's `create()` answer and store the credential.
-
-    Order matters: the challenge is taken (deleted, committed) **before** the library
-    verifies anything; a credential id that is already stored is a `PasskeyConflict`
-    (409); every other failure is `PasskeyRefused` with the reason for the log."""
+def parse_registration(credential: Any) -> tuple[RegistrationCredential, Any]:
+    """The browser's `create()` answer as the library's structs: the credential and its
+    collected client data (which carries the challenge). Malformed → `PasskeyRefused`."""
     try:
         parsed = parse_registration_credential_json(credential)
         client_data = parse_client_data_json(parsed.response.client_data_json)
     except (WebAuthnException, ValueError, TypeError) as exc:
         raise PasskeyRefused(f"malformed registration credential: {exc}") from exc
+    return parsed, client_data
 
-    _take_challenge(s, challenge=client_data.challenge, kind="register", player_id=int(account.player_id))
 
+def verified_registration(rp: RelyingParty, parsed: RegistrationCredential, client_data: Any) -> VerifiedRegistration:
+    """The library's verification — origin, rpID hash, the user-verified flag, the
+    attestation — and nothing else: no store, no session, no commit. The challenge must
+    already have been taken."""
     try:
-        verified = verify_registration_response(
+        return verify_registration_response(
             credential=parsed,
             expected_challenge=client_data.challenge,
             expected_origin=rp.origin,
@@ -286,6 +377,20 @@ def verify_registration(s: Session, account: Account, rp: RelyingParty, credenti
     except WebAuthnException as exc:
         raise PasskeyRefused(f"registration did not verify: {exc}") from exc
 
+
+def store_passkey(
+    s: Session,
+    account: Account,
+    parsed: RegistrationCredential,
+    verified: VerifiedRegistration,
+    *,
+    label: str,
+    user_agent_label: str,
+) -> Passkey:
+    """The `Passkey` row for a verified credential: a credential id already stored is a
+    `PasskeyConflict` (409). Adds and **flushes, never commits** — the caller decides what
+    else belongs in the same transaction (a spent reset token, a whole new account, the
+    session) and commits once."""
     credential_id = bytes_to_base64url(verified.credential_id)
     if s.exec(select(Passkey.id).where(Passkey.credential_id == credential_id)).first() is not None:
         raise PasskeyConflict()
@@ -304,10 +409,49 @@ def verify_registration(s: Session, account: Account, rp: RelyingParty, credenti
         created_at=_now(),
     )
     s.add(row)
+    s.flush()
+    return row
+
+
+def verify_registration(s: Session, account: Account, rp: RelyingParty, credential: Any, *, label: str, user_agent_label: str) -> Passkey:
+    """Verify the browser's `create()` answer and store the credential — the logged-in
+    case, unchanged in behaviour since L8.
+
+    Order matters: the challenge is taken (deleted, committed) **before** the library
+    verifies anything; a credential id that is already stored is a `PasskeyConflict`
+    (409); every other failure is `PasskeyRefused` with the reason for the log."""
+    parsed, client_data = parse_registration(credential)
+    take_challenge(s, challenge=client_data.challenge, kind=KIND_REGISTER, player_id=int(account.player_id))
+    verified = verified_registration(rp, parsed, client_data)
+    row = store_passkey(s, account, parsed, verified, label=label, user_agent_label=user_agent_label)
     s.commit()
     s.refresh(row)
     log.info("Passkey %s registered for player %s (%s, backed_up=%s)", row.id, account.player_id, row.device_type, row.backed_up)
     return row
+
+
+def take_registration_intent(s: Session, credential: Any) -> tuple[RegistrationIntent, RegistrationCredential, Any]:
+    """The first step of a passkey-only registration's verify (E2): parse the credential,
+    find the intent behind its challenge, and take **both** — the intent's delete rides in
+    the same commit as the challenge's, so a replay finds neither. Returns the intent as a
+    detached copy (the row is gone), the parsed credential and its client data.
+
+    A challenge with no intent behind it (a logged-in registration's, a sign-in's, one
+    already taken) is still taken through `take_challenge`, which refuses it with the real
+    reason for the log — every refusal is one `PasskeyRefused`."""
+    parsed, client_data = parse_registration(credential)
+    key = bytes_to_base64url(client_data.challenge)
+    intent = s.exec(
+        select(RegistrationIntent)
+        .join(WebAuthnChallenge, WebAuthnChallenge.id == RegistrationIntent.challenge_id)
+        .where(WebAuthnChallenge.challenge == key)
+    ).first()
+    if intent is None:
+        take_challenge(s, challenge=client_data.challenge, kind=KIND_REGISTER_NEW, player_id=None)
+        raise PasskeyRefused("challenge has no registration intent")
+    s.expunge(intent)  # keep the values; the row itself goes with the challenge, inside `take_challenge`
+    take_challenge(s, challenge=client_data.challenge, kind=KIND_REGISTER_NEW, player_id=None)
+    return intent, parsed, client_data
 
 
 # ---- sign-in -------------------------------------------------------------------------------
@@ -318,7 +462,7 @@ def authentication_options(s: Session, rp: RelyingParty) -> dict[str, Any]:
     **No `allowCredentials`** — the authenticator offers its discoverable credentials for
     this rpID and the server learns nothing about who is asking."""
     options = generate_authentication_options(rp_id=rp.rp_id, user_verification=UserVerificationRequirement.REQUIRED)
-    _mint_challenge(s, challenge=options.challenge, kind="login", player_id=None)
+    _mint_challenge(s, challenge=options.challenge, kind=KIND_LOGIN, player_id=None)
     payload = options_to_json_dict(options)
     # The library spells "none" as an empty list; the wire says nothing at all, so a reader
     # of the JSON (or of a network trace) cannot mistake it for a list that was filtered.
@@ -339,7 +483,7 @@ def verify_authentication(s: Session, rp: RelyingParty, credential: Any) -> tupl
     except (WebAuthnException, ValueError, TypeError) as exc:
         raise PasskeyRefused(f"malformed assertion: {exc}") from exc
 
-    _take_challenge(s, challenge=client_data.challenge, kind="login", player_id=None)
+    take_challenge(s, challenge=client_data.challenge, kind=KIND_LOGIN, player_id=None)
 
     credential_id = bytes_to_base64url(parsed.raw_id)
     row = s.exec(select(Passkey).where(Passkey.credential_id == credential_id)).first()
